@@ -284,7 +284,7 @@ function WorkspaceTableSection() {
       })),
     )
 
-  const records = sheetDetail?.records ?? []
+  const records = useMemo(() => sheetDetail?.records ?? [], [sheetDetail])
   const selectedPersonnelIdSet = useMemo(
     () => new Set(selectedPersonnelIds),
     [selectedPersonnelIds],

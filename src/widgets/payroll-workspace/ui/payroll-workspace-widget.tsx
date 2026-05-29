@@ -1,10 +1,8 @@
-import { useEffect, useMemo } from "react"
+import { lazy, startTransition, Suspense, useEffect, useMemo } from "react"
 import { BadgePlus, CircleDollarSign, UsersRound } from "lucide-react"
 import { useShallow } from "zustand/react/shallow"
 
-import { CreatePayrollSheetDialog } from "@/features/create-payroll-sheet/ui/create-payroll-sheet-dialog"
 import { PayrollRecordTable } from "@/features/edit-payroll-record/ui/payroll-record-table"
-import { PersonnelPickerDialog } from "@/features/manage-personnel/ui/personnel-picker-dialog"
 import { formatMoney } from "@/shared/lib/formatters"
 import {
   EmptyPanel,
@@ -22,6 +20,40 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+
+const CreatePayrollSheetDialog = lazy(async () => {
+  const module = await import(
+    "@/features/create-payroll-sheet/ui/create-payroll-sheet-dialog"
+  )
+
+  return { default: module.CreatePayrollSheetDialog }
+})
+
+const PersonnelPickerDialog = lazy(async () => {
+  const module = await import(
+    "@/features/manage-personnel/ui/personnel-picker-dialog"
+  )
+
+  return { default: module.PersonnelPickerDialog }
+})
+
+function preloadCreatePayrollSheetDialog() {
+  void import("@/features/create-payroll-sheet/ui/create-payroll-sheet-dialog")
+}
+
+function preloadPersonnelPickerDialog() {
+  void import("@/features/manage-personnel/ui/personnel-picker-dialog")
+}
+
+function DialogFallback() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/12 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white/92 p-6 shadow-2xl shadow-slate-900/15">
+        <LoadingState label="正在加载弹窗..." />
+      </div>
+    </div>
+  )
+}
 
 export function PayrollWorkspaceWidget() {
   const {
@@ -122,6 +154,18 @@ export function PayrollWorkspaceWidget() {
     isCreatingPersonnel ||
     isAddingPersonnel ||
     isRemovingPersonnel
+  const openCreateSheetDialog = () => {
+    preloadCreatePayrollSheetDialog()
+    startTransition(() => {
+      setCreateSheetOpen(true)
+    })
+  }
+  const openPersonnelDialog = () => {
+    preloadPersonnelPickerDialog()
+    startTransition(() => {
+      setPersonnelDialogOpen(true)
+    })
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(61,123,158,0.22),transparent_32%),linear-gradient(120deg,rgba(247,242,230,0.86),transparent_55%)] px-4 py-5 text-slate-900 md:px-6">
@@ -129,7 +173,7 @@ export function PayrollWorkspaceWidget() {
         <section className="flex w-full max-w-sm flex-col gap-4">
           <PayrollSheetList
             isLoading={isWorkspaceLoading}
-            onCreate={() => setCreateSheetOpen(true)}
+            onCreate={openCreateSheetDialog}
             onSelect={(sheetId) => {
               clearFeedback()
               void selectSheet(sheetId)
@@ -158,7 +202,9 @@ export function PayrollWorkspaceWidget() {
                     variant="outline"
                     className="rounded-full px-4"
                     disabled={selectedSheetId === null}
-                    onClick={() => setPersonnelDialogOpen(true)}
+                    onClick={openPersonnelDialog}
+                    onFocus={preloadPersonnelPickerDialog}
+                    onMouseEnter={preloadPersonnelPickerDialog}
                   >
                     <UsersRound className="size-4" />
                     从人员库添加
@@ -189,7 +235,7 @@ export function PayrollWorkspaceWidget() {
                   title="工资工作台已就绪"
                   description="创建一张工资表后，你就可以从往期导入人员，或者从人员库多选加入，然后直接录入实发工资。"
                   actionLabel="创建工资表"
-                  onAction={() => setCreateSheetOpen(true)}
+                  onAction={openCreateSheetDialog}
                 />
               ) : isDetailLoading ? (
                 <LoadingState label="正在读取当前工资表..." />
@@ -233,7 +279,7 @@ export function PayrollWorkspaceWidget() {
                   title="这张工资表还没有人员"
                   description="从人员库多选加入，或新建人员后直接加入到当前工资表。"
                   actionLabel="从人员库添加"
-                  onAction={() => setPersonnelDialogOpen(true)}
+                  onAction={openPersonnelDialog}
                 />
               )}
             </CardContent>
@@ -241,39 +287,45 @@ export function PayrollWorkspaceWidget() {
         </section>
       </div>
 
-      <CreatePayrollSheetDialog
-        isBusy={isBusy}
-        onOpenChange={setCreateSheetOpen}
-        onSubmit={async (values) =>
-          createSheet({
-            name: values.name,
-            sourceSheetId: values.sourceSheetId
-              ? Number(values.sourceSheetId)
-              : null,
-          })
-        }
-        open={isCreateSheetOpen}
-        sheets={sheets}
-      />
+      <Suspense fallback={<DialogFallback />}>
+        {isCreateSheetOpen ? (
+          <CreatePayrollSheetDialog
+            isBusy={isBusy}
+            onOpenChange={setCreateSheetOpen}
+            onSubmit={async (values) =>
+              createSheet({
+                name: values.name,
+                sourceSheetId: values.sourceSheetId
+                  ? Number(values.sourceSheetId)
+                  : null,
+              })
+            }
+            open={isCreateSheetOpen}
+            sheets={sheets}
+          />
+        ) : null}
 
-      <PersonnelPickerDialog
-        currentSheetPersonIds={currentSheetPersonIds}
-        isBusy={isBusy || selectedSheetId === null}
-        onAddSelected={addSelectedPersonnelToSheet}
-        onCreatePersonnel={async (values) =>
-          createPersonnelRecord({
-            name: values.name,
-            jobType: values.jobType || null,
-            phoneNumber: values.phoneNumber || null,
-          })
-        }
-        onOpenChange={setPersonnelDialogOpen}
-        onToggleSelection={togglePickerSelection}
-        open={isPersonnelDialogOpen}
-        personnel={personnel}
-        pickerSelection={pickerSelection}
-        pickerSelectionSet={pickerSelectionSet}
-      />
+        {isPersonnelDialogOpen ? (
+          <PersonnelPickerDialog
+            currentSheetPersonIds={currentSheetPersonIds}
+            isBusy={isBusy || selectedSheetId === null}
+            onAddSelected={addSelectedPersonnelToSheet}
+            onCreatePersonnel={async (values) =>
+              createPersonnelRecord({
+                name: values.name,
+                jobType: values.jobType || null,
+                phoneNumber: values.phoneNumber || null,
+              })
+            }
+            onOpenChange={setPersonnelDialogOpen}
+            onToggleSelection={togglePickerSelection}
+            open={isPersonnelDialogOpen}
+            personnel={personnel}
+            pickerSelection={pickerSelection}
+            pickerSelectionSet={pickerSelectionSet}
+          />
+        ) : null}
+      </Suspense>
     </main>
   )
 }

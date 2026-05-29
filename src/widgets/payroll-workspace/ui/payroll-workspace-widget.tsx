@@ -174,6 +174,7 @@ export function PayrollWorkspaceWidget() {
           <PayrollSheetList
             isLoading={isWorkspaceLoading}
             onCreate={openCreateSheetDialog}
+            onCreateIntent={preloadCreatePayrollSheetDialog}
             onSelect={(sheetId) => {
               clearFeedback()
               void selectSheet(sheetId)
@@ -236,6 +237,7 @@ export function PayrollWorkspaceWidget() {
                   description="创建一张工资表后，你就可以从往期导入人员，或者从人员库多选加入，然后直接录入实发工资。"
                   actionLabel="创建工资表"
                   onAction={openCreateSheetDialog}
+                  onActionIntent={preloadCreatePayrollSheetDialog}
                 />
               ) : isDetailLoading ? (
                 <LoadingState label="正在读取当前工资表..." />
@@ -280,6 +282,7 @@ export function PayrollWorkspaceWidget() {
                   description="从人员库多选加入，或新建人员后直接加入到当前工资表。"
                   actionLabel="从人员库添加"
                   onAction={openPersonnelDialog}
+                  onActionIntent={preloadPersonnelPickerDialog}
                 />
               )}
             </CardContent>

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 type PayrollSheetListProps = {
   isLoading: boolean
   onCreate: () => void
+  onCreateIntent?: () => void
   onSelect: (sheetId: number) => void
   selectedSheetId: number | null
   sheets: PayrollSheetSummary[]
@@ -24,6 +25,7 @@ type PayrollSheetListProps = {
 export function PayrollSheetList({
   isLoading,
   onCreate,
+  onCreateIntent,
   onSelect,
   selectedSheetId,
   sheets,
@@ -44,7 +46,13 @@ export function PayrollSheetList({
               按期管理工资表，支持从往期复制人员名单。
             </CardDescription>
           </div>
-          <Button size="sm" className="rounded-full px-4" onClick={onCreate}>
+          <Button
+            size="sm"
+            className="rounded-full px-4"
+            onClick={onCreate}
+            onFocus={onCreateIntent}
+            onMouseEnter={onCreateIntent}
+          >
             <Plus className="size-4" />
             新建
           </Button>

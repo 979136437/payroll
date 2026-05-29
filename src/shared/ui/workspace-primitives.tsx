@@ -43,6 +43,7 @@ type EmptyPanelProps = {
   actionLabel: string
   description: string
   onAction: () => void
+  onActionIntent?: () => void
   title: string
 }
 
@@ -50,6 +51,7 @@ export function EmptyPanel({
   actionLabel,
   description,
   onAction,
+  onActionIntent,
   title,
 }: EmptyPanelProps) {
   return (
@@ -58,7 +60,12 @@ export function EmptyPanel({
         <p className="text-xl font-semibold tracking-tight text-slate-950">{title}</p>
         <p className="text-sm leading-7 text-muted-foreground">{description}</p>
       </div>
-      <Button className="mt-6 rounded-full px-5" onClick={onAction}>
+      <Button
+        className="mt-6 rounded-full px-5"
+        onClick={onAction}
+        onFocus={onActionIntent}
+        onMouseEnter={onActionIntent}
+      >
         {actionLabel}
       </Button>
     </div>

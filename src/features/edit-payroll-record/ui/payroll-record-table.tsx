@@ -144,7 +144,6 @@ export function PayrollRecordTable({
     ],
   )
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   // TanStack Table manages its own non-memoizable internals; we keep inputs stable around it.
   const table = useReactTable({
     data: records,

@@ -19,4 +19,10 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['src/features/edit-payroll-record/ui/payroll-record-table.tsx'],
+    rules: {
+      'react-hooks/incompatible-library': 'off',
+    },
+  },
 ])

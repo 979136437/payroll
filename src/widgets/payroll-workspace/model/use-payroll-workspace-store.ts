@@ -20,24 +20,6 @@ import {
 } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { formatCurrencyInput, readableError } from "@/shared/lib/formatters"
 
-const COPY = {
-  addPersonnelFailed: "\u52a0\u5165\u4eba\u5458\u5931\u8d25",
-  createdPersonnel: "\u4eba\u5458\u5df2\u65b0\u589e\u5230\u4eba\u5458\u5e93",
-  createdSheet: "\u5de5\u8d44\u8868\u5df2\u521b\u5efa",
-  createPersonnelFailed: "\u65b0\u589e\u4eba\u5458\u5931\u8d25",
-  createSheetFailed: "\u521b\u5efa\u5de5\u8d44\u8868\u5931\u8d25",
-  currentSelectionExists:
-    "\u6240\u9009\u4eba\u5458\u5df2\u5728\u5f53\u524d\u5de5\u8d44\u8868\u4e2d",
-  invalidSalary: "\u8bf7\u8f93\u5165\u6709\u6548\u7684\u5de5\u8d44\u91d1\u989d",
-  loadWorkspaceFailed: "\u8bfb\u53d6\u5de5\u8d44\u5de5\u4f5c\u53f0\u5931\u8d25",
-  removedPersonnel: "\u5df2\u79fb\u9664\u9009\u4e2d\u4eba\u5458",
-  removePersonnelFailed: "\u79fb\u9664\u4eba\u5458\u5931\u8d25",
-  savePayFailed: "\u4fdd\u5b58\u5de5\u8d44\u5931\u8d25",
-  savedPay: "\u5de5\u8d44\u5df2\u4fdd\u5b58",
-  savedPayFor: "\u5df2\u4fdd\u5b58 {name} \u7684\u5de5\u8d44",
-  sheetPersonnelAdded: "\u4eba\u5458\u5df2\u52a0\u5165\u5f53\u524d\u5de5\u8d44\u8868",
-}
-
 type PayrollWorkspaceStore = {
   errorMessage: string | null
   hasInitialized: boolean
@@ -110,9 +92,7 @@ function uniqueIds(ids: number[]) {
 }
 
 function paySavedMessage(name?: string | null) {
-  return name
-    ? COPY.savedPayFor.replace("{name}", name)
-    : COPY.savedPay
+  return name ? `已保存 ${name} 的工资` : "工资已保存"
 }
 
 export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
@@ -211,7 +191,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
         }
 
         set({
-          errorMessage: readableError(error, COPY.loadWorkspaceFailed),
+          errorMessage: readableError(error, "读取工资工作台失败"),
           isDetailLoading: false,
           notice: null,
         })
@@ -290,14 +270,14 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
 
         set({
           isCreateSheetOpen: false,
-          notice: COPY.createdSheet,
+          notice: "工资表已创建",
         })
 
         await get().refreshWorkspace(created.id)
         return true
       } catch (error) {
         set({
-          errorMessage: readableError(error, COPY.createSheetFailed),
+          errorMessage: readableError(error, "创建工资表失败"),
           notice: null,
         })
         return false
@@ -318,7 +298,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
         const personnel = await listPersonnel()
 
         set((state) => ({
-          notice: COPY.createdPersonnel,
+          notice: "人员已新增到人员库",
           personnel,
           pickerSelection: state.pickerSelection.includes(created.id)
             ? state.pickerSelection
@@ -328,7 +308,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
         return true
       } catch (error) {
         set({
-          errorMessage: readableError(error, COPY.createPersonnelFailed),
+          errorMessage: readableError(error, "新增人员失败"),
           notice: null,
         })
         return false
@@ -354,7 +334,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
       if (nextPersonnelIds.length === 0) {
         set({
           isPersonnelDialogOpen: false,
-          notice: COPY.currentSelectionExists,
+          notice: "所选人员已在当前工资表中",
           pickerSelection: [],
         })
         return
@@ -371,14 +351,14 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
 
         set({
           isPersonnelDialogOpen: false,
-          notice: COPY.sheetPersonnelAdded,
+          notice: "人员已加入当前工资表",
           pickerSelection: [],
         })
 
         await get().refreshWorkspace(selectedSheetId)
       } catch (error) {
         set({
-          errorMessage: readableError(error, COPY.addPersonnelFailed),
+          errorMessage: readableError(error, "加入人员失败"),
           notice: null,
         })
       } finally {
@@ -403,14 +383,14 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
         await removePersonnelFromSheet(selectedSheetId, selectedPersonnelIds)
 
         set({
-          notice: COPY.removedPersonnel,
+          notice: "已移除选中人员",
           selectedPersonnelIds: [],
         })
 
         await get().refreshWorkspace(selectedSheetId)
       } catch (error) {
         set({
-          errorMessage: readableError(error, COPY.removePersonnelFailed),
+          errorMessage: readableError(error, "移除人员失败"),
           notice: null,
         })
       } finally {
@@ -425,7 +405,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
 
       if (Number.isNaN(parsed)) {
         set((state) => ({
-          errorMessage: COPY.invalidSalary,
+          errorMessage: "请输入有效的工资金额",
           salaryDrafts: {
             ...state.salaryDrafts,
             [record.recordId]: formatCurrencyInput(record.netPay),
@@ -458,7 +438,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
         await get().refreshWorkspace(get().selectedSheetId)
       } catch (error) {
         set((state) => ({
-          errorMessage: readableError(error, COPY.savePayFailed),
+          errorMessage: readableError(error, "保存工资失败"),
           notice: null,
           salaryDrafts: {
             ...state.salaryDrafts,

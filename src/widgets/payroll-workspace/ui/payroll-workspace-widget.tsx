@@ -23,29 +23,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-const COPY = {
-  addFromPersonnel: "\u4ece\u4eba\u5458\u5e93\u6dfb\u52a0",
-  batchRemove: "\u6279\u91cf\u79fb\u9664",
-  currentCount: "\u5f53\u524d\u4eba\u6570",
-  createSheet: "\u521b\u5efa\u5de5\u8d44\u8868",
-  emptySheetDescription:
-    "\u4ece\u4eba\u5458\u5e93\u591a\u9009\u52a0\u5165\uff0c\u6216\u65b0\u5efa\u4eba\u5458\u540e\u76f4\u63a5\u52a0\u5165\u5230\u5f53\u524d\u5de5\u8d44\u8868\u3002",
-  emptySheetTitle: "\u8fd9\u5f20\u5de5\u8d44\u8868\u8fd8\u6ca1\u6709\u4eba\u5458",
-  loadingDetail: "\u6b63\u5728\u8bfb\u53d6\u5f53\u524d\u5de5\u8d44\u8868...",
-  loadingWorkspace: "\u6b63\u5728\u8bfb\u53d6\u5de5\u8d44\u8be6\u60c5...",
-  salaryEntry: "\u5de5\u8d44\u5f55\u5165",
-  selectionCount: "\u6279\u91cf\u9009\u62e9",
-  sheetDescription:
-    "\u5728\u5f53\u524d\u5de5\u8d44\u8868\u91cc\u7ef4\u62a4\u4eba\u5458\u540d\u5355\uff0c\u5e76\u9010\u4eba\u5f55\u5165\u5b9e\u53d1\u5de5\u8d44\u3002",
-  totalPay: "\u5de5\u8d44\u5408\u8ba1",
-  workspaceEmptyDescription:
-    "\u521b\u5efa\u4e00\u5f20\u5de5\u8d44\u8868\u540e\uff0c\u4f60\u5c31\u53ef\u4ee5\u4ece\u5f80\u671f\u5bfc\u5165\u4eba\u5458\uff0c\u6216\u8005\u4ece\u4eba\u5458\u5e93\u591a\u9009\u52a0\u5165\uff0c\u7136\u540e\u76f4\u63a5\u5f55\u5165\u5b9e\u53d1\u5de5\u8d44\u3002",
-  workspaceEmptyTitle: "\u5de5\u8d44\u5de5\u4f5c\u53f0\u5df2\u5c31\u7eea",
-  workspacePrompt:
-    "\u521b\u5efa\u5de5\u8d44\u8868\u540e\uff0c\u53ef\u4ee5\u4ece\u5f80\u671f\u5bfc\u5165\u4eba\u5458\uff0c\u6216\u8005\u4ece\u4eba\u5458\u5e93\u591a\u9009\u52a0\u5165\u3002",
-  yuanPrefix: "\u00a5",
-}
-
 export function PayrollWorkspaceWidget() {
   const {
     addSelectedPersonnelToSheet,
@@ -135,7 +112,7 @@ export function PayrollWorkspaceWidget() {
     isRemovingPersonnel
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,123,158,0.22),_transparent_32%),linear-gradient(120deg,_rgba(247,242,230,0.86),_transparent_55%)] px-4 py-5 text-slate-900 md:px-6">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(61,123,158,0.22),transparent_32%),linear-gradient(120deg,rgba(247,242,230,0.86),transparent_55%)] px-4 py-5 text-slate-900 md:px-6">
       <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-7xl gap-4">
         <section className="flex w-full max-w-sm flex-col gap-4">
           <PayrollSheetList
@@ -156,12 +133,12 @@ export function PayrollWorkspaceWidget() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-2">
                   <CardTitle className="text-3xl font-semibold tracking-tight">
-                    {selectedSheetSummary?.name ?? COPY.salaryEntry}
+                    {selectedSheetSummary?.name ?? "工资录入"}
                   </CardTitle>
                   <CardDescription className="max-w-2xl text-sm leading-6">
                     {selectedSheetSummary
-                      ? COPY.sheetDescription
-                      : COPY.workspacePrompt}
+                      ? "在当前工资表里维护人员名单，并逐人录入实发工资。"
+                      : "创建工资表后，可以从往期导入人员，或者从人员库多选加入。"}
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -172,7 +149,7 @@ export function PayrollWorkspaceWidget() {
                     onClick={() => setPersonnelDialogOpen(true)}
                   >
                     <UsersRound className="size-4" />
-                    {COPY.addFromPersonnel}
+                    从人员库添加
                   </Button>
                   <Button
                     variant="destructive"
@@ -182,7 +159,7 @@ export function PayrollWorkspaceWidget() {
                     }
                     onClick={() => void removeSelectedPersonnelFromSheet()}
                   >
-                    {COPY.batchRemove}
+                    批量移除
                   </Button>
                 </div>
               </div>
@@ -194,28 +171,28 @@ export function PayrollWorkspaceWidget() {
               {notice ? <MessageBar variant="notice">{notice}</MessageBar> : null}
 
               {isWorkspaceLoading ? (
-                <LoadingState label={COPY.loadingWorkspace} />
+                <LoadingState label="正在读取工资详情..." />
               ) : !selectedSheetSummary ? (
                 <EmptyPanel
-                  title={COPY.workspaceEmptyTitle}
-                  description={COPY.workspaceEmptyDescription}
-                  actionLabel={COPY.createSheet}
+                  title="工资工作台已就绪"
+                  description="创建一张工资表后，你就可以从往期导入人员，或者从人员库多选加入，然后直接录入实发工资。"
+                  actionLabel="创建工资表"
                   onAction={() => setCreateSheetOpen(true)}
                 />
               ) : isDetailLoading ? (
-                <LoadingState label={COPY.loadingDetail} />
+                <LoadingState label="正在读取当前工资表..." />
               ) : sheetDetail?.records.length ? (
                 <>
                   <div className="grid gap-3 md:grid-cols-3">
                     <SummaryTile
                       icon={<UsersRound className="size-4" />}
-                      label={COPY.currentCount}
-                      value={`${sheetDetail.records.length} \u4eba`}
+                      label="当前人数"
+                      value={`${sheetDetail.records.length} 人`}
                     />
                     <SummaryTile
                       icon={<CircleDollarSign className="size-4" />}
-                      label={COPY.totalPay}
-                      value={`${COPY.yuanPrefix} ${formatMoney(
+                      label="工资合计"
+                      value={`¥ ${formatMoney(
                         sheetDetail.records.reduce(
                           (sum, record) => sum + record.netPay,
                           0,
@@ -224,8 +201,8 @@ export function PayrollWorkspaceWidget() {
                     />
                     <SummaryTile
                       icon={<BadgePlus className="size-4" />}
-                      label={COPY.selectionCount}
-                      value={`${selectedPersonnelIds.length} \u4eba`}
+                      label="批量选择"
+                      value={`${selectedPersonnelIds.length} 人`}
                     />
                   </div>
 
@@ -241,9 +218,9 @@ export function PayrollWorkspaceWidget() {
                 </>
               ) : (
                 <EmptyPanel
-                  title={COPY.emptySheetTitle}
-                  description={COPY.emptySheetDescription}
-                  actionLabel={COPY.addFromPersonnel}
+                  title="这张工资表还没有人员"
+                  description="从人员库多选加入，或新建人员后直接加入到当前工资表。"
+                  actionLabel="从人员库添加"
                   onAction={() => setPersonnelDialogOpen(true)}
                 />
               )}

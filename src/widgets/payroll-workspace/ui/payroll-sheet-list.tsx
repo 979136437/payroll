@@ -13,20 +13,6 @@ import {
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-const COPY = {
-  create: "\u65b0\u5efa",
-  createSheet: "\u521b\u5efa\u5de5\u8d44\u8868",
-  description:
-    "\u6309\u671f\u7ba1\u7406\u5de5\u8d44\u8868\uff0c\u652f\u6301\u4ece\u5f80\u671f\u590d\u5236\u4eba\u5458\u540d\u5355\u3002",
-  emptyDescription:
-    "\u5148\u521b\u5efa\u7b2c\u4e00\u5f20\u5de5\u8d44\u8868\uff0c\u518d\u5f00\u59cb\u5bfc\u5165\u4eba\u5458\u548c\u5f55\u5165\u5b9e\u53d1\u5de5\u8d44\u3002",
-  emptyTitle: "\u8fd8\u6ca1\u6709\u5de5\u8d44\u8868",
-  loading: "\u6b63\u5728\u8bfb\u53d6\u5de5\u8d44\u8868...",
-  recentUpdate: "\u6700\u8fd1\u66f4\u65b0",
-  title: "\u5de5\u8d44\u8868\u5217\u8868",
-  workspace: "\u5de5\u8d44\u5de5\u4f5c\u53f0",
-}
-
 type PayrollSheetListProps = {
   isLoading: boolean
   onCreate: () => void
@@ -49,22 +35,24 @@ export function PayrollSheetList({
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
               <WalletCards className="size-4" />
-              {COPY.workspace}
+              工资工作台
             </div>
             <CardTitle className="text-2xl font-semibold tracking-tight">
-              {COPY.title}
+              工资表列表
             </CardTitle>
-            <CardDescription>{COPY.description}</CardDescription>
+            <CardDescription>
+              按期管理工资表，支持从往期复制人员名单。
+            </CardDescription>
           </div>
           <Button size="sm" className="rounded-full px-4" onClick={onCreate}>
             <Plus className="size-4" />
-            {COPY.create}
+            新建
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 px-3 pb-3">
         {isLoading ? (
-          <LoadingState label={COPY.loading} />
+          <LoadingState label="正在读取工资表..." />
         ) : sheets.length > 0 ? (
           sheets.map((sheet) => {
             const isActive = sheet.id === selectedSheetId
@@ -87,11 +75,11 @@ export function PayrollSheetList({
                       {sheet.name}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {COPY.recentUpdate} {formatTimestamp(sheet.updatedAt)}
+                      最近更新 {formatTimestamp(sheet.updatedAt)}
                     </p>
                   </div>
                   <div className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                    {sheet.personnelCount} \u4eba
+                    {sheet.personnelCount} 人
                   </div>
                 </div>
               </button>
@@ -99,9 +87,9 @@ export function PayrollSheetList({
           })
         ) : (
           <EmptyPanel
-            title={COPY.emptyTitle}
-            description={COPY.emptyDescription}
-            actionLabel={COPY.createSheet}
+            title="还没有工资表"
+            description="先创建第一张工资表，再开始导入人员和录入实发工资。"
+            actionLabel="创建工资表"
             onAction={onCreate}
           />
         )}

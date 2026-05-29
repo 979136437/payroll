@@ -12,33 +12,6 @@ import { Field } from "@/shared/ui/workspace-primitives"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-const COPY = {
-  addToSheet: "\u52a0\u5165\u5f53\u524d\u5de5\u8d44\u8868",
-  addedCount: "\u5df2\u9009",
-  close: "\u5173\u95ed",
-  currentSheetOnly:
-    "\u5df2\u5728\u5f53\u524d\u5de5\u8d44\u8868\u4e2d\u7684\u4eba\u5458\u4f1a\u663e\u793a\u4e3a\u4e0d\u53ef\u91cd\u590d\u52a0\u5165\u3002",
-  description:
-    "\u53ef\u4ee5\u5148\u591a\u9009\u5df2\u6709\u4eba\u5458\uff0c\u4e5f\u53ef\u4ee5\u987a\u624b\u65b0\u589e\u4e00\u4e2a\u57fa\u7840\u4eba\u5458\u3002",
-  disabledBadge: "\u5df2\u5728\u5f53\u524d\u5de5\u8d44\u8868",
-  emptyJobType: "\u672a\u586b\u5de5\u79cd",
-  emptyPhone: "\u672a\u586b\u7535\u8bdd",
-  emptyPersonnel:
-    "\u4eba\u5458\u5e93\u8fd8\u662f\u7a7a\u7684\uff0c\u5148\u5728\u53f3\u4fa7\u65b0\u589e\u4e00\u4e2a\u57fa\u7840\u4eba\u5458\u3002",
-  helpText:
-    "\u7b2c\u4e00\u7248\u53ea\u6536\u6700\u57fa\u7840\u4fe1\u606f\uff0c\u540e\u9762\u53ef\u4ee5\u7ee7\u7eed\u8865\u5b8c\u6574\u4eba\u5458\u8d44\u6599\u3002",
-  jobTypeLabel: "\u5de5\u79cd",
-  jobTypePlaceholder: "\u4f8b\u5982\uff1a\u74e6\u5de5",
-  manualCreate: "\u624b\u5de5\u65b0\u589e\u4eba\u5458",
-  nameLabel: "\u59d3\u540d",
-  namePlaceholder: "\u4f8b\u5982\uff1a\u5f20\u4e09",
-  personnelLibrary: "\u4eba\u5458\u5e93",
-  phoneLabel: "\u7535\u8bdd",
-  phonePlaceholder: "\u4f8b\u5982\uff1a13800000000",
-  pickerTitle: "\u4ece\u4eba\u5458\u5e93\u6dfb\u52a0",
-  submitCreate: "\u65b0\u589e\u5230\u4eba\u5458\u5e93",
-}
-
 type PersonnelPickerDialogProps = {
   currentSheetPersonIds: Set<number>
   isBusy: boolean
@@ -75,23 +48,21 @@ export function PersonnelPickerDialog({
     <ModalShell
       open={open}
       onOpenChange={onOpenChange}
-      title={COPY.pickerTitle}
-      description={COPY.description}
+      title="从人员库添加"
+      description="可以先多选已有人员，也可以顺手新增一个基础人员。"
       wide
     >
       <div className="grid gap-5 lg:grid-cols-[1.25fr_0.9fr]">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-950">
-                {COPY.personnelLibrary}
-              </p>
+              <p className="text-sm font-medium text-slate-950">人员库</p>
               <p className="text-xs text-muted-foreground">
-                {COPY.currentSheetOnly}
+                已在当前工资表中的人员会显示为不可重复加入。
               </p>
             </div>
             <div className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-              {COPY.addedCount} {pickerSelection.length} \u4eba
+              已选 {pickerSelection.length} 人
             </div>
           </div>
 
@@ -125,18 +96,18 @@ export function PersonnelPickerDialog({
                         </p>
                         {disabled ? (
                           <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">
-                            {COPY.disabledBadge}
+                            已在当前工资表
                           </span>
                         ) : null}
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <BriefcaseBusiness className="size-3.5" />
-                          {person.jobType || COPY.emptyJobType}
+                          {person.jobType || "未填工种"}
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <Phone className="size-3.5" />
-                          {person.phoneNumber || COPY.emptyPhone}
+                          {person.phoneNumber || "未填电话"}
                         </span>
                       </div>
                     </div>
@@ -145,7 +116,7 @@ export function PersonnelPickerDialog({
               })
             ) : (
               <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                {COPY.emptyPersonnel}
+                人员库还是空的，先在右侧新增一个基础人员。
               </div>
             )}
           </div>
@@ -156,14 +127,14 @@ export function PersonnelPickerDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              {COPY.close}
+              关闭
             </Button>
             <Button
               type="button"
               disabled={pickerSelection.length === 0 || isBusy}
               onClick={() => void onAddSelected()}
             >
-              {COPY.addToSheet}
+              加入当前工资表
             </Button>
           </div>
         </div>
@@ -178,37 +149,35 @@ export function PersonnelPickerDialog({
           })}
         >
           <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-950">
-              {COPY.manualCreate}
-            </p>
+            <p className="text-sm font-medium text-slate-950">手工新增人员</p>
             <p className="text-xs leading-5 text-muted-foreground">
-              {COPY.helpText}
+              第一版只收最基础信息，后面可以继续补完整人员资料。
             </p>
           </div>
-          <Field label={COPY.nameLabel} error={form.formState.errors.name?.message}>
+          <Field label="姓名" error={form.formState.errors.name?.message}>
             <input
               {...form.register("name")}
               className="h-11 w-full rounded-2xl border border-border/70 bg-background/90 px-4 text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-ring/40"
-              placeholder={COPY.namePlaceholder}
+              placeholder="例如：张三"
             />
           </Field>
-          <Field label={COPY.jobTypeLabel}>
+          <Field label="工种">
             <input
               {...form.register("jobType")}
               className="h-11 w-full rounded-2xl border border-border/70 bg-background/90 px-4 text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-ring/40"
-              placeholder={COPY.jobTypePlaceholder}
+              placeholder="例如：瓦工"
             />
           </Field>
-          <Field label={COPY.phoneLabel}>
+          <Field label="电话">
             <input
               {...form.register("phoneNumber")}
               className="h-11 w-full rounded-2xl border border-border/70 bg-background/90 px-4 text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-ring/40"
-              placeholder={COPY.phonePlaceholder}
+              placeholder="例如：13800000000"
             />
           </Field>
           <Button type="submit" className="w-full" disabled={isBusy}>
             <Plus className="size-4" />
-            {COPY.submitCreate}
+            新增到人员库
           </Button>
         </form>
       </div>

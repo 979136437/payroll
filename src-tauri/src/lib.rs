@@ -1,5 +1,8 @@
 mod db;
 
+use db::{database_path_from_base_dir, open_connection_at_path};
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -11,6 +14,15 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
+      let db_path = database_path_from_base_dir(&app_data_dir);
+      let _connection = open_connection_at_path(&db_path)
+        .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
+
       Ok(())
     })
     .run(tauri::generate_context!())

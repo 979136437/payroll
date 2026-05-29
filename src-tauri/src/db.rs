@@ -226,4 +226,29 @@ mod tests {
 
     assert!(insert.is_err());
   }
+
+  #[test]
+  fn reopening_existing_database_preserves_inserted_data() {
+    let dir = tempdir().unwrap();
+    let db_path = database_path_from_base_dir(dir.path());
+
+    {
+      let conn = open_connection_at_path(&db_path).unwrap();
+      conn
+        .execute(
+          "INSERT INTO payroll_sheet (name, updated_at) VALUES (?1, ?2)",
+          ("May Payroll", "2026-05-29T00:00:00Z"),
+        )
+        .unwrap();
+    }
+
+    {
+      let conn = open_connection_at_path(&db_path).unwrap();
+      let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM payroll_sheet", [], |row| row.get(0))
+        .unwrap();
+
+      assert_eq!(count, 1);
+    }
+  }
 }

@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:workspace-store": "node scripts/run-payroll-workspace-store-test.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

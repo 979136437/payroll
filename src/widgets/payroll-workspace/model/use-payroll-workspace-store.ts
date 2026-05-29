@@ -1,24 +1,17 @@
 import { create } from "zustand"
 
 import {
-  createPersonnel,
-  listPersonnel,
   type CreatePersonnelPayload,
   type Personnel,
 } from "@/entities/personnel/api/personnel"
 import {
-  addPersonnelToSheet,
-  createPayrollSheet,
-  getPayrollSheetDetail,
-  listPayrollSheets,
-  removePersonnelFromSheet,
-  updatePayrollRecordNetPay,
   type CreatePayrollSheetPayload,
   type PayrollRecord,
   type PayrollSheetDetail,
   type PayrollSheetSummary,
 } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { formatCurrencyInput, readableError } from "@/shared/lib/formatters"
+import { payrollWorkspaceApi } from "@/widgets/payroll-workspace/model/workspace-api"
 
 type PayrollWorkspaceStore = {
   errorMessage: string | null
@@ -127,7 +120,9 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
 
       try {
         await get().refreshWorkspace()
-        set({ hasInitialized: true })
+        if (!get().errorMessage) {
+          set({ hasInitialized: true })
+        }
       } finally {
         set({ isBootstrapping: false })
       }
@@ -139,8 +134,8 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
 
       try {
         const [personnel, sheets] = await Promise.all([
-          listPersonnel(),
-          listPayrollSheets(),
+          payrollWorkspaceApi.listPersonnel(),
+          payrollWorkspaceApi.listPayrollSheets(),
         ])
         const nextSheetId = resolveSheetId(
           sheets,
@@ -170,7 +165,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
           return
         }
 
-        const detail = await getPayrollSheetDetail(nextSheetId)
+        const detail = await payrollWorkspaceApi.getPayrollSheetDetail(nextSheetId)
 
         if (requestId !== workspaceRequestId) {
           return
@@ -266,7 +261,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
       })
 
       try {
-        const created = await createPayrollSheet(payload)
+        const created = await payrollWorkspaceApi.createPayrollSheet(payload)
 
         set({
           isCreateSheetOpen: false,
@@ -294,8 +289,8 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
       })
 
       try {
-        const created = await createPersonnel(payload)
-        const personnel = await listPersonnel()
+        const created = await payrollWorkspaceApi.createPersonnel(payload)
+        const personnel = await payrollWorkspaceApi.listPersonnel()
 
         set((state) => ({
           notice: "人员已新增到人员库",
@@ -347,7 +342,10 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
       })
 
       try {
-        await addPersonnelToSheet(selectedSheetId, uniqueIds(nextPersonnelIds))
+        await payrollWorkspaceApi.addPersonnelToSheet(
+          selectedSheetId,
+          uniqueIds(nextPersonnelIds),
+        )
 
         set({
           isPersonnelDialogOpen: false,
@@ -380,7 +378,10 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
       })
 
       try {
-        await removePersonnelFromSheet(selectedSheetId, selectedPersonnelIds)
+        await payrollWorkspaceApi.removePersonnelFromSheet(
+          selectedSheetId,
+          selectedPersonnelIds,
+        )
 
         set({
           notice: "已移除选中人员",
@@ -425,7 +426,10 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
       }))
 
       try {
-        const updated = await updatePayrollRecordNetPay(record.recordId, parsed)
+        const updated = await payrollWorkspaceApi.updatePayrollRecordNetPay(
+          record.recordId,
+          parsed,
+        )
 
         set((state) => ({
           notice: paySavedMessage(updated?.name),

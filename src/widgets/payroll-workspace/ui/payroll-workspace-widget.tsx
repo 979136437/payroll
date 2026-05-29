@@ -103,6 +103,18 @@ export function PayrollWorkspaceWidget() {
       new Set((sheetDetail?.records ?? []).map((record) => record.personnelId)),
     [sheetDetail],
   )
+  const selectedPersonnelIdSet = useMemo(
+    () => new Set(selectedPersonnelIds),
+    [selectedPersonnelIds],
+  )
+  const savingRecordIdSet = useMemo(
+    () => new Set(savingRecordIds),
+    [savingRecordIds],
+  )
+  const pickerSelectionSet = useMemo(
+    () => new Set(pickerSelection),
+    [pickerSelection],
+  )
 
   const isWorkspaceLoading = isBootstrapping
   const isBusy =
@@ -212,8 +224,8 @@ export function PayrollWorkspaceWidget() {
                     onSave={saveNetPay}
                     onToggleSelection={toggleSelectedPersonnel}
                     records={sheetDetail.records}
-                    savingRecordIds={savingRecordIds}
-                    selectedPersonnelIds={selectedPersonnelIds}
+                    savingRecordIdSet={savingRecordIdSet}
+                    selectedPersonnelIdSet={selectedPersonnelIdSet}
                   />
                 </>
               ) : (
@@ -260,6 +272,7 @@ export function PayrollWorkspaceWidget() {
         open={isPersonnelDialogOpen}
         personnel={personnel}
         pickerSelection={pickerSelection}
+        pickerSelectionSet={pickerSelectionSet}
       />
     </main>
   )

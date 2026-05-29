@@ -84,6 +84,10 @@ function uniqueIds(ids: number[]) {
   return [...new Set(ids)]
 }
 
+function buildIdSet(ids: number[]) {
+  return new Set(ids)
+}
+
 function paySavedMessage(name?: string | null) {
   return name ? `已保存 ${name} 的工资` : "工资已保存"
 }
@@ -137,6 +141,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
           payrollWorkspaceApi.listPersonnel(),
           payrollWorkspaceApi.listPayrollSheets(),
         ])
+        const personnelIdSet = buildIdSet(personnel.map((person) => person.id))
         const nextSheetId = resolveSheetId(
           sheets,
           get().selectedSheetId,
@@ -174,7 +179,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
         set({
           isDetailLoading: false,
           pickerSelection: get().pickerSelection.filter((personnelId) =>
-            personnel.some((person) => person.id === personnelId),
+            personnelIdSet.has(personnelId),
           ),
           salaryDrafts: buildSalaryDrafts(detail?.records ?? []),
           selectedPersonnelIds: [],

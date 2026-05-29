@@ -15,8 +15,8 @@ type PayrollRecordTableProps = {
   onSave: (record: PayrollRecord) => Promise<void>
   onToggleSelection: (personnelId: number) => void
   records: PayrollRecord[]
-  savingRecordIds: number[]
-  selectedPersonnelIds: number[]
+  savingRecordIdSet: ReadonlySet<number>
+  selectedPersonnelIdSet: ReadonlySet<number>
 }
 
 const columnHelper = createColumnHelper<PayrollRecord>()
@@ -27,8 +27,8 @@ export function PayrollRecordTable({
   onSave,
   onToggleSelection,
   records,
-  savingRecordIds,
-  selectedPersonnelIds,
+  savingRecordIdSet,
+  selectedPersonnelIdSet,
 }: PayrollRecordTableProps) {
   const columns = useMemo(
     () => [
@@ -39,7 +39,7 @@ export function PayrollRecordTable({
           <label className="flex justify-center">
             <input
               type="checkbox"
-              checked={selectedPersonnelIds.includes(row.original.personnelId)}
+              checked={selectedPersonnelIdSet.has(row.original.personnelId)}
               onChange={() => onToggleSelection(row.original.personnelId)}
               className="size-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
             />
@@ -70,7 +70,7 @@ export function PayrollRecordTable({
         header: () => "实发工资",
         cell: ({ row }) => {
           const record = row.original
-          const isSaving = savingRecordIds.includes(record.recordId)
+          const isSaving = savingRecordIdSet.has(record.recordId)
 
           return (
             <label className="relative block">
@@ -97,8 +97,8 @@ export function PayrollRecordTable({
       onDraftChange,
       onSave,
       onToggleSelection,
-      savingRecordIds,
-      selectedPersonnelIds,
+      savingRecordIdSet,
+      selectedPersonnelIdSet,
     ],
   )
 

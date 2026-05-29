@@ -22,6 +22,7 @@ type PersonnelPickerDialogProps = {
   open: boolean
   personnel: Personnel[]
   pickerSelection: number[]
+  pickerSelectionSet: ReadonlySet<number>
 }
 
 export function PersonnelPickerDialog({
@@ -34,6 +35,7 @@ export function PersonnelPickerDialog({
   open,
   personnel,
   pickerSelection,
+  pickerSelectionSet,
 }: PersonnelPickerDialogProps) {
   const form = useForm<CreatePersonnelValues>({
     resolver: zodResolver(createPersonnelSchema),
@@ -70,7 +72,7 @@ export function PersonnelPickerDialog({
             {personnel.length > 0 ? (
               personnel.map((person) => {
                 const disabled = currentSheetPersonIds.has(person.id)
-                const checked = pickerSelection.includes(person.id) || disabled
+                const checked = pickerSelectionSet.has(person.id) || disabled
 
                 return (
                   <label

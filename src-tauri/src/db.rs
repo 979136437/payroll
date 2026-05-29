@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rusqlite::{Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
+use serde::{Deserialize, Serialize};
 
 const PERSONNEL_TABLE_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS personnel (
@@ -49,6 +50,57 @@ CREATE TABLE IF NOT EXISTS payroll_record (
 );
 "#;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonnelSummary {
+  pub id: i64,
+  pub name: String,
+  pub job_type: Option<String>,
+  pub phone_number: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePersonnelInput {
+  pub name: String,
+  pub job_type: Option<String>,
+  pub phone_number: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PayrollSheetSummary {
+  pub id: i64,
+  pub name: String,
+  pub personnel_count: i64,
+  pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePayrollSheetInput {
+  pub name: String,
+  pub source_sheet_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PayrollSheetRecordRow {
+  pub record_id: i64,
+  pub personnel_id: i64,
+  pub name: String,
+  pub job_type: Option<String>,
+  pub phone_number: Option<String>,
+  pub net_pay: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PayrollSheetDetail {
+  pub sheet: PayrollSheetSummary,
+  pub records: Vec<PayrollSheetRecordRow>,
+}
+
 pub fn initialize_schema(conn: &Connection) -> Result<()> {
   conn.execute_batch(PERSONNEL_TABLE_SQL)?;
   conn.execute_batch(PAYROLL_SHEET_TABLE_SQL)?;
@@ -62,7 +114,8 @@ pub fn database_path_from_base_dir(base_dir: &Path) -> PathBuf {
 
 pub fn open_connection_at_path(path: &Path) -> Result<Connection> {
   if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+    fs::create_dir_all(parent)
+      .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
   }
 
   let conn = Connection::open(path)?;
@@ -72,12 +125,339 @@ pub fn open_connection_at_path(path: &Path) -> Result<Connection> {
   Ok(conn)
 }
 
+pub fn list_personnel(conn: &Connection) -> Result<Vec<PersonnelSummary>> {
+  let mut stmt = conn.prepare(
+    "SELECT id, name, job_type, phone_number
+     FROM personnel
+     ORDER BY name COLLATE NOCASE ASC, id ASC",
+  )?;
+
+  let rows = stmt
+    .query_map([], |row| {
+      Ok(PersonnelSummary {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        job_type: row.get(2)?,
+        phone_number: row.get(3)?,
+      })
+    })?;
+
+  rows.collect()
+}
+
+pub fn create_personnel(
+  conn: &Connection,
+  input: CreatePersonnelInput,
+) -> Result<PersonnelSummary> {
+  let trimmed_name = input.name.trim();
+  let updated_at = current_timestamp();
+
+  conn.execute(
+    "INSERT INTO personnel (name, job_type, phone_number, updated_at)
+     VALUES (?1, ?2, ?3, ?4)",
+    params![
+      trimmed_name,
+      normalize_optional_string(input.job_type),
+      normalize_optional_string(input.phone_number),
+      updated_at
+    ],
+  )?;
+
+  let id = conn.last_insert_rowid();
+  get_personnel_by_id(conn, id)?
+    .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
+}
+
+pub fn list_payroll_sheets(conn: &Connection) -> Result<Vec<PayrollSheetSummary>> {
+  let mut stmt = conn.prepare(
+    "SELECT ps.id, ps.name, ps.updated_at, COUNT(pr.id) AS personnel_count
+     FROM payroll_sheet ps
+     LEFT JOIN payroll_record pr ON pr.payroll_sheet_id = ps.id
+     GROUP BY ps.id, ps.name, ps.updated_at
+     ORDER BY ps.updated_at DESC, ps.id DESC",
+  )?;
+
+  let rows = stmt
+    .query_map([], |row| {
+      Ok(PayrollSheetSummary {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        updated_at: row.get(2)?,
+        personnel_count: row.get(3)?,
+      })
+    })?;
+
+  rows.collect()
+}
+
+pub fn create_payroll_sheet(
+  conn: &mut Connection,
+  input: CreatePayrollSheetInput,
+) -> Result<PayrollSheetSummary> {
+  let trimmed_name = input.name.trim();
+  let created_at = current_timestamp();
+  let tx = conn.transaction()?;
+
+  tx.execute(
+    "INSERT INTO payroll_sheet (name, updated_at) VALUES (?1, ?2)",
+    params![trimmed_name, created_at],
+  )?;
+
+  let sheet_id = tx.last_insert_rowid();
+
+  if let Some(source_sheet_id) = input.source_sheet_id {
+    copy_sheet_personnel(&tx, source_sheet_id, sheet_id)?;
+  }
+
+  touch_payroll_sheet(&tx, sheet_id)?;
+  tx.commit()?;
+
+  get_payroll_sheet_summary(conn, sheet_id)?
+    .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
+}
+
+pub fn get_payroll_sheet_detail(
+  conn: &Connection,
+  sheet_id: i64,
+) -> Result<Option<PayrollSheetDetail>> {
+  let Some(sheet) = get_payroll_sheet_summary(conn, sheet_id)? else {
+    return Ok(None);
+  };
+
+  let mut stmt = conn.prepare(
+    "SELECT pr.id, p.id, p.name, p.job_type, p.phone_number, pr.net_pay
+     FROM payroll_record pr
+     INNER JOIN personnel p ON p.id = pr.personnel_id
+     WHERE pr.payroll_sheet_id = ?1
+     ORDER BY p.name COLLATE NOCASE ASC, pr.id ASC",
+  )?;
+
+  let records = stmt
+    .query_map([sheet_id], |row| {
+      Ok(PayrollSheetRecordRow {
+        record_id: row.get(0)?,
+        personnel_id: row.get(1)?,
+        name: row.get(2)?,
+        job_type: row.get(3)?,
+        phone_number: row.get(4)?,
+        net_pay: row.get(5)?,
+      })
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  Ok(Some(PayrollSheetDetail { sheet, records }))
+}
+
+pub fn add_personnel_to_sheet(
+  conn: &mut Connection,
+  sheet_id: i64,
+  personnel_ids: &[i64],
+) -> Result<()> {
+  let tx = conn.transaction()?;
+
+  for personnel_id in personnel_ids {
+    tx.execute(
+      "INSERT OR IGNORE INTO payroll_record (
+         payroll_sheet_id,
+         personnel_id,
+         net_pay,
+         updated_at
+       ) VALUES (?1, ?2, 0, ?3)",
+      params![sheet_id, personnel_id, current_timestamp()],
+    )?;
+  }
+
+  touch_payroll_sheet(&tx, sheet_id)?;
+  tx.commit()
+}
+
+pub fn remove_personnel_from_sheet(
+  conn: &mut Connection,
+  sheet_id: i64,
+  personnel_ids: &[i64],
+) -> Result<()> {
+  let tx = conn.transaction()?;
+
+  for personnel_id in personnel_ids {
+    tx.execute(
+      "DELETE FROM payroll_record
+       WHERE payroll_sheet_id = ?1 AND personnel_id = ?2",
+      params![sheet_id, personnel_id],
+    )?;
+  }
+
+  touch_payroll_sheet(&tx, sheet_id)?;
+  tx.commit()
+}
+
+pub fn update_payroll_record_net_pay(
+  conn: &Connection,
+  record_id: i64,
+  net_pay: f64,
+) -> Result<Option<PayrollSheetRecordRow>> {
+  let updated_at = current_timestamp();
+
+  let changed = conn.execute(
+    "UPDATE payroll_record
+     SET net_pay = ?1, updated_at = ?2
+     WHERE id = ?3",
+    params![net_pay, updated_at, record_id],
+  )?;
+
+  if changed == 0 {
+    return Ok(None);
+  }
+
+  conn.execute(
+    "UPDATE payroll_sheet
+     SET updated_at = ?1
+     WHERE id = (
+       SELECT payroll_sheet_id
+       FROM payroll_record
+       WHERE id = ?2
+     )",
+    params![current_timestamp(), record_id],
+  )?;
+
+  get_payroll_record_row(conn, record_id)
+}
+
+fn copy_sheet_personnel(conn: &Connection, source_sheet_id: i64, target_sheet_id: i64) -> Result<()> {
+  let mut stmt = conn.prepare(
+    "SELECT personnel_id
+     FROM payroll_record
+     WHERE payroll_sheet_id = ?1
+     ORDER BY id ASC",
+  )?;
+
+  let personnel_ids = stmt
+    .query_map([source_sheet_id], |row| row.get::<_, i64>(0))?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  for personnel_id in personnel_ids {
+    conn.execute(
+      "INSERT OR IGNORE INTO payroll_record (
+         payroll_sheet_id,
+         personnel_id,
+         net_pay,
+         updated_at
+       ) VALUES (?1, ?2, 0, ?3)",
+      params![target_sheet_id, personnel_id, current_timestamp()],
+    )?;
+  }
+
+  Ok(())
+}
+
+fn get_personnel_by_id(conn: &Connection, personnel_id: i64) -> Result<Option<PersonnelSummary>> {
+  conn
+    .query_row(
+      "SELECT id, name, job_type, phone_number
+       FROM personnel
+       WHERE id = ?1",
+      [personnel_id],
+      |row| {
+        Ok(PersonnelSummary {
+          id: row.get(0)?,
+          name: row.get(1)?,
+          job_type: row.get(2)?,
+          phone_number: row.get(3)?,
+        })
+      },
+    )
+    .optional()
+}
+
+fn get_payroll_sheet_summary(
+  conn: &Connection,
+  sheet_id: i64,
+) -> Result<Option<PayrollSheetSummary>> {
+  conn
+    .query_row(
+      "SELECT ps.id, ps.name, ps.updated_at, COUNT(pr.id) AS personnel_count
+       FROM payroll_sheet ps
+       LEFT JOIN payroll_record pr ON pr.payroll_sheet_id = ps.id
+       WHERE ps.id = ?1
+       GROUP BY ps.id, ps.name, ps.updated_at",
+      [sheet_id],
+      |row| {
+        Ok(PayrollSheetSummary {
+          id: row.get(0)?,
+          name: row.get(1)?,
+          updated_at: row.get(2)?,
+          personnel_count: row.get(3)?,
+        })
+      },
+    )
+    .optional()
+}
+
+fn get_payroll_record_row(
+  conn: &Connection,
+  record_id: i64,
+) -> Result<Option<PayrollSheetRecordRow>> {
+  conn
+    .query_row(
+      "SELECT pr.id, p.id, p.name, p.job_type, p.phone_number, pr.net_pay
+       FROM payroll_record pr
+       INNER JOIN personnel p ON p.id = pr.personnel_id
+       WHERE pr.id = ?1",
+      [record_id],
+      |row| {
+        Ok(PayrollSheetRecordRow {
+          record_id: row.get(0)?,
+          personnel_id: row.get(1)?,
+          name: row.get(2)?,
+          job_type: row.get(3)?,
+          phone_number: row.get(4)?,
+          net_pay: row.get(5)?,
+        })
+      },
+    )
+    .optional()
+}
+
+fn touch_payroll_sheet(conn: &Connection, sheet_id: i64) -> Result<()> {
+  conn.execute(
+    "UPDATE payroll_sheet SET updated_at = ?1 WHERE id = ?2",
+    params![current_timestamp(), sheet_id],
+  )?;
+  Ok(())
+}
+
+fn current_timestamp() -> String {
+  use std::time::{SystemTime, UNIX_EPOCH};
+
+  let seconds = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .map(|duration| duration.as_secs())
+    .unwrap_or_default();
+
+  format!("{seconds}")
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+  value.and_then(|item| {
+    let trimmed = item.trim().to_string();
+    if trimmed.is_empty() {
+      None
+    } else {
+      Some(trimmed)
+    }
+  })
+}
+
 #[cfg(test)]
 mod tests {
   use rusqlite::Connection;
   use tempfile::tempdir;
 
-  use super::{database_path_from_base_dir, initialize_schema, open_connection_at_path};
+  use super::{
+    add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
+    get_payroll_sheet_detail, initialize_schema, list_payroll_sheets, list_personnel,
+    open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
+    CreatePayrollSheetInput, CreatePersonnelInput,
+  };
 
   #[test]
   fn creates_all_required_tables() {
@@ -250,5 +630,227 @@ mod tests {
 
       assert_eq!(count, 1);
     }
+  }
+
+  #[test]
+  fn creates_personnel_and_lists_it() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = open_connection_at_path(&db_path).unwrap();
+
+    let created = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        job_type: Some("瓦工".into()),
+        phone_number: Some("13800000000".into()),
+      },
+    )
+    .unwrap();
+
+    assert_eq!(created.name, "Alice");
+
+    let personnel = list_personnel(&conn).unwrap();
+    assert_eq!(personnel.len(), 1);
+    assert_eq!(personnel[0], created);
+  }
+
+  #[test]
+  fn list_payroll_sheets_returns_personnel_count() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+
+    let bob = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-05".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id, bob.id]).unwrap();
+
+    let sheets = list_payroll_sheets(&conn).unwrap();
+    assert_eq!(sheets.len(), 1);
+    assert_eq!(sheets[0].personnel_count, 2);
+  }
+
+  #[test]
+  fn creates_payroll_sheet_from_source_without_copying_wages() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+
+    let source_sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-04".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, source_sheet.id, &[alice.id]).unwrap();
+    let source_detail = get_payroll_sheet_detail(&conn, source_sheet.id)
+      .unwrap()
+      .unwrap();
+    let source_record_id = source_detail.records[0].record_id;
+    update_payroll_record_net_pay(&conn, source_record_id, 4200.0).unwrap();
+
+    let copied_sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-05".into(),
+        source_sheet_id: Some(source_sheet.id),
+      },
+    )
+    .unwrap();
+
+    let copied_detail = get_payroll_sheet_detail(&conn, copied_sheet.id)
+      .unwrap()
+      .unwrap();
+    assert_eq!(copied_detail.records.len(), 1);
+    assert_eq!(copied_detail.records[0].personnel_id, alice.id);
+    assert_eq!(copied_detail.records[0].net_pay, 0.0);
+  }
+
+  #[test]
+  fn adding_personnel_to_sheet_skips_duplicates() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-05".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id, alice.id]).unwrap();
+    let detail = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+    assert_eq!(detail.records.len(), 1);
+  }
+
+  #[test]
+  fn removes_personnel_from_sheet() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+    let bob = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-05".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id, bob.id]).unwrap();
+    remove_personnel_from_sheet(&mut conn, sheet.id, &[alice.id]).unwrap();
+
+    let detail = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+    assert_eq!(detail.records.len(), 1);
+    assert_eq!(detail.records[0].personnel_id, bob.id);
+  }
+
+  #[test]
+  fn updates_payroll_record_net_pay_and_reads_back_detail() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-05".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id]).unwrap();
+    let detail = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+    let record_id = detail.records[0].record_id;
+
+    let updated = update_payroll_record_net_pay(&conn, record_id, 3500.0)
+      .unwrap()
+      .unwrap();
+    assert_eq!(updated.net_pay, 3500.0);
+
+    let refreshed = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+    assert_eq!(refreshed.records[0].net_pay, 3500.0);
   }
 }

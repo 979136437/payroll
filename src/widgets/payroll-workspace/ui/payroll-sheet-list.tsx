@@ -2,7 +2,7 @@ import { Plus, WalletCards } from "lucide-react"
 
 import type { PayrollSheetSummary } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { formatTimestamp } from "@/shared/lib/formatters"
-import { EmptyPanel, LoadingState } from "@/shared/ui/workspace-primitives"
+import { LoadingState } from "@/shared/ui/workspace-primitives"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -53,7 +53,7 @@ export function PayrollSheetList({
       <CardContent className="space-y-3 px-3 pb-3">
         {isLoading ? (
           <LoadingState label="正在读取工资表..." />
-        ) : sheets.length > 0 ? (
+        ) : (
           sheets.map((sheet) => {
             const isActive = sheet.id === selectedSheetId
 
@@ -85,13 +85,6 @@ export function PayrollSheetList({
               </button>
             )
           })
-        ) : (
-          <EmptyPanel
-            title="还没有工资表"
-            description="先创建第一张工资表，再开始导入人员和录入实发工资。"
-            actionLabel="创建工资表"
-            onAction={onCreate}
-          />
         )}
       </CardContent>
     </Card>

@@ -81,4 +81,92 @@ mod tests {
     assert!(table_names.iter().any(|name| name == "payroll_sheet"));
     assert!(table_names.iter().any(|name| name == "payroll_record"));
   }
+
+  #[test]
+  fn schema_initialization_is_idempotent() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(db_path).unwrap();
+
+    initialize_schema(&conn).unwrap();
+    initialize_schema(&conn).unwrap();
+  }
+
+  #[test]
+  fn rejects_duplicate_personnel_id_card_numbers() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(db_path).unwrap();
+
+    initialize_schema(&conn).unwrap();
+
+    conn
+      .execute(
+        "INSERT INTO personnel (name, id_card_number, updated_at) VALUES (?1, ?2, ?3)",
+        ("Alice", "ID-001", "2026-05-29T00:00:00Z"),
+      )
+      .unwrap();
+
+    let second_insert = conn.execute(
+      "INSERT INTO personnel (name, id_card_number, updated_at) VALUES (?1, ?2, ?3)",
+      ("Bob", "ID-001", "2026-05-29T00:00:00Z"),
+    );
+
+    assert!(second_insert.is_err());
+  }
+
+  #[test]
+  fn rejects_duplicate_personnel_per_payroll_sheet() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(db_path).unwrap();
+
+    initialize_schema(&conn).unwrap();
+    conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+    conn
+      .execute(
+        "INSERT INTO payroll_sheet (name, updated_at) VALUES (?1, ?2)",
+        ("Sheet A", "2026-05-29T00:00:00Z"),
+      )
+      .unwrap();
+
+    conn
+      .execute(
+        "INSERT INTO personnel (name, updated_at) VALUES (?1, ?2)",
+        ("Alice", "2026-05-29T00:00:00Z"),
+      )
+      .unwrap();
+
+    conn
+      .execute(
+        "INSERT INTO payroll_record (payroll_sheet_id, personnel_id, net_pay, updated_at) VALUES (?1, ?2, ?3, ?4)",
+        (1_i64, 1_i64, 3000.0_f64, "2026-05-29T00:00:00Z"),
+      )
+      .unwrap();
+
+    let duplicate = conn.execute(
+      "INSERT INTO payroll_record (payroll_sheet_id, personnel_id, net_pay, updated_at) VALUES (?1, ?2, ?3, ?4)",
+      (1_i64, 1_i64, 3200.0_f64, "2026-05-29T00:00:00Z"),
+    );
+
+    assert!(duplicate.is_err());
+  }
+
+  #[test]
+  fn rejects_payroll_record_without_existing_foreign_keys() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(db_path).unwrap();
+
+    conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+    initialize_schema(&conn).unwrap();
+
+    let insert = conn.execute(
+      "INSERT INTO payroll_record (payroll_sheet_id, personnel_id, net_pay, updated_at) VALUES (?1, ?2, ?3, ?4)",
+      (999_i64, 999_i64, 3000.0_f64, "2026-05-29T00:00:00Z"),
+    );
+
+    assert!(insert.is_err());
+  }
 }

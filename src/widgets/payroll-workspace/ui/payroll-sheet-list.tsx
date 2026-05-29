@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 
 type PayrollSheetListProps = {
   isLoading: boolean
+  mode?: "card" | "embedded"
   onCreate: () => void
   onCreateIntent?: () => void
   onSelect: (sheetId: number) => void
@@ -24,15 +25,20 @@ type PayrollSheetListProps = {
 
 export function PayrollSheetList({
   isLoading,
+  mode = "card",
   onCreate,
   onCreateIntent,
   onSelect,
   selectedSheetId,
   sheets,
 }: PayrollSheetListProps) {
-  return (
-    <Card className="border-white/60 bg-white/85 shadow-xl shadow-slate-900/10 backdrop-blur">
-      <CardHeader className="border-b border-border/60 pb-4">
+  const header = (
+    <CardHeader
+      className={cn(
+        "pb-4",
+        mode === "card" ? "border-b border-border/60" : "px-0 pt-0",
+      )}
+    >
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
@@ -58,7 +64,16 @@ export function PayrollSheetList({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 px-3 pb-3">
+  )
+
+  const content =
+    isLoading || sheets.length > 0 ? (
+      <CardContent
+        className={cn(
+          "space-y-3 pb-3",
+          mode === "card" ? "px-3" : "px-0",
+        )}
+      >
         {isLoading ? (
           <LoadingState label="正在读取工资表..." />
         ) : (
@@ -95,6 +110,21 @@ export function PayrollSheetList({
           })
         )}
       </CardContent>
+    ) : null
+
+  if (mode === "embedded") {
+    return (
+      <div className="flex h-full flex-col">
+        {header}
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <Card className="border-white/60 bg-white/85 shadow-xl shadow-slate-900/10 backdrop-blur">
+      {header}
+      {content}
     </Card>
   )
 }

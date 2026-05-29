@@ -77,7 +77,7 @@ function useWorkspaceActions() {
   )
 }
 
-function WorkspaceSidebar() {
+function WorkspaceSidebar({ mode = "card" }: { mode?: "card" | "embedded" }) {
   const { clearFeedback, selectSheet, setCreateSheetOpen } = useWorkspaceActions()
   const { isBootstrapping, selectedSheetId, sheets } = usePayrollWorkspaceStore(
     useShallow((state) => ({
@@ -97,6 +97,7 @@ function WorkspaceSidebar() {
   return (
     <PayrollSheetList
       isLoading={isBootstrapping}
+      mode={mode}
       onCreate={openCreateSheetDialog}
       onCreateIntent={preloadCreatePayrollSheetDialog}
       onSelect={(sheetId) => {
@@ -106,6 +107,44 @@ function WorkspaceSidebar() {
       selectedSheetId={selectedSheetId}
       sheets={sheets}
     />
+  )
+}
+
+function WorkspaceEmptyStateCard() {
+  const { setCreateSheetOpen } = useWorkspaceActions()
+  const isBootstrapping = usePayrollWorkspaceStore(
+    (state) => state.isBootstrapping,
+  )
+
+  const openCreateSheetDialog = () => {
+    preloadCreatePayrollSheetDialog()
+    startTransition(() => {
+      setCreateSheetOpen(true)
+    })
+  }
+
+  return (
+    <Card className="border-white/60 bg-white/80 shadow-xl shadow-slate-900/10 backdrop-blur">
+      <div className="grid min-h-[34rem] gap-0 lg:grid-cols-[23rem_minmax(0,1fr)]">
+        <section className="border-b border-border/60 p-4 lg:border-r lg:border-b-0">
+          <WorkspaceSidebar mode="embedded" />
+        </section>
+        <section className="flex min-w-0 p-4">
+          {isBootstrapping ? (
+            <LoadingState label="正在读取工资详情..." />
+          ) : (
+            <EmptyPanel
+              title="工资工作台已就绪"
+              description="创建一张工资表后，你就可以从往期导入人员，或者从人员库多选加入，然后直接录入实发工资。"
+              actionLabel="创建工资表"
+              onAction={openCreateSheetDialog}
+              onActionIntent={preloadCreatePayrollSheetDialog}
+            />
+          )}
+        </section>
+      </div>
+      <WorkspaceDialogs isBusy={false} />
+    </Card>
   )
 }
 
@@ -378,6 +417,7 @@ export function PayrollWorkspaceWidget() {
   const initializeWorkspace = usePayrollWorkspaceStore(
     (state) => state.initializeWorkspace,
   )
+  const selectedSheetId = usePayrollWorkspaceStore((state) => state.selectedSheetId)
 
   useEffect(() => {
     void initializeWorkspace()
@@ -385,14 +425,20 @@ export function PayrollWorkspaceWidget() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(61,123,158,0.22),transparent_32%),linear-gradient(120deg,rgba(247,242,230,0.86),transparent_55%)] px-4 py-5 text-slate-900 md:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-7xl gap-4">
-        <section className="flex w-full max-w-sm flex-col gap-4">
-          <WorkspaceSidebar />
-        </section>
+      <div className="mx-auto min-h-[calc(100vh-2.5rem)] max-w-7xl">
+        {selectedSheetId === null ? (
+          <WorkspaceEmptyStateCard />
+        ) : (
+          <div className="flex gap-4">
+            <section className="flex w-full max-w-sm flex-col gap-4">
+              <WorkspaceSidebar />
+            </section>
 
-        <section className="flex min-w-0 flex-1 flex-col gap-4">
-          <WorkspaceMainCard />
-        </section>
+            <section className="flex min-w-0 flex-1 flex-col gap-4">
+              <WorkspaceMainCard />
+            </section>
+          </div>
+        )}
       </div>
     </main>
   )

@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use rusqlite::{Connection, Result};
 
 const PERSONNEL_TABLE_SQL: &str = r#"
@@ -53,12 +56,28 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
   Ok(())
 }
 
+pub fn database_path_from_base_dir(base_dir: &Path) -> PathBuf {
+  base_dir.join("payroll.db")
+}
+
+pub fn open_connection_at_path(path: &Path) -> Result<Connection> {
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent).map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+  }
+
+  let conn = Connection::open(path)?;
+  conn.execute("PRAGMA foreign_keys = ON", [])?;
+  initialize_schema(&conn)?;
+
+  Ok(conn)
+}
+
 #[cfg(test)]
 mod tests {
   use rusqlite::Connection;
   use tempfile::tempdir;
 
-  use super::initialize_schema;
+  use super::{database_path_from_base_dir, initialize_schema, open_connection_at_path};
 
   #[test]
   fn creates_all_required_tables() {
@@ -161,6 +180,44 @@ mod tests {
 
     conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
     initialize_schema(&conn).unwrap();
+
+    let insert = conn.execute(
+      "INSERT INTO payroll_record (payroll_sheet_id, personnel_id, net_pay, updated_at) VALUES (?1, ?2, ?3, ?4)",
+      (999_i64, 999_i64, 3000.0_f64, "2026-05-29T00:00:00Z"),
+    );
+
+    assert!(insert.is_err());
+  }
+
+  #[test]
+  fn app_database_path_uses_payroll_db_filename() {
+    let dir = tempdir().unwrap();
+    let path = database_path_from_base_dir(dir.path());
+
+    assert_eq!(
+      path.file_name().and_then(|name| name.to_str()),
+      Some("payroll.db")
+    );
+  }
+
+  #[test]
+  fn open_connection_at_path_creates_parent_dirs_and_initializes_schema() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("nested").join("data").join("payroll.db");
+
+    let conn = open_connection_at_path(&db_path).unwrap();
+
+    assert!(db_path.exists());
+
+    let count: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='personnel'",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+
+    assert_eq!(count, 1);
 
     let insert = conn.execute(
       "INSERT INTO payroll_record (payroll_sheet_id, personnel_id, net_pay, updated_at) VALUES (?1, ?2, ?3, ?4)",

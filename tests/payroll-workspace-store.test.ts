@@ -2,11 +2,16 @@ import assert from "node:assert/strict"
 
 import {
   createPersonnel,
+  exportPersonnelExcel,
+  importPersonnelExcel,
   listPersonnel,
+  pickExcelExportPath,
+  pickPersonnelImportFile,
 } from "@/entities/personnel/api/personnel"
 import {
   addPersonnelToSheet,
   createPayrollSheet,
+  exportPayrollSheetExcel,
   getPayrollSheetDetail,
   listPayrollSheets,
   removePersonnelFromSheet,
@@ -34,6 +39,7 @@ function resetStore() {
     isCreatingSheet: false,
     isDeletingPersonnel: false,
     isDetailLoading: false,
+    isExportingSheet: false,
     isPersonnelDialogOpen: false,
     isPersonnelEditDialogOpen: false,
     isRemovingPersonnel: false,
@@ -55,9 +61,14 @@ function restoreMocks() {
     addPersonnelToSheet,
     createPayrollSheet,
     createPersonnel,
+    exportPayrollSheetExcel,
+    exportPersonnelExcel,
     getPayrollSheetDetail,
+    importPersonnelExcel,
     listPayrollSheets,
     listPersonnel,
+    pickExcelExportPath,
+    pickPersonnelImportFile,
     removePersonnelFromSheet,
     updatePayrollRecordNetPay,
   })
@@ -538,6 +549,34 @@ async function main() {
     assert.equal(state.salaryDrafts[61], "1500")
     assert.equal(state.errorMessage, "save failed")
     assert.deepEqual(state.savingRecordIds, [])
+  })
+
+  await runTest("exportCurrentSheet records exported path notice", async () => {
+    const sheet: PayrollSheetSummary = {
+      id: 60,
+      name: "2026-12 Payroll",
+      personnelCount: 1,
+      updatedAt: "900",
+    }
+
+    payrollWorkspaceApi.pickExcelExportPath = async () =>
+      "F:\\exports\\2026-12 Payroll.xlsx"
+    payrollWorkspaceApi.exportPayrollSheetExcel = async () => ({
+      filePath: "F:\\exports\\2026-12 Payroll.xlsx",
+    })
+
+    usePayrollWorkspaceStore.setState({
+      selectedSheetId: sheet.id,
+      sheetDetail: { records: [], sheet },
+      sheets: [sheet],
+    })
+
+    const didExport = await usePayrollWorkspaceStore.getState().exportCurrentSheet()
+
+    const state = usePayrollWorkspaceStore.getState()
+    assert.equal(didExport, true)
+    assert.equal(state.notice, "工资表已导出到 F:\\exports\\2026-12 Payroll.xlsx")
+    assert.equal(state.isExportingSheet, false)
   })
 }
 

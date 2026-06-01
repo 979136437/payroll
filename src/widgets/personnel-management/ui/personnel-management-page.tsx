@@ -1,4 +1,12 @@
-import { Search, SquarePen, Trash2, UserPlus, UsersRound } from "lucide-react"
+import {
+  Download,
+  Search,
+  SquarePen,
+  Trash2,
+  Upload,
+  UserPlus,
+  UsersRound,
+} from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useShallow } from "zustand/react/shallow"
 
@@ -58,10 +66,14 @@ export function PersonnelManagementPage() {
     dialogMode,
     editingPersonnel,
     errorMessage,
+    exportPersonnelFile,
     hasInitialized,
+    importPersonnelFile,
     initialize,
     isDeleting,
     isDialogOpen,
+    isExporting,
+    isImporting,
     isLoading,
     isSubmitting,
     notice,
@@ -80,10 +92,14 @@ export function PersonnelManagementPage() {
       dialogMode: state.dialogMode,
       editingPersonnel: state.editingPersonnel,
       errorMessage: state.errorMessage,
+      exportPersonnelFile: state.exportPersonnelFile,
       hasInitialized: state.hasInitialized,
+      importPersonnelFile: state.importPersonnelFile,
       initialize: state.initialize,
       isDeleting: state.isDeleting,
       isDialogOpen: state.isDialogOpen,
+      isExporting: state.isExporting,
+      isImporting: state.isImporting,
       isLoading: state.isLoading,
       isSubmitting: state.isSubmitting,
       notice: state.notice,
@@ -176,10 +192,36 @@ export function PersonnelManagementPage() {
                 </div>
               </div>
 
-              <Button className="h-8 px-4 text-sm" size="sm" onClick={openCreateDialog}>
-                <UserPlus className="size-3.5" />
-                新增人员
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button className="h-8 px-4 text-sm" size="sm" onClick={openCreateDialog}>
+                  <UserPlus className="size-3.5" />
+                  新增人员
+                </Button>
+                <Button
+                  className="h-8 px-4 text-sm"
+                  size="sm"
+                  variant="outline"
+                  disabled={isImporting || isExporting}
+                  onClick={() => {
+                    void importPersonnelFile()
+                  }}
+                >
+                  <Upload className="size-3.5" />
+                  导入人员
+                </Button>
+                <Button
+                  className="h-8 px-4 text-sm"
+                  size="sm"
+                  variant="outline"
+                  disabled={isImporting || isExporting}
+                  onClick={() => {
+                    void exportPersonnelFile()
+                  }}
+                >
+                  <Download className="size-3.5" />
+                  导出人员
+                </Button>
+              </div>
             </div>
           </div>
 

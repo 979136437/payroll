@@ -17,6 +17,8 @@ type PersonnelManagementStore = {
   hasInitialized: boolean
   isDeleting: boolean
   isDialogOpen: boolean
+  isExporting: boolean
+  isImporting: boolean
   isLoading: boolean
   isSubmitting: boolean
   notice: string | null
@@ -25,6 +27,8 @@ type PersonnelManagementStore = {
   clearFeedback: () => void
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
   deletePersonnelRecord: (personnelId: number) => Promise<boolean>
+  exportPersonnelFile: () => Promise<boolean>
+  importPersonnelFile: () => Promise<boolean>
   initialize: () => Promise<void>
   loadPersonnel: () => Promise<void>
   openCreateDialog: () => void
@@ -45,6 +49,8 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
     hasInitialized: false,
     isDeleting: false,
     isDialogOpen: false,
+    isExporting: false,
+    isImporting: false,
     isLoading: false,
     isSubmitting: false,
     notice: null,
@@ -211,6 +217,70 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
         return false
       } finally {
         set({ isDeleting: false })
+      }
+    },
+
+    async importPersonnelFile() {
+      set({
+        errorMessage: null,
+        isImporting: true,
+        notice: null,
+      })
+
+      try {
+        const filePath = await personnelManagementApi.pickPersonnelImportFile()
+        if (!filePath) {
+          return false
+        }
+
+        const result = await personnelManagementApi.importPersonnelExcel(filePath)
+        const personnel = await personnelManagementApi.listPersonnel()
+
+        set({
+          notice: `人员导入完成：新增 ${result.createdCount}，更新 ${result.updatedCount}，跳过 ${result.skippedCount}`,
+          personnel,
+        })
+        return true
+      } catch (error) {
+        set({
+          errorMessage: readableError(error, "导入人员失败"),
+          notice: null,
+        })
+        return false
+      } finally {
+        set({ isImporting: false })
+      }
+    },
+
+    async exportPersonnelFile() {
+      set({
+        errorMessage: null,
+        isExporting: true,
+        notice: null,
+      })
+
+      try {
+        const savePath = await personnelManagementApi.pickExcelExportPath(
+          "人员花名册.xlsx",
+        )
+        if (!savePath) {
+          return false
+        }
+
+        const result = await personnelManagementApi.exportPersonnelExcel(savePath)
+
+        set({
+          notice: `人员已导出到 ${result.filePath}`,
+        })
+        return true
+      } catch (error) {
+        set({
+          errorMessage: readableError(error, "导出人员失败"),
+          notice: null,
+        })
+        return false
+      } finally {
+        set({ isExporting: false })
       }
     },
   }),

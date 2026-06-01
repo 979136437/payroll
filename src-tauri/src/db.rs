@@ -62,7 +62,10 @@ pub struct PersonnelSummary {
   pub payroll_card_number: Option<String>,
   pub bank_name: Option<String>,
   pub job_type: Option<String>,
+  pub start_date: Option<String>,
+  pub end_date: Option<String>,
   pub phone_number: Option<String>,
+  pub remark: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -76,7 +79,10 @@ pub struct CreatePersonnelInput {
   pub payroll_card_number: Option<String>,
   pub bank_name: Option<String>,
   pub job_type: Option<String>,
+  pub start_date: Option<String>,
+  pub end_date: Option<String>,
   pub phone_number: Option<String>,
+  pub remark: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -89,7 +95,11 @@ pub struct UpdatePersonnelInput {
   pub id_card_number: Option<String>,
   pub payroll_card_number: Option<String>,
   pub bank_name: Option<String>,
+  pub job_type: Option<String>,
+  pub start_date: Option<String>,
+  pub end_date: Option<String>,
   pub phone_number: Option<String>,
+  pub remark: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -116,14 +126,29 @@ pub struct PayrollSheetRecordRow {
   pub name: String,
   pub id_card_number: Option<String>,
   pub payroll_card_number: Option<String>,
+  pub bank_name: Option<String>,
+  pub attendance_days: Option<f64>,
+  pub wage_standard: Option<f64>,
+  pub gross_pay: Option<f64>,
+  pub deduction_amount: Option<f64>,
   pub phone_number: Option<String>,
   pub net_pay: f64,
+  pub payee_signature: Option<String>,
+  pub remark: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PayrollSheetDetail {
   pub sheet: PayrollSheetSummary,
+  pub records: Vec<PayrollSheetRecordRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PayrollSheetExport {
+  pub sheet: PayrollSheetSummary,
+  pub personnel: Vec<PersonnelSummary>,
   pub records: Vec<PayrollSheetRecordRow>,
 }
 
@@ -163,7 +188,10 @@ pub fn list_personnel(conn: &Connection) -> Result<Vec<PersonnelSummary>> {
        payroll_card_number,
        bank_name,
        job_type,
-       phone_number
+       start_date,
+       end_date,
+       phone_number,
+       remark
      FROM personnel
      ORDER BY name COLLATE NOCASE ASC, id ASC",
   )?;
@@ -179,7 +207,10 @@ pub fn list_personnel(conn: &Connection) -> Result<Vec<PersonnelSummary>> {
       payroll_card_number: row.get(6)?,
       bank_name: row.get(7)?,
       job_type: row.get(8)?,
-      phone_number: row.get(9)?,
+      start_date: row.get(9)?,
+      end_date: row.get(10)?,
+      phone_number: row.get(11)?,
+      remark: row.get(12)?,
     })
   })?;
 
@@ -199,13 +230,16 @@ pub fn create_personnel(
        gender,
        ethnicity,
        native_place,
-       id_card_number,
-       payroll_card_number,
-       bank_name,
-       job_type,
-       phone_number,
-       updated_at
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        id_card_number,
+        payroll_card_number,
+        bank_name,
+        job_type,
+        start_date,
+        end_date,
+        phone_number,
+        remark,
+        updated_at
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
     params![
       trimmed_name,
       normalize_optional_string(input.gender),
@@ -215,7 +249,10 @@ pub fn create_personnel(
       normalize_optional_string(input.payroll_card_number),
       normalize_optional_string(input.bank_name),
       normalize_optional_string(input.job_type),
+      normalize_optional_string(input.start_date),
+      normalize_optional_string(input.end_date),
       normalize_optional_string(input.phone_number),
+      normalize_optional_string(input.remark),
       updated_at
     ],
   )?;
@@ -242,9 +279,13 @@ pub fn update_personnel(
          id_card_number = ?5,
          payroll_card_number = ?6,
          bank_name = ?7,
-         phone_number = ?8,
-         updated_at = ?9
-     WHERE id = ?10",
+         job_type = ?8,
+         start_date = ?9,
+         end_date = ?10,
+         phone_number = ?11,
+         remark = ?12,
+         updated_at = ?13
+     WHERE id = ?14",
     params![
       trimmed_name,
       normalize_optional_string(input.gender),
@@ -253,7 +294,11 @@ pub fn update_personnel(
       normalize_optional_string(input.id_card_number),
       normalize_optional_string(input.payroll_card_number),
       normalize_optional_string(input.bank_name),
+      normalize_optional_string(input.job_type),
+      normalize_optional_string(input.start_date),
+      normalize_optional_string(input.end_date),
       normalize_optional_string(input.phone_number),
+      normalize_optional_string(input.remark),
       updated_at,
       personnel_id
     ],
@@ -367,7 +412,21 @@ pub fn get_payroll_sheet_detail(
   };
 
   let mut stmt = conn.prepare(
-    "SELECT pr.id, p.id, p.name, p.id_card_number, p.payroll_card_number, p.phone_number, pr.net_pay
+    "SELECT
+       pr.id,
+       p.id,
+       p.name,
+       p.id_card_number,
+       p.payroll_card_number,
+       p.bank_name,
+       pr.attendance_days,
+       pr.wage_standard,
+       pr.gross_pay,
+       pr.deduction_amount,
+       p.phone_number,
+       pr.net_pay,
+       pr.payee_signature,
+       pr.remark
      FROM payroll_record pr
      INNER JOIN personnel p ON p.id = pr.personnel_id
      WHERE pr.payroll_sheet_id = ?1
@@ -382,13 +441,41 @@ pub fn get_payroll_sheet_detail(
         name: row.get(2)?,
         id_card_number: row.get(3)?,
         payroll_card_number: row.get(4)?,
-        phone_number: row.get(5)?,
-        net_pay: row.get(6)?,
+        bank_name: row.get(5)?,
+        attendance_days: row.get(6)?,
+        wage_standard: row.get(7)?,
+        gross_pay: row.get(8)?,
+        deduction_amount: row.get(9)?,
+        phone_number: row.get(10)?,
+        net_pay: row.get(11)?,
+        payee_signature: row.get(12)?,
+        remark: row.get(13)?,
       })
     })?
     .collect::<Result<Vec<_>, _>>()?;
 
   Ok(Some(PayrollSheetDetail { sheet, records }))
+}
+
+pub fn get_payroll_sheet_export(
+  conn: &Connection,
+  sheet_id: i64,
+) -> Result<Option<PayrollSheetExport>> {
+  let Some(detail) = get_payroll_sheet_detail(conn, sheet_id)? else {
+    return Ok(None);
+  };
+
+  let personnel = detail
+    .records
+    .iter()
+    .filter_map(|record| get_personnel_by_id(conn, record.personnel_id).transpose())
+    .collect::<Result<Vec<_>, _>>()?;
+
+  Ok(Some(PayrollSheetExport {
+    sheet: detail.sheet,
+    personnel,
+    records: detail.records,
+  }))
 }
 
 pub fn add_personnel_to_sheet(
@@ -505,7 +592,10 @@ fn get_personnel_by_id(conn: &Connection, personnel_id: i64) -> Result<Option<Pe
          payroll_card_number,
          bank_name,
          job_type,
-         phone_number
+         start_date,
+         end_date,
+         phone_number,
+         remark
        FROM personnel
        WHERE id = ?1",
       [personnel_id],
@@ -520,7 +610,10 @@ fn get_personnel_by_id(conn: &Connection, personnel_id: i64) -> Result<Option<Pe
           payroll_card_number: row.get(6)?,
           bank_name: row.get(7)?,
           job_type: row.get(8)?,
-          phone_number: row.get(9)?,
+          start_date: row.get(9)?,
+          end_date: row.get(10)?,
+          phone_number: row.get(11)?,
+          remark: row.get(12)?,
         })
       },
     )
@@ -557,7 +650,21 @@ fn get_payroll_record_row(
 ) -> Result<Option<PayrollSheetRecordRow>> {
   conn
     .query_row(
-      "SELECT pr.id, p.id, p.name, p.id_card_number, p.payroll_card_number, p.phone_number, pr.net_pay
+      "SELECT
+         pr.id,
+         p.id,
+         p.name,
+         p.id_card_number,
+         p.payroll_card_number,
+         p.bank_name,
+         pr.attendance_days,
+         pr.wage_standard,
+         pr.gross_pay,
+         pr.deduction_amount,
+         p.phone_number,
+         pr.net_pay,
+         pr.payee_signature,
+         pr.remark
        FROM payroll_record pr
        INNER JOIN personnel p ON p.id = pr.personnel_id
        WHERE pr.id = ?1",
@@ -569,8 +676,15 @@ fn get_payroll_record_row(
           name: row.get(2)?,
           id_card_number: row.get(3)?,
           payroll_card_number: row.get(4)?,
-          phone_number: row.get(5)?,
-          net_pay: row.get(6)?,
+          bank_name: row.get(5)?,
+          attendance_days: row.get(6)?,
+          wage_standard: row.get(7)?,
+          gross_pay: row.get(8)?,
+          deduction_amount: row.get(9)?,
+          phone_number: row.get(10)?,
+          net_pay: row.get(11)?,
+          payee_signature: row.get(12)?,
+          remark: row.get(13)?,
         })
       },
     )
@@ -619,6 +733,63 @@ mod tests {
     update_payroll_record_net_pay, update_personnel, CreatePayrollSheetInput,
     CreatePersonnelInput, UpdatePersonnelInput,
   };
+
+  #[test]
+  fn personnel_schema_contains_export_columns_even_when_empty() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(db_path).unwrap();
+
+    initialize_schema(&conn).unwrap();
+
+    let columns = ["start_date", "end_date", "remark"];
+
+    for column in columns {
+      let exists = conn
+        .prepare("PRAGMA table_info(personnel)")
+        .unwrap()
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+        .into_iter()
+        .any(|name| name == column);
+
+      assert!(exists, "missing personnel column: {column}");
+    }
+  }
+
+  #[test]
+  fn payroll_record_schema_contains_export_columns_even_when_empty() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(db_path).unwrap();
+
+    initialize_schema(&conn).unwrap();
+
+    let columns = [
+      "attendance_days",
+      "wage_standard",
+      "gross_pay",
+      "deduction_amount",
+      "payee_signature",
+      "remark",
+    ];
+
+    for column in columns {
+      let exists = conn
+        .prepare("PRAGMA table_info(payroll_record)")
+        .unwrap()
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+        .into_iter()
+        .any(|name| name == column);
+
+      assert!(exists, "missing payroll_record column: {column}");
+    }
+  }
 
   #[test]
   fn creates_all_required_tables() {
@@ -810,7 +981,10 @@ mod tests {
         payroll_card_number: Some("6222000000000001".into()),
         bank_name: Some("中国建设银行".into()),
         job_type: Some("瓦工".into()),
+        start_date: None,
+        end_date: None,
         phone_number: Some("13800000000".into()),
+        remark: None,
       },
     )
     .unwrap();
@@ -853,7 +1027,10 @@ mod tests {
         payroll_card_number: Some(" ".into()),
         bank_name: Some("".into()),
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: Some(" ".into()),
+        remark: None,
       },
     )
     .unwrap();
@@ -885,7 +1062,10 @@ mod tests {
         payroll_card_number: Some("6222000000000001".into()),
         bank_name: Some("中国建设银行".into()),
         job_type: Some("瓦工".into()),
+        start_date: None,
+        end_date: None,
         phone_number: Some("13800000000".into()),
+        remark: None,
       },
     )
     .unwrap();
@@ -901,7 +1081,11 @@ mod tests {
         id_card_number: Some("130000199201020002".into()),
         payroll_card_number: Some("6222000000000009".into()),
         bank_name: Some("中国银行".into()),
+        job_type: created.job_type.clone(),
+        start_date: None,
+        end_date: None,
         phone_number: Some("13900000000".into()),
+        remark: None,
       },
     )
     .unwrap()
@@ -922,7 +1106,7 @@ mod tests {
     );
     assert_eq!(updated.bank_name.as_deref(), Some("中国银行"));
     assert_eq!(updated.phone_number.as_deref(), Some("13900000000"));
-    assert_eq!(updated.job_type.as_deref(), Some("瓦工"));
+    assert_eq!(updated.job_type, created.job_type);
   }
 
   #[test]
@@ -942,7 +1126,10 @@ mod tests {
         payroll_card_number: Some("6222000000000001".into()),
         bank_name: Some("中国建设银行".into()),
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: Some("13800000000".into()),
+        remark: None,
       },
     )
     .unwrap();
@@ -958,7 +1145,11 @@ mod tests {
         id_card_number: Some("".into()),
         payroll_card_number: Some(" ".into()),
         bank_name: Some("".into()),
+        job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: Some(" ".into()),
+        remark: None,
       },
     )
     .unwrap()
@@ -991,7 +1182,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1007,7 +1201,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1023,7 +1220,11 @@ mod tests {
         id_card_number: first.id_card_number,
         payroll_card_number: second.payroll_card_number,
         bank_name: second.bank_name,
+        job_type: second.job_type,
+        start_date: second.start_date,
+        end_date: second.end_date,
         phone_number: second.phone_number,
+        remark: second.remark,
       },
     );
 
@@ -1047,7 +1248,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1062,7 +1266,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1135,7 +1342,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1151,7 +1361,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1189,7 +1402,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1244,7 +1460,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1280,7 +1499,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1295,7 +1517,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();
@@ -1333,7 +1558,10 @@ mod tests {
         payroll_card_number: None,
         bank_name: None,
         job_type: None,
+        start_date: None,
+        end_date: None,
         phone_number: None,
+        remark: None,
       },
     )
     .unwrap();

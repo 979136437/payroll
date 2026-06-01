@@ -1,4 +1,5 @@
 mod db;
+mod excel;
 
 use std::sync::Mutex;
 
@@ -8,6 +9,10 @@ use db::{
   open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
   update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, PayrollSheetDetail,
   PayrollSheetRecordRow, PayrollSheetSummary, PersonnelSummary, UpdatePersonnelInput,
+};
+use excel::{
+  export_payroll_sheet_excel, export_personnel_excel, import_personnel_from_excel,
+  pick_excel_export_path, pick_personnel_import_file, ExcelExportResult, PersonnelImportResult,
 };
 use rusqlite::Connection;
 use tauri::{Manager, State};
@@ -176,6 +181,53 @@ fn update_payroll_record_net_pay_command(
   update_payroll_record_net_pay(&conn, record_id, net_pay).map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn pick_personnel_import_file_command() -> Option<String> {
+  pick_personnel_import_file()
+}
+
+#[tauri::command]
+fn pick_excel_export_path_command(default_file_name: String) -> Option<String> {
+  pick_excel_export_path(&default_file_name)
+}
+
+#[tauri::command]
+fn import_personnel_excel_command(
+  state: State<'_, DbState>,
+  file_path: String,
+) -> Result<PersonnelImportResult, String> {
+  let conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+  import_personnel_from_excel(&conn, std::path::Path::new(&file_path))
+}
+
+#[tauri::command]
+fn export_personnel_excel_command(
+  state: State<'_, DbState>,
+  save_path: String,
+) -> Result<ExcelExportResult, String> {
+  let conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+  export_personnel_excel(&conn, std::path::Path::new(&save_path))
+}
+
+#[tauri::command]
+fn export_payroll_sheet_excel_command(
+  state: State<'_, DbState>,
+  sheet_id: i64,
+  save_path: String,
+) -> Result<ExcelExportResult, String> {
+  let conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+  export_payroll_sheet_excel(&conn, sheet_id, std::path::Path::new(&save_path))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -212,7 +264,12 @@ pub fn run() {
       get_payroll_sheet_detail_command,
       add_personnel_to_sheet_command,
       remove_personnel_from_sheet_command,
-      update_payroll_record_net_pay_command
+      update_payroll_record_net_pay_command,
+      pick_personnel_import_file_command,
+      pick_excel_export_path_command,
+      import_personnel_excel_command,
+      export_personnel_excel_command,
+      export_payroll_sheet_excel_command
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

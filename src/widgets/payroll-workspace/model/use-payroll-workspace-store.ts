@@ -28,6 +28,7 @@ type PayrollWorkspaceStore = {
   isCreatingSheet: boolean
   isDeletingPersonnel: boolean
   isDetailLoading: boolean
+  isExportingSheet: boolean
   isPersonnelDialogOpen: boolean
   isPersonnelEditDialogOpen: boolean
   isRemovingPersonnel: boolean
@@ -46,6 +47,7 @@ type PayrollWorkspaceStore = {
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
   createSheet: (payload: CreatePayrollSheetPayload) => Promise<boolean>
   deletePersonnelFromWorkspace: (personnelId: number) => Promise<boolean>
+  exportCurrentSheet: () => Promise<boolean>
   initializeWorkspace: () => Promise<void>
   openPersonnelEditDialog: (personnelId: number) => void
   openSheetDetail: (sheetId: number) => Promise<void>
@@ -125,6 +127,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   isCreatingSheet: false,
   isDeletingPersonnel: false,
   isDetailLoading: false,
+  isExportingSheet: false,
   isPersonnelDialogOpen: false,
   isPersonnelEditDialogOpen: false,
   isRemovingPersonnel: false,
@@ -472,8 +475,54 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
         notice: null,
       })
       return false
+      } finally {
+        set({ isDeletingPersonnel: false })
+      }
+    },
+
+  async exportCurrentSheet() {
+    const selectedSheetId = get().selectedSheetId
+    const sheetName = get().sheetDetail?.sheet.name
+
+    if (selectedSheetId === null || !sheetName) {
+      set({
+        errorMessage: "未选择工资表",
+        notice: null,
+      })
+      return false
+    }
+
+    set({
+      errorMessage: null,
+      isExportingSheet: true,
+      notice: null,
+    })
+
+    try {
+      const savePath = await payrollWorkspaceApi.pickExcelExportPath(
+        `${sheetName}.xlsx`,
+      )
+      if (!savePath) {
+        return false
+      }
+
+      const result = await payrollWorkspaceApi.exportPayrollSheetExcel(
+        selectedSheetId,
+        savePath,
+      )
+
+      set({
+        notice: `工资表已导出到 ${result.filePath}`,
+      })
+      return true
+    } catch (error) {
+      set({
+        errorMessage: readableError(error, "导出工资表失败"),
+        notice: null,
+      })
+      return false
     } finally {
-      set({ isDeletingPersonnel: false })
+      set({ isExportingSheet: false })
     }
   },
 

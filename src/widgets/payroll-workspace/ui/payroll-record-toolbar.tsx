@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from "lucide-react"
+import { Download, Plus, Trash2 } from "lucide-react"
 import { startTransition } from "react"
 import { useShallow } from "zustand/react/shallow"
 
@@ -12,12 +12,16 @@ function preloadPersonnelPickerDialog() {
 export function PayrollRecordToolbar() {
   const {
     isRemovingPersonnel,
+    isExportingSheet,
+    exportCurrentSheet,
     removeSelectedPersonnelFromSheet,
     selectedPersonnelIds,
     selectedSheetId,
     setPersonnelDialogOpen,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
+      exportCurrentSheet: state.exportCurrentSheet,
+      isExportingSheet: state.isExportingSheet,
       isRemovingPersonnel: state.isRemovingPersonnel,
       removeSelectedPersonnelFromSheet: state.removeSelectedPersonnelFromSheet,
       selectedPersonnelIds: state.selectedPersonnelIds,
@@ -54,6 +58,19 @@ export function PayrollRecordToolbar() {
           >
             <Plus className="size-3.5" />
             添加人员
+          </Button>
+
+          <Button
+            variant="outline"
+            className="h-8 px-3 text-sm"
+            disabled={selectedSheetId === null || isExportingSheet}
+            size="sm"
+            onClick={() => {
+              void exportCurrentSheet()
+            }}
+          >
+            <Download className="size-3.5" />
+            导出工资表
           </Button>
 
           <Button

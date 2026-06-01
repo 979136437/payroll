@@ -1,5 +1,16 @@
 import { invoke } from "@tauri-apps/api/core"
 
+export type PersonnelImportResult = {
+  createdCount: number
+  updatedCount: number
+  skippedCount: number
+  errors: string[]
+}
+
+export type ExcelExportResult = {
+  filePath: string
+}
+
 export type Personnel = {
   id: number
   name: string
@@ -56,5 +67,27 @@ export async function updatePersonnel(
 export async function deletePersonnel(personnelId: number) {
   return invoke<void>("delete_personnel_command", {
     personnelId,
+  })
+}
+
+export async function pickPersonnelImportFile() {
+  return invoke<string | null>("pick_personnel_import_file_command")
+}
+
+export async function pickExcelExportPath(defaultFileName: string) {
+  return invoke<string | null>("pick_excel_export_path_command", {
+    defaultFileName,
+  })
+}
+
+export async function importPersonnelExcel(filePath: string) {
+  return invoke<PersonnelImportResult>("import_personnel_excel_command", {
+    filePath,
+  })
+}
+
+export async function exportPersonnelExcel(savePath: string) {
+  return invoke<ExcelExportResult>("export_personnel_excel_command", {
+    savePath,
   })
 }

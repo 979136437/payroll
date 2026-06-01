@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core"
 
+export type ExcelExportResult = {
+  filePath: string
+}
+
 export type PayrollSheetSummary = {
   id: number
   name: string
@@ -68,5 +72,12 @@ export async function updatePayrollRecordNetPay(
   return invoke<PayrollRecord | null>("update_payroll_record_net_pay_command", {
     recordId,
     netPay,
+  })
+}
+
+export async function exportPayrollSheetExcel(sheetId: number, savePath: string) {
+  return invoke<ExcelExportResult>("export_payroll_sheet_excel_command", {
+    savePath,
+    sheetId,
   })
 }

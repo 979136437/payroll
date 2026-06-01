@@ -180,7 +180,9 @@ export function PayrollWorkspaceDialogs() {
           isBusy={isUpdatingPersonnel}
           isDeleting={isDeletingPersonnel}
           mode="edit"
-          onDelete={() => deletePersonnelFromWorkspace(editingPersonnel.id)}
+          onDelete={async () => {
+            await deletePersonnelFromWorkspace(editingPersonnel.id)
+          }}
           onOpenChange={setPersonnelEditDialogOpen}
           onSubmit={handleUpdatePersonnel}
           open={isPersonnelEditDialogOpen}

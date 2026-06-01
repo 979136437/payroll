@@ -7,7 +7,11 @@ import { usePersonnelManagementStore } from "@/widgets/personnel-management/mode
 const originalApi = {
   createPersonnel: personnelManagementApi.createPersonnel,
   deletePersonnel: personnelManagementApi.deletePersonnel,
+  exportPersonnelExcel: personnelManagementApi.exportPersonnelExcel,
+  importPersonnelExcel: personnelManagementApi.importPersonnelExcel,
   listPersonnel: personnelManagementApi.listPersonnel,
+  pickExcelExportPath: personnelManagementApi.pickExcelExportPath,
+  pickPersonnelImportFile: personnelManagementApi.pickPersonnelImportFile,
   updatePersonnel: personnelManagementApi.updatePersonnel,
 }
 
@@ -19,6 +23,8 @@ function resetStore() {
     hasInitialized: false,
     isDeleting: false,
     isDialogOpen: false,
+    isExporting: false,
+    isImporting: false,
     isLoading: false,
     isSubmitting: false,
     notice: null,
@@ -201,6 +207,43 @@ async function main() {
     assert.equal(didUpdate, false)
     assert.equal(state.isDialogOpen, true)
     assert.equal(state.errorMessage, "duplicate id card")
+  })
+
+  await runTest("importPersonnelFile refreshes list and records summary notice", async () => {
+    const imported = makePersonnel({
+      id: 20,
+      idCardNumber: "430623197201192213",
+      name: "Chen",
+    })
+
+    personnelManagementApi.pickPersonnelImportFile = async () => "F:\\imports\\roster.xlsx"
+    personnelManagementApi.importPersonnelExcel = async () => ({
+      createdCount: 1,
+      errors: [],
+      skippedCount: 0,
+      updatedCount: 2,
+    })
+    personnelManagementApi.listPersonnel = async () => [imported]
+
+    await usePersonnelManagementStore.getState().importPersonnelFile()
+
+    const state = usePersonnelManagementStore.getState()
+    assert.deepEqual(state.personnel, [imported])
+    assert.equal(state.notice, "人员导入完成：新增 1，更新 2，跳过 0")
+    assert.equal(state.isImporting, false)
+  })
+
+  await runTest("exportPersonnelFile records exported path notice", async () => {
+    personnelManagementApi.pickExcelExportPath = async () => "F:\\exports\\人员花名册.xlsx"
+    personnelManagementApi.exportPersonnelExcel = async () => ({
+      filePath: "F:\\exports\\人员花名册.xlsx",
+    })
+
+    await usePersonnelManagementStore.getState().exportPersonnelFile()
+
+    const state = usePersonnelManagementStore.getState()
+    assert.equal(state.notice, "人员已导出到 F:\\exports\\人员花名册.xlsx")
+    assert.equal(state.isExporting, false)
   })
 }
 

@@ -58,7 +58,7 @@ const columns = [
             type="checkbox"
             checked={meta.selectedPersonnelIdSet.has(row.original.personnelId)}
             onChange={() => meta.onToggleSelection(row.original.personnelId)}
-            className="size-4 rounded border-input accent-primary focus:ring-2 focus:ring-ring"
+            className="size-4 cursor-pointer rounded border-input accent-primary focus:ring-2 focus:ring-ring"
           />
         </label>
       )
@@ -72,7 +72,7 @@ const columns = [
       return (
         <button
           type="button"
-          className="space-y-1 rounded-sm text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/30"
+          className="cursor-pointer space-y-1 rounded-sm text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/30"
           onClick={() => meta?.onEditPersonnel(row.original.personnelId)}
         >
           <p className="font-medium text-foreground">{getValue()}</p>
@@ -120,7 +120,7 @@ const columns = [
               meta.onDraftChange(record.recordId, event.target.value)
             }
             onBlur={() => void meta.onSave(record)}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 pr-10 text-right text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-60"
+            className="h-10 w-full cursor-text rounded-md border border-input bg-background px-3 pr-10 text-right text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
           />
           <CircleDollarSign className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
         </label>

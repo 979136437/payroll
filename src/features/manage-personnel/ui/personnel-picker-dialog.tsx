@@ -2,16 +2,15 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, Phone, Plus, UserRound } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 
+import { Button } from "@/components/ui/button"
 import type { Personnel } from "@/entities/personnel/api/personnel"
 import {
   createPersonnelSchema,
   type CreatePersonnelValues,
 } from "@/features/manage-personnel/model/schema"
-import { Button } from "@/components/ui/button"
+import { PersonnelFormFields } from "@/features/manage-personnel/ui/personnel-form-fields"
 import { cn } from "@/lib/utils"
 import { ModalShell } from "@/shared/ui/modal-shell"
-import { SelectField } from "@/shared/ui/select-field"
-import { Field } from "@/shared/ui/workspace-primitives"
 
 type PersonnelPickerDialogProps = {
   currentSheetPersonIds: Set<number>
@@ -51,6 +50,7 @@ export function PersonnelPickerDialog({
       phoneNumber: "",
     },
   })
+
   const selectedGender =
     useWatch({
       control: form.control,
@@ -120,6 +120,7 @@ export function PersonnelPickerDialog({
                         <Check className="size-3" strokeWidth={3} />
                       </span>
                     </div>
+
                     <div className="min-w-0 space-y-1">
                       <div className="flex min-h-5 items-center gap-2">
                         <p className="truncate font-medium text-foreground">
@@ -131,6 +132,7 @@ export function PersonnelPickerDialog({
                           </span>
                         ) : null}
                       </div>
+
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-muted-foreground">
                         {person.gender ? (
                           <span className="inline-flex items-center gap-1">
@@ -154,7 +156,7 @@ export function PersonnelPickerDialog({
               })
             ) : (
               <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                人员库还是空的，先在右侧新增一个基础人员。
+                人员库还是空的，先在右侧新增一位基础人员。
               </div>
             )}
           </div>
@@ -178,7 +180,7 @@ export function PersonnelPickerDialog({
         </div>
 
         <form
-          className="space-y-5 rounded-lg border bg-card p-5"
+          className="space-y-5 rounded-xl border border-border/70 bg-card p-5"
           onSubmit={form.handleSubmit(async (values) => {
             const didCreate = await onCreatePersonnel(values)
             if (didCreate) {
@@ -189,73 +191,14 @@ export function PersonnelPickerDialog({
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">手工新增人员</p>
             <p className="text-xs leading-5 text-muted-foreground">
-              只要求姓名必填，其余字段可按需要补充。
+              只要求姓名必填，其余字段可以按需要补充。
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="姓名 *" error={form.formState.errors.name?.message}>
-              <input
-                {...form.register("name")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：张三"
-              />
-            </Field>
-            <Field label="性别">
-              <SelectField
-                onChange={(nextValue) =>
-                  form.setValue("gender", nextValue as "男" | "女" | "")
-                }
-                options={[
-                  { label: "男", value: "男" },
-                  { label: "女", value: "女" },
-                ]}
-                placeholder="请选择性别"
-                value={selectedGender}
-              />
-            </Field>
-            <Field label="民族">
-              <input
-                {...form.register("ethnicity")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：汉"
-              />
-            </Field>
-            <Field label="籍贯">
-              <input
-                {...form.register("nativePlace")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：河北"
-              />
-            </Field>
-            <Field label="身份证号码">
-              <input
-                {...form.register("idCardNumber")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：130000199901010001"
-              />
-            </Field>
-            <Field label="工资卡号">
-              <input
-                {...form.register("payrollCardNumber")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：6222000000000001"
-              />
-            </Field>
-            <Field label="开户行">
-              <input
-                {...form.register("bankName")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：中国建设银行"
-              />
-            </Field>
-            <Field label="联系电话">
-              <input
-                {...form.register("phoneNumber")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：13800000000"
-              />
-            </Field>
+
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+            <PersonnelFormFields form={form} selectedGender={selectedGender} />
           </div>
+
           <Button type="submit" className="w-full" disabled={isBusy}>
             <Plus className="size-4" />
             新增到人员库

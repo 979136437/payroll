@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:tauri": "tauri dev",
     "build": "tsc -b && vite build",
+    "build:tauri": "tauri build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:workspace-store": "node scripts/run-payroll-workspace-store-test.mjs",

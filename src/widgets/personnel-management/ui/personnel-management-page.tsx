@@ -108,9 +108,9 @@ export function PersonnelManagementPage() {
     [personnel, query],
   )
 
-  const lastUpdated = useMemo(() => {
+  const summaryText = useMemo(() => {
     if (personnel.length > 0) {
-      return `当前已收录 ${personnel.length} 位人员，可集中维护基础资料。`
+      return `已收录 ${personnel.length} 位人员，可集中维护基础资料。`
     }
 
     return "先新增人员，后续即可在工资工作台中直接使用。"
@@ -165,7 +165,7 @@ export function PersonnelManagementPage() {
                     人员管理
                   </h1>
                   <p className="truncate text-sm text-muted-foreground/65">
-                    统一维护姓名、身份证、银行卡与联系方式，新增后可直接在工资工作台复用。
+                    统一维护姓名、证件、银行卡与联系方式，新增后可直接在工资工作台复用。
                   </p>
                 </div>
               </div>
@@ -204,14 +204,14 @@ export function PersonnelManagementPage() {
                       人员资料列表
                     </CardTitle>
                     <CardDescription className="leading-6">
-                      {lastUpdated}
+                      {summaryText}
                     </CardDescription>
                   </div>
 
                   <label className="relative block w-full max-w-sm">
                     <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input
-                      className="h-10 w-full rounded-md border border-input bg-background pr-3 pl-9 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                      className="h-10 w-full cursor-text rounded-md border border-input bg-background pr-3 pl-9 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                       onChange={(event) => {
                         clearFeedback()
                         setQuery(event.target.value)
@@ -250,7 +250,6 @@ export function PersonnelManagementPage() {
                           <th className="px-4 py-3 font-medium">姓名</th>
                           <th className="px-4 py-3 font-medium">性别</th>
                           <th className="px-4 py-3 font-medium">民族</th>
-                          <th className="px-4 py-3 font-medium">籍贯</th>
                           <th className="px-4 py-3 font-medium">联系电话</th>
                           <th className="px-4 py-3 font-medium">身份证号码</th>
                           <th className="px-4 py-3 font-medium">工资卡号</th>
@@ -268,7 +267,6 @@ export function PersonnelManagementPage() {
                             </td>
                             <td className="px-4 py-3">{item.gender || "-"}</td>
                             <td className="px-4 py-3">{item.ethnicity || "-"}</td>
-                            <td className="px-4 py-3">{item.nativePlace || "-"}</td>
                             <td className="px-4 py-3">{item.phoneNumber || "-"}</td>
                             <td className="px-4 py-3">
                               {maskSensitiveValue(item.idCardNumber)}

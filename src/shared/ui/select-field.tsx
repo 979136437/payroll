@@ -119,7 +119,7 @@ export function SelectField({
         aria-controls={listboxId}
         aria-expanded={open}
         className={cn(
-          "h-10 w-full justify-between rounded-md border-input bg-background px-3 font-normal text-foreground shadow-none hover:bg-accent hover:text-accent-foreground",
+          "h-10 w-full cursor-pointer justify-between rounded-md border-input bg-background px-3 font-normal text-foreground shadow-none hover:bg-accent hover:text-accent-foreground",
           open && "border-ring ring-2 ring-ring/20",
           !selectedOption && "text-muted-foreground",
         )}
@@ -160,7 +160,7 @@ export function SelectField({
                   role="option"
                   aria-selected={isSelected}
                   className={cn(
-                    "flex w-full items-start justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm transition hover:bg-accent hover:text-accent-foreground",
+                    "flex w-full cursor-pointer items-start justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm transition hover:bg-accent hover:text-accent-foreground",
                     isSelected && "bg-accent text-accent-foreground",
                   )}
                   onClick={() => {

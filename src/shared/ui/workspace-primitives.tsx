@@ -11,8 +11,10 @@ type FieldProps = {
 
 export function Field({ children, error, label }: FieldProps) {
   return (
-    <label className="block space-y-2">
-      <span className="text-sm font-medium text-foreground">{label}</span>
+    <label className="block space-y-3">
+      <span className="text-sm font-medium leading-none text-foreground">
+        {label}
+      </span>
       {children}
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </label>
@@ -57,7 +59,9 @@ export function EmptyPanel({
   return (
     <div className="flex flex-1 flex-col items-center justify-center rounded-xl border bg-card px-6 py-14 text-center shadow-sm">
       <div className="max-w-md space-y-3">
-        <p className="text-2xl font-semibold tracking-tight text-foreground">{title}</p>
+        <p className="text-2xl font-semibold tracking-tight text-foreground">
+          {title}
+        </p>
         <p className="text-sm leading-7 text-muted-foreground">{description}</p>
       </div>
       <Button
@@ -91,8 +95,12 @@ export function SummaryTile({ icon, label, value }: SummaryTileProps) {
   return (
     <div className="inline-flex items-center gap-2 rounded-md border border-border/35 bg-background/35 px-2.5 py-1.5 shadow-none">
       <span className="text-muted-foreground/75">{icon}</span>
-      <span className="text-[11px] font-medium text-muted-foreground/85">{label}</span>
-      <span className="text-[15px] font-semibold tracking-tight text-foreground">{value}</span>
+      <span className="text-[11px] font-medium text-muted-foreground/85">
+        {label}
+      </span>
+      <span className="text-[15px] font-semibold tracking-tight text-foreground">
+        {value}
+      </span>
     </div>
   )
 }

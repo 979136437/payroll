@@ -16,7 +16,8 @@ export type PayrollRecord = {
   recordId: number
   personnelId: number
   name: string
-  jobType: string | null
+  idCardNumber: string | null
+  payrollCardNumber: string | null
   phoneNumber: string | null
   netPay: number
 }

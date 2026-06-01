@@ -52,3 +52,9 @@ export async function updatePersonnel(
     personnelId,
   })
 }
+
+export async function deletePersonnel(personnelId: number) {
+  return invoke<void>("delete_personnel_command", {
+    personnelId,
+  })
+}

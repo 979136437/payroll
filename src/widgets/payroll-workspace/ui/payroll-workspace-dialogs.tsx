@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow"
 
 import type { CreatePayrollSheetValues } from "@/features/create-payroll-sheet/model/schema"
 import type { CreatePersonnelValues } from "@/features/manage-personnel/model/schema"
+import { CreateOrEditPersonnelDialog } from "@/features/manage-personnel/ui/create-or-edit-personnel-dialog"
 import { LoadingState } from "@/shared/ui/workspace-primitives"
 import { usePayrollWorkspaceStore } from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
 
@@ -37,31 +38,43 @@ export function PayrollWorkspaceDialogs() {
     addSelectedPersonnelToSheet,
     createPersonnelRecord,
     createSheet,
+    deletePersonnelFromWorkspace,
     isAddingPersonnel,
     isCreatingPersonnel,
     isCreatingSheet,
+    isDeletingPersonnel,
     isRemovingPersonnel,
+    isUpdatingPersonnel,
     setCreateSheetOpen,
     setPersonnelDialogOpen,
+    setPersonnelEditDialogOpen,
     togglePickerSelection,
+    updatePersonnelFromWorkspace,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
       addSelectedPersonnelToSheet: state.addSelectedPersonnelToSheet,
       createPersonnelRecord: state.createPersonnelRecord,
       createSheet: state.createSheet,
+      deletePersonnelFromWorkspace: state.deletePersonnelFromWorkspace,
       isAddingPersonnel: state.isAddingPersonnel,
       isCreatingPersonnel: state.isCreatingPersonnel,
       isCreatingSheet: state.isCreatingSheet,
+      isDeletingPersonnel: state.isDeletingPersonnel,
       isRemovingPersonnel: state.isRemovingPersonnel,
+      isUpdatingPersonnel: state.isUpdatingPersonnel,
       setCreateSheetOpen: state.setCreateSheetOpen,
       setPersonnelDialogOpen: state.setPersonnelDialogOpen,
+      setPersonnelEditDialogOpen: state.setPersonnelEditDialogOpen,
       togglePickerSelection: state.togglePickerSelection,
+      updatePersonnelFromWorkspace: state.updatePersonnelFromWorkspace,
     })),
   )
 
   const {
+    editingPersonnel,
     isCreateSheetOpen,
     isPersonnelDialogOpen,
+    isPersonnelEditDialogOpen,
     personnel,
     pickerSelection,
     selectedSheetId,
@@ -69,8 +82,10 @@ export function PayrollWorkspaceDialogs() {
     sheets,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
+      editingPersonnel: state.editingPersonnel,
       isCreateSheetOpen: state.isCreateSheetOpen,
       isPersonnelDialogOpen: state.isPersonnelDialogOpen,
+      isPersonnelEditDialogOpen: state.isPersonnelEditDialogOpen,
       personnel: state.personnel,
       pickerSelection: state.pickerSelection,
       selectedSheetId: state.selectedSheetId,
@@ -113,32 +128,65 @@ export function PayrollWorkspaceDialogs() {
       phoneNumber: values.phoneNumber || null,
     })
 
-  return (
-    <Suspense fallback={<DialogFallback />}>
-      {isCreateSheetOpen ? (
-        <CreatePayrollSheetDialog
-          isBusy={isBusy}
-          onOpenChange={setCreateSheetOpen}
-          onSubmit={handleCreateSheet}
-          open={isCreateSheetOpen}
-          sheets={sheets}
-        />
-      ) : null}
+  const handleUpdatePersonnel = async (values: CreatePersonnelValues) => {
+    if (!editingPersonnel) {
+      return false
+    }
 
-      {isPersonnelDialogOpen ? (
-        <PersonnelPickerDialog
-          currentSheetPersonIds={currentSheetPersonIds}
-          isBusy={isBusy || selectedSheetId === null}
-          onAddSelected={addSelectedPersonnelToSheet}
-          onCreatePersonnel={handleCreatePersonnel}
-          onOpenChange={setPersonnelDialogOpen}
-          onToggleSelection={togglePickerSelection}
-          open={isPersonnelDialogOpen}
-          personnel={personnel}
-          pickerSelection={pickerSelection}
-          pickerSelectionSet={pickerSelectionSet}
+    return updatePersonnelFromWorkspace(editingPersonnel.id, {
+      bankName: values.bankName || null,
+      ethnicity: values.ethnicity || null,
+      gender: values.gender || null,
+      idCardNumber: values.idCardNumber || null,
+      name: values.name,
+      nativePlace: values.nativePlace || null,
+      payrollCardNumber: values.payrollCardNumber || null,
+      phoneNumber: values.phoneNumber || null,
+    })
+  }
+
+  return (
+    <>
+      <Suspense fallback={<DialogFallback />}>
+        {isCreateSheetOpen ? (
+          <CreatePayrollSheetDialog
+            isBusy={isBusy}
+            onOpenChange={setCreateSheetOpen}
+            onSubmit={handleCreateSheet}
+            open={isCreateSheetOpen}
+            sheets={sheets}
+          />
+        ) : null}
+
+        {isPersonnelDialogOpen ? (
+          <PersonnelPickerDialog
+            currentSheetPersonIds={currentSheetPersonIds}
+            isBusy={isBusy || selectedSheetId === null}
+            onAddSelected={addSelectedPersonnelToSheet}
+            onCreatePersonnel={handleCreatePersonnel}
+            onOpenChange={setPersonnelDialogOpen}
+            onToggleSelection={togglePickerSelection}
+            open={isPersonnelDialogOpen}
+            personnel={personnel}
+            pickerSelection={pickerSelection}
+            pickerSelectionSet={pickerSelectionSet}
+          />
+        ) : null}
+      </Suspense>
+
+      {isPersonnelEditDialogOpen && editingPersonnel ? (
+        <CreateOrEditPersonnelDialog
+          initialPersonnel={editingPersonnel}
+          isBusy={isUpdatingPersonnel}
+          isDeleting={isDeletingPersonnel}
+          mode="edit"
+          onDelete={() => deletePersonnelFromWorkspace(editingPersonnel.id)}
+          onOpenChange={setPersonnelEditDialogOpen}
+          onSubmit={handleUpdatePersonnel}
+          open={isPersonnelEditDialogOpen}
+          showDeleteAction
         />
       ) : null}
-    </Suspense>
+    </>
   )
 }

@@ -4,10 +4,10 @@ use std::sync::Mutex;
 
 use db::{
   add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
-  get_payroll_sheet_detail, list_payroll_sheets, list_personnel, open_connection_at_path,
-  remove_personnel_from_sheet, update_payroll_record_net_pay, update_personnel,
-  CreatePayrollSheetInput, CreatePersonnelInput, PayrollSheetDetail, PayrollSheetRecordRow,
-  PayrollSheetSummary, PersonnelSummary, UpdatePersonnelInput,
+  delete_personnel, get_payroll_sheet_detail, list_payroll_sheets, list_personnel,
+  open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
+  update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, PayrollSheetDetail,
+  PayrollSheetRecordRow, PayrollSheetSummary, PersonnelSummary, UpdatePersonnelInput,
 };
 use rusqlite::Connection;
 use tauri::{Manager, State};
@@ -16,7 +16,7 @@ struct DbState {
   connection: Mutex<Connection>,
 }
 
-fn map_personnel_create_error(error: rusqlite::Error) -> String {
+fn map_personnel_upsert_error(error: rusqlite::Error) -> String {
   if matches!(
     error,
     rusqlite::Error::SqliteFailure(_, Some(ref message))
@@ -50,7 +50,7 @@ fn create_personnel_command(
     .connection
     .lock()
     .map_err(|error| format!("database lock poisoned: {error}"))?;
-  create_personnel(&conn, payload).map_err(map_personnel_create_error)
+  create_personnel(&conn, payload).map_err(map_personnel_upsert_error)
 }
 
 #[tauri::command]
@@ -67,7 +67,24 @@ fn update_personnel_command(
     .connection
     .lock()
     .map_err(|error| format!("database lock poisoned: {error}"))?;
-  update_personnel(&conn, personnel_id, payload).map_err(map_personnel_create_error)
+  update_personnel(&conn, personnel_id, payload).map_err(map_personnel_upsert_error)
+}
+
+#[tauri::command]
+fn delete_personnel_command(
+  state: State<'_, DbState>,
+  personnel_id: i64,
+) -> Result<(), String> {
+  let mut conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+
+  match delete_personnel(&mut conn, personnel_id) {
+    Ok(true) => Ok(()),
+    Ok(false) => Err("人员不存在".into()),
+    Err(error) => Err(error.to_string()),
+  }
 }
 
 #[tauri::command]
@@ -189,6 +206,7 @@ pub fn run() {
       list_personnel_command,
       create_personnel_command,
       update_personnel_command,
+      delete_personnel_command,
       list_payroll_sheets_command,
       create_payroll_sheet_command,
       get_payroll_sheet_detail_command,
@@ -205,7 +223,7 @@ mod tests {
   use rusqlite::{ffi::Error as SqliteFfiError, Connection, Error, ErrorCode};
   use tempfile::tempdir;
 
-  use super::map_personnel_create_error;
+  use super::map_personnel_upsert_error;
 
   #[test]
   fn compiles_with_sqlite_test_dependencies() {
@@ -224,6 +242,6 @@ mod tests {
       Some("UNIQUE constraint failed: personnel.id_card_number".into()),
     );
 
-    assert_eq!(map_personnel_create_error(error), "身份证号码已存在");
+    assert_eq!(map_personnel_upsert_error(error), "身份证号码已存在");
   }
 }

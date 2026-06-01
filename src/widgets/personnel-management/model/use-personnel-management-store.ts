@@ -15,6 +15,7 @@ type PersonnelManagementStore = {
   editingPersonnel: Personnel | null
   errorMessage: string | null
   hasInitialized: boolean
+  isDeleting: boolean
   isDialogOpen: boolean
   isLoading: boolean
   isSubmitting: boolean
@@ -23,6 +24,7 @@ type PersonnelManagementStore = {
   query: string
   clearFeedback: () => void
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
+  deletePersonnelRecord: (personnelId: number) => Promise<boolean>
   initialize: () => Promise<void>
   loadPersonnel: () => Promise<void>
   openCreateDialog: () => void
@@ -41,6 +43,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
     editingPersonnel: null,
     errorMessage: null,
     hasInitialized: false,
+    isDeleting: false,
     isDialogOpen: false,
     isLoading: false,
     isSubmitting: false,
@@ -156,10 +159,15 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
           personnelId,
           payload,
         )
+
+        if (!updated) {
+          throw new Error("人员不存在")
+        }
+
         const personnel = await personnelManagementApi.listPersonnel()
 
         set({
-          editingPersonnel: updated ?? null,
+          editingPersonnel: updated,
           isDialogOpen: false,
           notice: "人员信息已更新",
           personnel,
@@ -173,6 +181,36 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
         return false
       } finally {
         set({ isSubmitting: false })
+      }
+    },
+
+    async deletePersonnelRecord(personnelId) {
+      set({
+        errorMessage: null,
+        isDeleting: true,
+        notice: null,
+      })
+
+      try {
+        await personnelManagementApi.deletePersonnel(personnelId)
+        const personnel = await personnelManagementApi.listPersonnel()
+
+        set({
+          dialogMode: "create",
+          editingPersonnel: null,
+          isDialogOpen: false,
+          notice: "人员已删除",
+          personnel,
+        })
+        return true
+      } catch (error) {
+        set({
+          errorMessage: readableError(error, "删除人员失败"),
+          notice: null,
+        })
+        return false
+      } finally {
+        set({ isDeleting: false })
       }
     },
   }),

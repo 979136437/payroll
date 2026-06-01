@@ -32,17 +32,22 @@ export function PayrollRecordToolbar() {
   )
 
   return (
-    <div className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">Records</p>
-          <p className="text-sm text-muted-foreground">当前选中 {selectedPersonnelIds.length} 人</p>
+    <div className="space-y-3 rounded-xl border border-border/70 bg-background/92 p-3 shadow-none">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/80">
+            Records
+          </p>
+          <p className="text-sm text-muted-foreground/80">
+            当前选中 {selectedPersonnelIds.length} 人
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <Button
-            className="px-4"
+            className="h-8 px-3 text-sm"
             disabled={selectedSheetId === null}
+            size="sm"
             onClick={() =>
               startTransition(() => {
                 preloadPersonnelPickerDialog()
@@ -52,23 +57,24 @@ export function PayrollRecordToolbar() {
             onFocus={preloadPersonnelPickerDialog}
             onMouseEnter={preloadPersonnelPickerDialog}
           >
-            <Plus className="size-4" />
+            <Plus className="size-3.5" />
             添加人员
           </Button>
 
           <Button
             variant="outline"
-            className="px-4"
+            className="h-8 px-3 text-sm"
             disabled={
               selectedSheetId === null ||
               selectedPersonnelIds.length === 0 ||
               isRemovingPersonnel
             }
+            size="sm"
             onClick={() => {
               void removeSelectedPersonnelFromSheet()
             }}
           >
-            <Trash2 className="size-4" />
+            <Trash2 className="size-3.5" />
             移除选中
           </Button>
         </div>

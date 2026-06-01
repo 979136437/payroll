@@ -2,28 +2,25 @@ import { UsersRound, WalletCards } from "lucide-react"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { PayrollWorkspacePage } from "@/pages/payroll-workspace-page/ui/payroll-workspace-page"
 import { PersonnelManagementPage } from "@/widgets/personnel-management/ui/personnel-management-page"
-import { cn } from "@/lib/utils"
 
 type AppView = "payroll" | "personnel"
 
 const viewOptions: Array<{
-  description: string
   icon: typeof WalletCards
   label: string
   value: AppView
 }> = [
   {
-    description: "工资表总览、详情与工资录入",
     icon: WalletCards,
-    label: "工资工作台",
+    label: "工资",
     value: "payroll",
   },
   {
-    description: "集中维护人员资料与联系方式",
     icon: UsersRound,
-    label: "人员管理",
+    label: "人员",
     value: "personnel",
   },
 ]
@@ -33,18 +30,18 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 md:px-6">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-muted-foreground">
+      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/92 backdrop-blur supports-[backdrop-filter]:bg-background/82">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 md:px-6">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75">
               Payroll Admin
             </p>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
+            <h1 className="text-[15px] font-medium tracking-tight text-foreground/90">
               工资与人员后台
             </h1>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/30 p-0.5">
             {viewOptions.map((option) => {
               const Icon = option.icon
               const isActive = currentView === option.value
@@ -53,28 +50,17 @@ export function AppShell() {
                 <Button
                   key={option.value}
                   className={cn(
-                    "h-auto min-w-[13rem] justify-start px-4 py-3 text-left",
-                    isActive ? undefined : "bg-background",
+                    "h-7 min-w-0 rounded-sm px-2.5 text-sm shadow-none",
+                    isActive
+                      ? "bg-background text-foreground"
+                      : "border-transparent bg-transparent text-muted-foreground hover:bg-background/70 hover:text-foreground",
                   )}
                   onClick={() => setCurrentView(option.value)}
-                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  variant={isActive ? "secondary" : "ghost"}
                 >
-                  <div className="flex items-start gap-3">
-                    <Icon className="mt-0.5 size-4" />
-                    <div className="space-y-0.5">
-                      <div className="font-medium">{option.label}</div>
-                      <div
-                        className={cn(
-                          "text-xs",
-                          isActive
-                            ? "text-primary-foreground/80"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {option.description}
-                      </div>
-                    </div>
-                  </div>
+                  <Icon className="size-3.5" />
+                  <span className="font-medium">{option.label}</span>
                 </Button>
               )
             })}

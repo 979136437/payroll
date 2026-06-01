@@ -1,8 +1,5 @@
 import { Plus, WalletCards } from "lucide-react"
 
-import type { PayrollSheetSummary } from "@/entities/payroll-sheet/api/payroll-sheet"
-import { formatTimestamp } from "@/shared/lib/formatters"
-import { LoadingState } from "@/shared/ui/workspace-primitives"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -11,7 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import type { PayrollSheetSummary } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { cn } from "@/lib/utils"
+import { formatTimestamp } from "@/shared/lib/formatters"
+import { LoadingState } from "@/shared/ui/workspace-primitives"
 
 type PayrollSheetListProps = {
   isLoading: boolean
@@ -35,7 +35,7 @@ export function PayrollSheetList({
   const listContent = isLoading ? (
     <LoadingState label="正在读取工资表..." />
   ) : (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {sheets.map((sheet) => {
         const isActive = sheet.id === selectedSheetId
 
@@ -44,21 +44,21 @@ export function PayrollSheetList({
             key={sheet.id}
             type="button"
             className={cn(
-              "w-full rounded-lg border px-4 py-3 text-left transition",
+              "w-full rounded-md border px-3 py-2.5 text-left transition",
               isActive
-                ? "border-primary/30 bg-accent"
-                : "bg-background hover:bg-accent/60",
+                ? "border-border/70 bg-accent/55"
+                : "border-border/50 bg-background/85 hover:bg-accent/35",
             )}
             onClick={() => onSelect(sheet.id)}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">{sheet.name}</p>
-                <p className="text-xs text-muted-foreground">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 space-y-0.5">
+                <p className="truncate text-sm font-medium text-foreground">{sheet.name}</p>
+                <p className="text-xs text-muted-foreground/75">
                   最近更新 {formatTimestamp(sheet.updatedAt)}
                 </p>
               </div>
-              <div className="rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              <div className="rounded-sm bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground/80">
                 {sheet.personnelCount} 人
               </div>
             </div>
@@ -70,20 +70,22 @@ export function PayrollSheetList({
 
   if (mode === "embedded") {
     return (
-      <div className="flex h-full flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm">
-        <div className="flex items-center justify-between gap-3 px-2 pt-2">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Sheets</p>
-            <h2 className="mt-1 text-lg font-semibold text-foreground">工资表导航</h2>
+      <div className="flex h-full flex-col gap-2 rounded-lg border border-border/55 bg-background/55 p-2 shadow-none">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground/75">
+              Sheets
+            </p>
+            <h2 className="text-[15px] font-medium text-foreground">工资表导航</h2>
           </div>
           <Button
             size="sm"
-            className="px-4"
+            className="h-7 px-2.5 text-sm"
             onClick={onCreate}
             onFocus={onCreateIntent}
             onMouseEnter={onCreateIntent}
           >
-            <Plus className="size-4" />
+            <Plus className="size-3.5" />
             新建
           </Button>
         </div>

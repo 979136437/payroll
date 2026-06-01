@@ -37,7 +37,7 @@ export function formatCurrencyInput(value: number) {
 
 export function maskSensitiveValue(value: string | null) {
   if (!value) {
-    return "—"
+    return "-"
   }
 
   if (value.length <= 7) {

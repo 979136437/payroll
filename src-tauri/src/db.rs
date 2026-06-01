@@ -114,7 +114,8 @@ pub struct PayrollSheetRecordRow {
   pub record_id: i64,
   pub personnel_id: i64,
   pub name: String,
-  pub job_type: Option<String>,
+  pub id_card_number: Option<String>,
+  pub payroll_card_number: Option<String>,
   pub phone_number: Option<String>,
   pub net_pay: f64,
 }
@@ -167,21 +168,20 @@ pub fn list_personnel(conn: &Connection) -> Result<Vec<PersonnelSummary>> {
      ORDER BY name COLLATE NOCASE ASC, id ASC",
   )?;
 
-  let rows = stmt
-    .query_map([], |row| {
-      Ok(PersonnelSummary {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        gender: row.get(2)?,
-        ethnicity: row.get(3)?,
-        native_place: row.get(4)?,
-        id_card_number: row.get(5)?,
-        payroll_card_number: row.get(6)?,
-        bank_name: row.get(7)?,
-        job_type: row.get(8)?,
-        phone_number: row.get(9)?,
-      })
-    })?;
+  let rows = stmt.query_map([], |row| {
+    Ok(PersonnelSummary {
+      id: row.get(0)?,
+      name: row.get(1)?,
+      gender: row.get(2)?,
+      ethnicity: row.get(3)?,
+      native_place: row.get(4)?,
+      id_card_number: row.get(5)?,
+      payroll_card_number: row.get(6)?,
+      bank_name: row.get(7)?,
+      job_type: row.get(8)?,
+      phone_number: row.get(9)?,
+    })
+  })?;
 
   rows.collect()
 }
@@ -266,6 +266,51 @@ pub fn update_personnel(
   get_personnel_by_id(conn, personnel_id)
 }
 
+pub fn delete_personnel(conn: &mut Connection, personnel_id: i64) -> Result<bool> {
+  let tx = conn.transaction()?;
+
+  let sheet_ids = {
+    let mut stmt = tx.prepare(
+      "SELECT DISTINCT payroll_sheet_id
+       FROM payroll_record
+       WHERE personnel_id = ?1",
+    )?;
+
+    let rows = stmt
+      .query_map([personnel_id], |row| row.get::<_, i64>(0))?
+      .collect::<Result<Vec<_>, _>>()?;
+
+    rows
+  };
+
+  let existed = tx
+    .query_row(
+      "SELECT EXISTS(SELECT 1 FROM personnel WHERE id = ?1)",
+      [personnel_id],
+      |row| row.get::<_, i64>(0),
+    )?
+    == 1;
+
+  if !existed {
+    tx.rollback()?;
+    return Ok(false);
+  }
+
+  tx.execute(
+    "DELETE FROM payroll_record WHERE personnel_id = ?1",
+    [personnel_id],
+  )?;
+
+  tx.execute("DELETE FROM personnel WHERE id = ?1", [personnel_id])?;
+
+  for sheet_id in sheet_ids {
+    touch_payroll_sheet(&tx, sheet_id)?;
+  }
+
+  tx.commit()?;
+  Ok(true)
+}
+
 pub fn list_payroll_sheets(conn: &Connection) -> Result<Vec<PayrollSheetSummary>> {
   let mut stmt = conn.prepare(
     "SELECT ps.id, ps.name, ps.updated_at, COUNT(pr.id) AS personnel_count
@@ -275,15 +320,14 @@ pub fn list_payroll_sheets(conn: &Connection) -> Result<Vec<PayrollSheetSummary>
      ORDER BY ps.updated_at DESC, ps.id DESC",
   )?;
 
-  let rows = stmt
-    .query_map([], |row| {
-      Ok(PayrollSheetSummary {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        updated_at: row.get(2)?,
-        personnel_count: row.get(3)?,
-      })
-    })?;
+  let rows = stmt.query_map([], |row| {
+    Ok(PayrollSheetSummary {
+      id: row.get(0)?,
+      name: row.get(1)?,
+      updated_at: row.get(2)?,
+      personnel_count: row.get(3)?,
+    })
+  })?;
 
   rows.collect()
 }
@@ -323,7 +367,7 @@ pub fn get_payroll_sheet_detail(
   };
 
   let mut stmt = conn.prepare(
-    "SELECT pr.id, p.id, p.name, p.job_type, p.phone_number, pr.net_pay
+    "SELECT pr.id, p.id, p.name, p.id_card_number, p.payroll_card_number, p.phone_number, pr.net_pay
      FROM payroll_record pr
      INNER JOIN personnel p ON p.id = pr.personnel_id
      WHERE pr.payroll_sheet_id = ?1
@@ -336,9 +380,10 @@ pub fn get_payroll_sheet_detail(
         record_id: row.get(0)?,
         personnel_id: row.get(1)?,
         name: row.get(2)?,
-        job_type: row.get(3)?,
-        phone_number: row.get(4)?,
-        net_pay: row.get(5)?,
+        id_card_number: row.get(3)?,
+        payroll_card_number: row.get(4)?,
+        phone_number: row.get(5)?,
+        net_pay: row.get(6)?,
       })
     })?
     .collect::<Result<Vec<_>, _>>()?;
@@ -512,7 +557,7 @@ fn get_payroll_record_row(
 ) -> Result<Option<PayrollSheetRecordRow>> {
   conn
     .query_row(
-      "SELECT pr.id, p.id, p.name, p.job_type, p.phone_number, pr.net_pay
+      "SELECT pr.id, p.id, p.name, p.id_card_number, p.payroll_card_number, p.phone_number, pr.net_pay
        FROM payroll_record pr
        INNER JOIN personnel p ON p.id = pr.personnel_id
        WHERE pr.id = ?1",
@@ -522,9 +567,10 @@ fn get_payroll_record_row(
           record_id: row.get(0)?,
           personnel_id: row.get(1)?,
           name: row.get(2)?,
-          job_type: row.get(3)?,
-          phone_number: row.get(4)?,
-          net_pay: row.get(5)?,
+          id_card_number: row.get(3)?,
+          payroll_card_number: row.get(4)?,
+          phone_number: row.get(5)?,
+          net_pay: row.get(6)?,
         })
       },
     )
@@ -568,9 +614,10 @@ mod tests {
 
   use super::{
     add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
-    get_payroll_sheet_detail, initialize_schema, list_payroll_sheets, list_personnel,
-    open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
-    update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
+    delete_personnel, get_payroll_sheet_detail, initialize_schema, list_payroll_sheets,
+    list_personnel, open_connection_at_path, remove_personnel_from_sheet,
+    update_payroll_record_net_pay, update_personnel, CreatePayrollSheetInput,
+    CreatePersonnelInput, UpdatePersonnelInput,
   };
 
   #[test]
@@ -981,6 +1028,94 @@ mod tests {
     );
 
     assert!(result.is_err());
+  }
+
+  #[test]
+  fn deletes_personnel_and_related_payroll_records() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("410000199001010001".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+    let bob = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("130000199001010002".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+
+    let first_sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-05".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+    let second_sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-06".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, first_sheet.id, &[alice.id, bob.id]).unwrap();
+    add_personnel_to_sheet(&mut conn, second_sheet.id, &[alice.id]).unwrap();
+
+    let did_delete = delete_personnel(&mut conn, alice.id).unwrap();
+
+    assert!(did_delete);
+    let personnel = list_personnel(&conn).unwrap();
+    assert_eq!(personnel.len(), 1);
+    assert_eq!(personnel[0].id, bob.id);
+
+    let first_detail = get_payroll_sheet_detail(&conn, first_sheet.id).unwrap().unwrap();
+    let second_detail = get_payroll_sheet_detail(&conn, second_sheet.id).unwrap().unwrap();
+    assert_eq!(first_detail.records.len(), 1);
+    assert_eq!(first_detail.records[0].personnel_id, bob.id);
+    assert_eq!(second_detail.records.len(), 0);
+
+    let sheets = list_payroll_sheets(&conn).unwrap();
+    let first_summary = sheets.iter().find(|sheet| sheet.id == first_sheet.id).unwrap();
+    let second_summary = sheets.iter().find(|sheet| sheet.id == second_sheet.id).unwrap();
+    assert_eq!(first_summary.personnel_count, 1);
+    assert_eq!(second_summary.personnel_count, 0);
+  }
+
+  #[test]
+  fn deleting_missing_personnel_returns_false() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let did_delete = delete_personnel(&mut conn, 999).unwrap();
+
+    assert!(!did_delete);
   }
 
   #[test]

@@ -1,4 +1,3 @@
-import { useMemo } from "react"
 import {
   createColumnHelper,
   flexRender,
@@ -7,12 +6,16 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { CircleDollarSign } from "lucide-react"
+import { useMemo } from "react"
 
 import type { PayrollRecord } from "@/entities/payroll-sheet/api/payroll-sheet"
+import { cn } from "@/lib/utils"
+import { maskSensitiveValue } from "@/shared/lib/formatters"
 
 type PayrollRecordTableProps = {
   drafts: Record<number, string>
   onDraftChange: (recordId: number, value: string) => void
+  onEditPersonnel: (personnelId: number) => void
   onSave: (record: PayrollRecord) => Promise<void>
   onToggleSelection: (personnelId: number) => void
   records: PayrollRecord[]
@@ -23,6 +26,7 @@ type PayrollRecordTableProps = {
 type PayrollRecordTableMeta = {
   drafts: Record<number, string>
   onDraftChange: (recordId: number, value: string) => void
+  onEditPersonnel: (personnelId: number) => void
   onSave: (record: PayrollRecord) => Promise<void>
   onToggleSelection: (personnelId: number) => void
   savingRecordIdSet: ReadonlySet<number>
@@ -30,7 +34,6 @@ type PayrollRecordTableMeta = {
 }
 
 declare module "@tanstack/react-table" {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface TableMeta<TData extends RowData> {
     payrollRecordTable?: PayrollRecordTableMeta
   }
@@ -55,7 +58,7 @@ const columns = [
             type="checkbox"
             checked={meta.selectedPersonnelIdSet.has(row.original.personnelId)}
             onChange={() => meta.onToggleSelection(row.original.personnelId)}
-            className="size-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+            className="size-4 rounded border-input accent-primary focus:ring-2 focus:ring-ring"
           />
         </label>
       )
@@ -63,22 +66,34 @@ const columns = [
   }),
   columnHelper.accessor("name", {
     header: () => "姓名",
-    cell: ({ row, getValue }) => (
-      <div className="space-y-1">
-        <p className="font-medium text-foreground">{getValue()}</p>
-        <p className="text-xs text-muted-foreground">
-          人员编号 #{row.original.personnelId}
-        </p>
-      </div>
-    ),
+    cell: ({ row, getValue, table }) => {
+      const meta = table.options.meta?.payrollRecordTable
+
+      return (
+        <button
+          type="button"
+          className="space-y-1 rounded-sm text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/30"
+          onClick={() => meta?.onEditPersonnel(row.original.personnelId)}
+        >
+          <p className="font-medium text-foreground">{getValue()}</p>
+          <p className="text-xs text-muted-foreground">
+            人员编号 #{row.original.personnelId}
+          </p>
+        </button>
+      )
+    },
   }),
-  columnHelper.accessor("jobType", {
-    header: () => "工种",
-    cell: ({ getValue }) => getValue() || "未填写",
+  columnHelper.accessor("idCardNumber", {
+    header: () => "身份证号码",
+    cell: ({ getValue }) => maskSensitiveValue(getValue()),
+  }),
+  columnHelper.accessor("payrollCardNumber", {
+    header: () => "工资卡号",
+    cell: ({ getValue }) => maskSensitiveValue(getValue()),
   }),
   columnHelper.accessor("phoneNumber", {
     header: () => "电话",
-    cell: ({ getValue }) => getValue() || "未填写",
+    cell: ({ getValue }) => getValue() || "-",
   }),
   columnHelper.display({
     id: "netPay",
@@ -117,6 +132,7 @@ const columns = [
 export function PayrollRecordTable({
   drafts,
   onDraftChange,
+  onEditPersonnel,
   onSave,
   onToggleSelection,
   records,
@@ -128,6 +144,7 @@ export function PayrollRecordTable({
       payrollRecordTable: {
         drafts,
         onDraftChange,
+        onEditPersonnel,
         onSave,
         onToggleSelection,
         savingRecordIdSet,
@@ -137,6 +154,7 @@ export function PayrollRecordTable({
     [
       drafts,
       onDraftChange,
+      onEditPersonnel,
       onSave,
       onToggleSelection,
       savingRecordIdSet,
@@ -144,7 +162,6 @@ export function PayrollRecordTable({
     ],
   )
 
-  // TanStack Table manages its own non-memoizable internals; we keep inputs stable around it.
   const table = useReactTable({
     data: records,
     columns,
@@ -153,15 +170,15 @@ export function PayrollRecordTable({
   })
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
       <table className="min-w-full border-collapse">
-        <thead className="bg-muted/50">
+        <thead className="bg-muted/70">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="px-4 py-4 text-left text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase"
+                  className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
                 >
                   {header.isPlaceholder
                     ? null
@@ -174,9 +191,17 @@ export function PayrollRecordTable({
             </tr>
           ))}
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody className="divide-y divide-border/80">
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="bg-background hover:bg-muted/30">
+            <tr
+              key={row.id}
+              className={cn(
+                "transition",
+                selectedPersonnelIdSet.has(row.original.personnelId)
+                  ? "bg-accent/40 hover:bg-accent/55"
+                  : "bg-background hover:bg-accent/25",
+              )}
+            >
               {row.getVisibleCells().map((cell) => (
                 <td key={cell.id} className="px-4 py-3.5 text-sm text-foreground">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

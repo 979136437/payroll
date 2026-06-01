@@ -29,17 +29,17 @@ const ROSTER_HEADERS: [&str; 12] = [
   "备注",
 ];
 
-const PAYROLL_HEADERS: [&str; 11] = [
+const PAYROLL_HEADER_DISPLAY: [&str; 11] = [
   "姓名",
   "身份证号",
   "银行卡号",
   "账户银行",
-  "出勤天数",
-  "工资标准",
-  "应发工资",
-  "应扣减金额",
-  "实发金额",
-  "领款人签字",
+  "出勤\n天数",
+  "工资标\n准",
+  "应发工\n资",
+  "应扣减\n金额",
+  "实发\n金额",
+  "领款人\n签字",
   "备注",
 ];
 
@@ -190,6 +190,7 @@ pub fn export_payroll_sheet_excel(
   let mut workbook = Workbook::new();
   write_roster_sheet(&mut workbook, "花名册", &export.personnel)?;
   write_payroll_sheet(&mut workbook, &export)?;
+  write_attendance_sheet(&mut workbook, &export)?;
 
   workbook
     .save(save_path)
@@ -203,56 +204,25 @@ pub fn export_payroll_sheet_excel(
 fn parse_personnel_import_rows(file_path: &Path) -> Result<Vec<PersonnelImportRow>, String> {
   let mut workbook =
     open_workbook_auto(file_path).map_err(|error| format!("打开 Excel 失败: {error}"))?;
-  let first_sheet_name = workbook
-    .sheet_names()
-    .first()
-    .cloned()
-    .ok_or_else(|| "Excel 中没有可读取的工作表".to_string())?;
-
-  let range = workbook
-    .worksheet_range(&first_sheet_name)
-    .map_err(|error| format!("读取 Excel 失败: {error}"))?;
-
-  let mut rows = range.rows();
-  let header_row = rows
-    .find(|row| row.iter().any(|cell| !cell_string(cell).is_empty()))
-    .ok_or_else(|| "Excel 中没有表头".to_string())?;
-
-  let actual_headers = header_row
-    .iter()
-    .take(ROSTER_HEADERS.len())
-    .map(cell_string)
-    .collect::<Vec<_>>();
-
-  if actual_headers != ROSTER_HEADERS {
-    return Err("导入模板不匹配，请使用固定花名册表头".into());
+  let sheet_names = workbook.sheet_names().to_vec();
+  if sheet_names.is_empty() {
+    return Err("Excel 涓病鏈夊彲璇诲彇鐨勫伐浣滆〃".to_string());
   }
 
-  let result = rows
-    .filter_map(|row| {
-      let values = row.iter().take(ROSTER_HEADERS.len()).map(cell_string).collect::<Vec<_>>();
-      if values.iter().all(|value| value.trim().is_empty()) {
-        return None;
-      }
+  for sheet_name in sheet_names {
+    let range = workbook
+      .worksheet_range(&sheet_name)
+      .map_err(|error| format!("璇诲彇 Excel 澶辫触: {error}"))?;
 
-      Some(PersonnelImportRow {
-        name: values.first().cloned().unwrap_or_default(),
-        gender: optional_value(values.get(1)),
-        ethnicity: optional_value(values.get(2)),
-        native_place: optional_value(values.get(3)),
-        id_card_number: optional_value(values.get(4)),
-        payroll_card_number: optional_value(values.get(5)),
-        bank_name: optional_value(values.get(6)),
-        job_type: optional_value(values.get(7)),
-        start_date: optional_value(values.get(8)),
-        end_date: optional_value(values.get(9)),
-        phone_number: optional_value(values.get(10)),
-        remark: optional_value(values.get(11)),
-      })
-    })
-    .collect::<Vec<_>>();
-
-  Ok(result)
+    if let Some((header_row_index, column_offset)) = detect_roster_header(&range) {
+      return Ok(parse_personnel_import_rows_from_sheet(
+        &range,
+        header_row_index,
+        column_offset,
+      ));
+    }
+  }
+  Err("瀵煎叆妯℃澘涓嶅尮閰嶏紝璇蜂娇鐢ㄥ浐瀹氳姳鍚嶅唽琛ㄥご".into())
 }
 
 fn write_roster_sheet(
@@ -265,26 +235,26 @@ fn write_roster_sheet(
     .set_name(sheet_name)
     .map_err(|error| format!("设置花名册工作表名称失败: {error}"))?;
 
-  let title_format = Format::new()
-    .set_bold()
-    .set_font_size(18.0)
-    .set_align(FormatAlign::Center)
-    .set_align(FormatAlign::VerticalCenter);
-  let cell_format = base_cell_format();
+  let title_format = title_cell_format(16.0);
+  let info_format = info_cell_format();
+  let cell_format = body_cell_format();
   let header_format = header_cell_format();
 
   worksheet
     .merge_range(0, 0, 0, 12, "农民工花名册", &title_format)
     .map_err(|error| format!("写入花名册标题失败: {error}"))?;
   worksheet
-    .write_with_format(1, 0, "编制单位：", &cell_format)
+    .write_with_format(1, 0, "编制单位：", &info_format)
     .map_err(|error| format!("写入花名册编制单位失败: {error}"))?;
   worksheet
-    .merge_range(1, 1, 1, 4, "", &cell_format)
+    .merge_range(1, 1, 1, 3, "", &info_format)
     .map_err(|error| format!("写入花名册编制单位空白区失败: {error}"))?;
   worksheet
-    .merge_range(1, 5, 1, 12, &export_month_label(), &cell_format)
+    .merge_range(1, 4, 1, 5, &export_month_label(), &info_format)
     .map_err(|error| format!("写入花名册月份失败: {error}"))?;
+  worksheet
+    .merge_range(1, 6, 1, 12, "", &info_format)
+    .map_err(|error| format!("写入花名册右侧空白区失败: {error}"))?;
 
   worksheet
     .write_with_format(2, 0, "序号", &header_format)
@@ -328,35 +298,99 @@ fn write_roster_sheet(
   Ok(())
 }
 
+fn detect_roster_header(range: &calamine::Range<Data>) -> Option<(usize, usize)> {
+  range.rows().enumerate().find_map(|(row_index, row)| {
+    if !row.iter().any(|cell| !cell_string(cell).is_empty()) {
+      return None;
+    }
+
+    let direct_headers = row
+      .iter()
+      .take(ROSTER_HEADERS.len())
+      .map(cell_string)
+      .collect::<Vec<_>>();
+    if direct_headers == ROSTER_HEADERS {
+      return Some((row_index, 0));
+    }
+
+    let indexed_headers = row
+      .iter()
+      .skip(1)
+      .take(ROSTER_HEADERS.len())
+      .map(cell_string)
+      .collect::<Vec<_>>();
+    if row.first().map(cell_string).as_deref() == Some("\u{5E8F}\u{53F7}")
+      && indexed_headers == ROSTER_HEADERS
+    {
+      return Some((row_index, 1));
+    }
+
+    None
+  })
+}
+
+fn parse_personnel_import_rows_from_sheet(
+  range: &calamine::Range<Data>,
+  header_row_index: usize,
+  column_offset: usize,
+) -> Vec<PersonnelImportRow> {
+  range
+    .rows()
+    .skip(header_row_index + 1)
+    .filter_map(|row| {
+      let values = (0..ROSTER_HEADERS.len())
+        .map(|index| row.get(index + column_offset).map(cell_string).unwrap_or_default())
+        .collect::<Vec<_>>();
+      if values.iter().all(|value| value.trim().is_empty()) {
+        return None;
+      }
+
+      Some(PersonnelImportRow {
+        name: values.first().cloned().unwrap_or_default(),
+        gender: optional_value(values.get(1)),
+        ethnicity: optional_value(values.get(2)),
+        native_place: optional_value(values.get(3)),
+        id_card_number: optional_value(values.get(4)),
+        payroll_card_number: optional_value(values.get(5)),
+        bank_name: optional_value(values.get(6)),
+        job_type: optional_value(values.get(7)),
+        start_date: optional_value(values.get(8)),
+        end_date: optional_value(values.get(9)),
+        phone_number: optional_value(values.get(10)),
+        remark: optional_value(values.get(11)),
+      })
+    })
+    .collect::<Vec<_>>()
+}
+
 fn write_payroll_sheet(workbook: &mut Workbook, export: &PayrollSheetExport) -> Result<(), String> {
   let worksheet = workbook.add_worksheet();
   worksheet
     .set_name("工资表")
     .map_err(|error| format!("设置工资表工作表名称失败: {error}"))?;
 
-  let title_format = Format::new()
-    .set_bold()
-    .set_font_size(18.0)
-    .set_align(FormatAlign::Center)
-    .set_align(FormatAlign::VerticalCenter);
-  let cell_format = base_cell_format();
-  let header_format = header_cell_format();
+  let title_format = title_cell_format(18.0);
+  let info_format = info_cell_format();
+  let cell_format = body_cell_format();
+  let header_format = wrapped_header_cell_format();
+  let total_label_format = total_label_cell_format();
+  let total_value_format = total_value_cell_format();
 
   worksheet
     .merge_range(0, 0, 0, 11, "工资表", &title_format)
     .map_err(|error| format!("写入工资表标题失败: {error}"))?;
   worksheet
-    .write_with_format(1, 0, "编制单位名称：", &cell_format)
+    .write_with_format(1, 0, "编制单位名称：", &info_format)
     .map_err(|error| format!("写入工资表编制单位失败: {error}"))?;
   worksheet
-    .merge_range(1, 1, 1, 11, "", &cell_format)
+    .merge_range(1, 1, 1, 11, "", &info_format)
     .map_err(|error| format!("写入工资表编制单位空白区失败: {error}"))?;
 
   worksheet
     .write_with_format(2, 0, "序号", &header_format)
     .map_err(|error| format!("写入工资表序号表头失败: {error}"))?;
 
-  for (index, header) in PAYROLL_HEADERS.iter().enumerate() {
+  for (index, header) in PAYROLL_HEADER_DISPLAY.iter().enumerate() {
     worksheet
       .write_with_format(2, (index + 1) as u16, *header, &header_format)
       .map_err(|error| format!("写入工资表表头失败: {error}"))?;
@@ -389,40 +423,143 @@ fn write_payroll_sheet(workbook: &mut Workbook, export: &PayrollSheetExport) -> 
     }
   }
 
+  let total_row = (export.records.len() + 3) as u32;
+  let total_net_pay = export.records.iter().map(|record| record.net_pay).sum::<f64>();
+
+  for column in 0..8 {
+    worksheet
+      .write_with_format(total_row, column, "", &cell_format)
+      .map_err(|error| format!("写入工资表合计空白区失败: {error}"))?;
+  }
+  worksheet
+    .write_with_format(total_row, 8, "合计", &total_label_format)
+    .map_err(|error| format!("写入工资表合计标签失败: {error}"))?;
+  worksheet
+    .write_with_format(total_row, 9, format_decimal(total_net_pay), &total_value_format)
+    .map_err(|error| format!("写入工资表合计金额失败: {error}"))?;
+  worksheet
+    .write_with_format(total_row, 10, "", &cell_format)
+    .map_err(|error| format!("写入工资表合计签字空白区失败: {error}"))?;
+  worksheet
+    .write_with_format(total_row, 11, "", &cell_format)
+    .map_err(|error| format!("写入工资表合计备注空白区失败: {error}"))?;
+
   apply_payroll_layout(worksheet).map_err(|error| format!("设置工资表样式失败: {error}"))?;
   Ok(())
 }
 
+fn write_attendance_sheet(
+  workbook: &mut Workbook,
+  export: &PayrollSheetExport,
+) -> Result<(), String> {
+  let worksheet = workbook.add_worksheet();
+  worksheet
+    .set_name("农民工考勤表")
+    .map_err(|error| format!("设置考勤表工作表名称失败: {error}"))?;
+
+  let title_format = title_cell_format(16.0);
+  let info_format = info_cell_format();
+  let header_format = header_cell_format();
+  let cell_format = body_cell_format();
+
+  worksheet
+    .merge_range(0, 0, 0, 33, "农民工考勤表", &title_format)
+    .map_err(|error| format!("写入考勤表标题失败: {error}"))?;
+  worksheet
+    .write_with_format(1, 0, "编制单位：", &info_format)
+    .map_err(|error| format!("写入考勤表编制单位失败: {error}"))?;
+  worksheet
+    .merge_range(1, 1, 1, 13, "", &info_format)
+    .map_err(|error| format!("写入考勤表编制单位空白区失败: {error}"))?;
+  worksheet
+    .merge_range(1, 14, 1, 17, &export_month_label(), &info_format)
+    .map_err(|error| format!("写入考勤表月份失败: {error}"))?;
+  worksheet
+    .merge_range(1, 18, 1, 33, "", &info_format)
+    .map_err(|error| format!("写入考勤表右侧空白区失败: {error}"))?;
+
+  for (column, header) in ["序号", "姓名", "身份证号"].iter().enumerate() {
+    worksheet
+      .write_with_format(2, column as u16, *header, &header_format)
+      .map_err(|error| format!("写入考勤表固定表头失败: {error}"))?;
+  }
+
+  for day in 1..=31 {
+    worksheet
+      .write_with_format(2, (day + 2) as u16, day.to_string(), &header_format)
+      .map_err(|error| format!("写入考勤表日期表头失败: {error}"))?;
+  }
+
+  for index in 0..export.personnel.len() {
+    let excel_row = (index + 3) as u32;
+    worksheet
+      .write_with_format(excel_row, 0, (index + 1) as i64, &cell_format)
+      .map_err(|error| format!("写入考勤表序号失败: {error}"))?;
+
+    for column in 1..=33 {
+      worksheet
+        .write_with_format(excel_row, column, "", &cell_format)
+        .map_err(|error| format!("写入考勤表空白模板失败: {error}"))?;
+    }
+  }
+
+  apply_attendance_layout(worksheet)
+    .map_err(|error| format!("设置考勤表样式失败: {error}"))?;
+  Ok(())
+}
+
 fn apply_roster_layout(worksheet: &mut Worksheet) -> Result<(), rust_xlsxwriter::XlsxError> {
+  worksheet.set_row_height(0, 28.0)?;
+  worksheet.set_row_height(1, 24.0)?;
+  worksheet.set_row_height(2, 24.0)?;
+  worksheet.set_default_row_height(22.0);
   worksheet.set_column_width(0, 6.0)?;
-  worksheet.set_column_width(1, 12.0)?;
+  worksheet.set_column_width(1, 10.0)?;
   worksheet.set_column_width(2, 8.0)?;
-  worksheet.set_column_width(3, 10.0)?;
-  worksheet.set_column_width(4, 32.0)?;
+  worksheet.set_column_width(3, 8.0)?;
+  worksheet.set_column_width(4, 28.0)?;
   worksheet.set_column_width(5, 22.0)?;
-  worksheet.set_column_width(6, 24.0)?;
+  worksheet.set_column_width(6, 22.0)?;
   worksheet.set_column_width(7, 24.0)?;
-  worksheet.set_column_width(8, 12.0)?;
+  worksheet.set_column_width(8, 10.0)?;
   worksheet.set_column_width(9, 12.0)?;
   worksheet.set_column_width(10, 12.0)?;
-  worksheet.set_column_width(11, 16.0)?;
-  worksheet.set_column_width(12, 12.0)?;
+  worksheet.set_column_width(11, 14.0)?;
+  worksheet.set_column_width(12, 10.0)?;
   Ok(())
 }
 
 fn apply_payroll_layout(worksheet: &mut Worksheet) -> Result<(), rust_xlsxwriter::XlsxError> {
+  worksheet.set_row_height(0, 30.0)?;
+  worksheet.set_row_height(1, 24.0)?;
+  worksheet.set_row_height(2, 38.0)?;
+  worksheet.set_default_row_height(22.0);
   worksheet.set_column_width(0, 6.0)?;
   worksheet.set_column_width(1, 12.0)?;
-  worksheet.set_column_width(2, 22.0)?;
-  worksheet.set_column_width(3, 22.0)?;
-  worksheet.set_column_width(4, 24.0)?;
-  worksheet.set_column_width(5, 12.0)?;
-  worksheet.set_column_width(6, 12.0)?;
-  worksheet.set_column_width(7, 12.0)?;
-  worksheet.set_column_width(8, 12.0)?;
-  worksheet.set_column_width(9, 12.0)?;
-  worksheet.set_column_width(10, 14.0)?;
-  worksheet.set_column_width(11, 12.0)?;
+  worksheet.set_column_width(2, 24.0)?;
+  worksheet.set_column_width(3, 24.0)?;
+  worksheet.set_column_width(4, 22.0)?;
+  worksheet.set_column_width(5, 10.0)?;
+  worksheet.set_column_width(6, 10.0)?;
+  worksheet.set_column_width(7, 10.0)?;
+  worksheet.set_column_width(8, 10.0)?;
+  worksheet.set_column_width(9, 8.0)?;
+  worksheet.set_column_width(10, 12.0)?;
+  worksheet.set_column_width(11, 10.0)?;
+  Ok(())
+}
+
+fn apply_attendance_layout(worksheet: &mut Worksheet) -> Result<(), rust_xlsxwriter::XlsxError> {
+  worksheet.set_row_height(0, 28.0)?;
+  worksheet.set_row_height(1, 24.0)?;
+  worksheet.set_row_height(2, 24.0)?;
+  worksheet.set_default_row_height(22.0);
+  worksheet.set_column_width(0, 6.0)?;
+  worksheet.set_column_width(1, 10.0)?;
+  worksheet.set_column_width(2, 24.0)?;
+  for column in 3..=33 {
+    worksheet.set_column_width(column, 4.0)?;
+  }
   Ok(())
 }
 
@@ -431,12 +568,37 @@ fn base_cell_format() -> Format {
     .set_border(FormatBorder::Thin)
     .set_align(FormatAlign::Center)
     .set_align(FormatAlign::VerticalCenter)
+    .set_font_size(11)
 }
 
 fn header_cell_format() -> Format {
   base_cell_format()
     .set_bold()
     .set_font_color(Color::Black)
+}
+
+fn wrapped_header_cell_format() -> Format {
+  header_cell_format().set_text_wrap()
+}
+
+fn title_cell_format(font_size: f64) -> Format {
+  base_cell_format().set_bold().set_font_size(font_size)
+}
+
+fn info_cell_format() -> Format {
+  base_cell_format()
+}
+
+fn body_cell_format() -> Format {
+  base_cell_format()
+}
+
+fn total_label_cell_format() -> Format {
+  body_cell_format().set_bold()
+}
+
+fn total_value_cell_format() -> Format {
+  body_cell_format()
 }
 
 fn export_month_label() -> String {
@@ -496,6 +658,7 @@ mod tests {
   use std::fs;
   use std::path::Path;
 
+  use calamine::{open_workbook_auto, Reader};
   use rust_xlsxwriter::Workbook;
   use tempfile::tempdir;
 
@@ -506,8 +669,9 @@ mod tests {
   };
 
   use super::{
-    export_payroll_sheet_excel, export_personnel_excel, import_personnel_from_excel,
-    parse_personnel_import_rows, ExcelExportResult, ROSTER_HEADERS,
+    cell_string, export_payroll_sheet_excel, export_personnel_excel,
+    import_personnel_from_excel, parse_personnel_import_rows, ExcelExportResult,
+    ROSTER_HEADERS,
   };
 
   fn write_fixture_file(path: &Path, bytes: &[u8]) {
@@ -572,6 +736,66 @@ mod tests {
   }
 
   #[test]
+  fn personnel_import_accepts_exported_roster_layout() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("exported-roster.xlsx");
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    worksheet.write_string(0, 0, "title").unwrap();
+    worksheet.write_string(1, 0, "unit").unwrap();
+    worksheet.write_string(1, 5, "2026-06").unwrap();
+    worksheet.write_string(2, 0, "\u{5E8F}\u{53F7}").unwrap();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      worksheet.write_string(2, (index + 1) as u16, *header).unwrap();
+    }
+    worksheet.write_number(3, 0, 1.0).unwrap();
+    worksheet.write_string(3, 1, "Alice").unwrap();
+    worksheet.write_string(3, 5, "430623197201192213").unwrap();
+    worksheet.write_string(3, 11, "18689852329").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    let rows = parse_personnel_import_rows(&file_path).unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].name, "Alice");
+    assert_eq!(rows[0].id_card_number.as_deref(), Some("430623197201192213"));
+    assert_eq!(rows[0].phone_number.as_deref(), Some("18689852329"));
+  }
+
+  #[test]
+  fn personnel_import_scans_sheets_for_roster_header() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("multi-sheet-roster.xlsx");
+
+    let mut workbook = Workbook::new();
+    let ignored_sheet = workbook.add_worksheet();
+    ignored_sheet.set_name("sheet1").unwrap();
+    ignored_sheet.write_string(0, 0, "ignored").unwrap();
+
+    let roster_sheet = workbook.add_worksheet();
+    roster_sheet.set_name("roster").unwrap();
+    roster_sheet.write_string(0, 0, "title").unwrap();
+    roster_sheet.write_string(1, 0, "unit").unwrap();
+    roster_sheet.write_string(2, 0, "\u{5E8F}\u{53F7}").unwrap();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      roster_sheet
+        .write_string(2, (index + 1) as u16, *header)
+        .unwrap();
+    }
+    roster_sheet.write_number(3, 0, 1.0).unwrap();
+    roster_sheet.write_string(3, 1, "Bob").unwrap();
+    roster_sheet.write_string(3, 5, "430623197201192214").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    let rows = parse_personnel_import_rows(&file_path).unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].name, "Bob");
+    assert_eq!(rows[0].id_card_number.as_deref(), Some("430623197201192214"));
+  }
+
+  #[test]
   fn personnel_export_creates_roster_sheet() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("payroll.db");
@@ -609,7 +833,7 @@ mod tests {
   }
 
   #[test]
-  fn payroll_export_contains_roster_and_payroll_sheet_names() {
+  fn payroll_export_contains_roster_payroll_and_attendance_sheets() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("payroll.db");
     let mut conn = open_connection_at_path(&db_path).unwrap();
@@ -648,5 +872,23 @@ mod tests {
     export_payroll_sheet_excel(&conn, sheet.id, &file_path).unwrap();
 
     assert!(file_path.exists());
+
+    let mut workbook = open_workbook_auto(&file_path).unwrap();
+    assert_eq!(
+      workbook.sheet_names(),
+      &["花名册".to_string(), "工资表".to_string(), "农民工考勤表".to_string()]
+    );
+
+    let payroll_sheet = workbook.worksheet_range("工资表").unwrap();
+    assert_eq!(cell_string(payroll_sheet.get_value((2, 5)).unwrap()), "出勤\n天数");
+    assert_eq!(cell_string(payroll_sheet.get_value((2, 10)).unwrap()), "领款人\n签字");
+    assert_eq!(cell_string(payroll_sheet.get_value((4, 9)).unwrap()), "4000");
+    assert_eq!(cell_string(payroll_sheet.get_value((4, 8)).unwrap()), "合计");
+
+    let attendance_sheet = workbook.worksheet_range("农民工考勤表").unwrap();
+    assert_eq!(cell_string(attendance_sheet.get_value((0, 0)).unwrap()), "农民工考勤表");
+    assert_eq!(cell_string(attendance_sheet.get_value((2, 0)).unwrap()), "序号");
+    assert_eq!(cell_string(attendance_sheet.get_value((2, 3)).unwrap()), "1");
+    assert_eq!(cell_string(attendance_sheet.get_value((2, 33)).unwrap()), "31");
   }
 }

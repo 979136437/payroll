@@ -10,6 +10,8 @@
     "build:tauri": "tauri build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "pnpm test:workspace-store && pnpm test:rust",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:workspace-store": "node scripts/run-payroll-workspace-store-test.mjs",
     "tauri": "tauri"
   },

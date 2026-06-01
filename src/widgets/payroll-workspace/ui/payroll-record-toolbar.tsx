@@ -3,7 +3,6 @@ import { startTransition } from "react"
 import { useShallow } from "zustand/react/shallow"
 
 import { Button } from "@/components/ui/button"
-import { MessageBar } from "@/shared/ui/workspace-primitives"
 import { usePayrollWorkspaceStore } from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
 
 function preloadPersonnelPickerDialog() {
@@ -12,18 +11,14 @@ function preloadPersonnelPickerDialog() {
 
 export function PayrollRecordToolbar() {
   const {
-    errorMessage,
     isRemovingPersonnel,
-    notice,
     removeSelectedPersonnelFromSheet,
     selectedPersonnelIds,
     selectedSheetId,
     setPersonnelDialogOpen,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
-      errorMessage: state.errorMessage,
       isRemovingPersonnel: state.isRemovingPersonnel,
-      notice: state.notice,
       removeSelectedPersonnelFromSheet: state.removeSelectedPersonnelFromSheet,
       selectedPersonnelIds: state.selectedPersonnelIds,
       selectedSheetId: state.selectedSheetId,
@@ -79,9 +74,6 @@ export function PayrollRecordToolbar() {
           </Button>
         </div>
       </div>
-
-      {errorMessage ? <MessageBar variant="error">{errorMessage}</MessageBar> : null}
-      {notice ? <MessageBar variant="notice">{notice}</MessageBar> : null}
     </div>
   )
 }

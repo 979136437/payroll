@@ -15,10 +15,10 @@ import type { CreatePersonnelValues } from "@/features/manage-personnel/model/sc
 import { CreateOrEditPersonnelDialog } from "@/features/manage-personnel/ui/create-or-edit-personnel-dialog"
 import { maskSensitiveValue } from "@/shared/lib/formatters"
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog"
+import { useToastFeedback } from "@/shared/ui/toast"
 import {
   EmptyPanel,
   LoadingState,
-  MessageBar,
   SummaryTile,
 } from "@/shared/ui/workspace-primitives"
 import { usePersonnelManagementStore } from "@/widgets/personnel-management/model/use-personnel-management-store"
@@ -102,6 +102,12 @@ export function PersonnelManagementPage() {
       void initialize()
     }
   }, [hasInitialized, initialize])
+
+  useToastFeedback({
+    clearFeedback,
+    errorMessage,
+    notice,
+  })
 
   const filteredPersonnel = useMemo(
     () => personnel.filter((item) => matchesQuery(item, query)),
@@ -224,9 +230,6 @@ export function PersonnelManagementPage() {
               </CardHeader>
 
               <CardContent className="space-y-4 pb-4">
-                {errorMessage ? <MessageBar variant="error">{errorMessage}</MessageBar> : null}
-                {notice ? <MessageBar variant="notice">{notice}</MessageBar> : null}
-
                 {isLoading ? (
                   <LoadingState label="正在读取人员列表..." />
                 ) : filteredPersonnel.length === 0 ? (

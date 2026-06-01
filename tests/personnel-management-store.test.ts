@@ -6,6 +6,7 @@ import { usePersonnelManagementStore } from "@/widgets/personnel-management/mode
 
 const originalApi = {
   createPersonnel: personnelManagementApi.createPersonnel,
+  deletePersonnel: personnelManagementApi.deletePersonnel,
   listPersonnel: personnelManagementApi.listPersonnel,
   updatePersonnel: personnelManagementApi.updatePersonnel,
 }
@@ -16,6 +17,7 @@ function resetStore() {
     editingPersonnel: null,
     errorMessage: null,
     hasInitialized: false,
+    isDeleting: false,
     isDialogOpen: false,
     isLoading: false,
     isSubmitting: false,
@@ -37,7 +39,7 @@ function makePersonnel(overrides: Partial<Personnel> = {}): Personnel {
     id: 1,
     idCardNumber: null,
     jobType: null,
-    name: "张三",
+    name: "Alex",
     nativePlace: null,
     payrollCardNumber: null,
     phoneNumber: null,
@@ -61,8 +63,8 @@ async function runTest(name: string, testFn: () => Promise<void> | void) {
 async function main() {
   await runTest("initialize loads personnel list once", async () => {
     const personnel = [
-      makePersonnel({ id: 1 }),
-      makePersonnel({ id: 2, name: "李四" }),
+      makePersonnel({ id: 1, name: "Alex" }),
+      makePersonnel({ id: 2, name: "Blair" }),
     ]
 
     personnelManagementApi.listPersonnel = async () => personnel
@@ -74,14 +76,14 @@ async function main() {
     assert.deepEqual(state.personnel, personnel)
   })
 
-  await runTest("createPersonnel closes dialog and refreshes list", async () => {
+  await runTest("createPersonnel closes dialog and records success notice", async () => {
     const created = makePersonnel({
-      bankName: "中国银行",
+      bankName: "Bank A",
       gender: "女",
       id: 3,
       idCardNumber: "130000199901010001",
-      name: "王五",
-      nativePlace: "河北",
+      name: "Casey",
+      nativePlace: "Hebei",
       payrollCardNumber: "6222000000000001",
       phoneNumber: "13900000000",
     })
@@ -109,23 +111,23 @@ async function main() {
     assert.deepEqual(state.personnel, [created])
   })
 
-  await runTest("updatePersonnel closes dialog and refreshes list", async () => {
+  await runTest("updatePersonnel closes dialog and records success notice", async () => {
     const original = makePersonnel({
-      bankName: "中国建设银行",
+      bankName: "Bank B",
       gender: "女",
       id: 9,
       idCardNumber: "410000199001010001",
-      name: "赵六",
+      name: "Dana",
       payrollCardNumber: "6222000000000001",
       phoneNumber: "13800000000",
     })
     const updated = makePersonnel({
       ...original,
-      bankName: "中国银行",
+      bankName: "Bank C",
       gender: "男",
       idCardNumber: "130000199201020002",
-      name: "赵六更新",
-      nativePlace: "河北",
+      name: "Dana Updated",
+      nativePlace: "Henan",
       phoneNumber: "13900000000",
     })
 
@@ -152,15 +154,39 @@ async function main() {
     assert.deepEqual(state.personnel, [updated])
   })
 
-  await runTest("updatePersonnel surfaces friendly duplicate id error", async () => {
+  await runTest("deletePersonnel closes dialog and records success notice", async () => {
+    const existing = makePersonnel({ id: 12, name: "Erin" })
+
+    personnelManagementApi.deletePersonnel = async () => undefined
+    personnelManagementApi.listPersonnel = async () => []
+
+    usePersonnelManagementStore.setState({
+      dialogMode: "edit",
+      editingPersonnel: existing,
+      isDialogOpen: true,
+      personnel: [existing],
+    })
+
+    const didDelete = await usePersonnelManagementStore
+      .getState()
+      .deletePersonnelRecord(existing.id)
+
+    const state = usePersonnelManagementStore.getState()
+    assert.equal(didDelete, true)
+    assert.equal(state.isDialogOpen, false)
+    assert.equal(state.notice, "人员已删除")
+    assert.deepEqual(state.personnel, [])
+  })
+
+  await runTest("updatePersonnel surfaces duplicate id error", async () => {
     const original = makePersonnel({
       id: 9,
       idCardNumber: "410000199001010001",
-      name: "赵六",
+      name: "Frank",
     })
 
     personnelManagementApi.updatePersonnel = async () => {
-      throw new Error("身份证号码已存在")
+      throw new Error("duplicate id card")
     }
 
     usePersonnelManagementStore.getState().openEditDialog(original)
@@ -168,13 +194,13 @@ async function main() {
       .getState()
       .updatePersonnelRecord(original.id, {
         idCardNumber: "130000199201020002",
-        name: "赵六",
+        name: "Frank",
       })
 
     const state = usePersonnelManagementStore.getState()
     assert.equal(didUpdate, false)
     assert.equal(state.isDialogOpen, true)
-    assert.equal(state.errorMessage, "身份证号码已存在")
+    assert.equal(state.errorMessage, "duplicate id card")
   })
 }
 

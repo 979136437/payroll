@@ -1,5 +1,5 @@
-import { PayrollWorkspacePage } from "@/pages/payroll-workspace-page/ui/payroll-workspace-page"
+import { AppShell } from "@/app/app-shell"
 
 export function AppRoot() {
-  return <PayrollWorkspacePage />
+  return <AppShell />
 }

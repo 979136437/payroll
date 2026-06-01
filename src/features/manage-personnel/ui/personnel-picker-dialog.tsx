@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Phone, Plus, UserRound } from "lucide-react"
+import { Check, Phone, Plus, UserRound } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 
 import type { Personnel } from "@/entities/personnel/api/personnel"
@@ -103,8 +103,22 @@ export function PersonnelPickerDialog({
                         checked={checked}
                         disabled={disabled}
                         onChange={() => onToggleSelection(person.id)}
-                        className="size-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                        className="peer sr-only"
                       />
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "flex size-4 items-center justify-center rounded-[4px] border border-input bg-background text-primary-foreground shadow-sm transition",
+                          disabled
+                            ? "border-border/70 bg-muted text-muted-foreground"
+                            : "peer-focus-visible:border-ring peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30",
+                          checked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "bg-background text-transparent",
+                        )}
+                      >
+                        <Check className="size-3" strokeWidth={3} />
+                      </span>
                     </div>
                     <div className="min-w-0 space-y-1">
                       <div className="flex min-h-5 items-center gap-2">

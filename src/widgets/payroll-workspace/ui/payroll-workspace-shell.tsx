@@ -14,8 +14,8 @@ export function PayrollWorkspaceShell() {
   )
 
   return (
-    <main className="min-h-screen bg-muted/30 px-4 py-6 text-foreground md:px-6">
-      <div className="mx-auto min-h-[calc(100vh-2.5rem)] max-w-7xl">
+    <main className="px-4 py-6 text-foreground md:px-6">
+      <div className="mx-auto min-h-[calc(100vh-8rem)] max-w-7xl">
         {isBootstrapping ? (
           <LoadingState label="正在载入工资工作台..." />
         ) : currentView === "sheet-detail" ? (

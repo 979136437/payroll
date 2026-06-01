@@ -79,6 +79,19 @@ pub struct CreatePersonnelInput {
   pub phone_number: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdatePersonnelInput {
+  pub name: String,
+  pub gender: Option<String>,
+  pub ethnicity: Option<String>,
+  pub native_place: Option<String>,
+  pub id_card_number: Option<String>,
+  pub payroll_card_number: Option<String>,
+  pub bank_name: Option<String>,
+  pub phone_number: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PayrollSheetSummary {
@@ -210,6 +223,47 @@ pub fn create_personnel(
   let id = conn.last_insert_rowid();
   get_personnel_by_id(conn, id)?
     .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
+}
+
+pub fn update_personnel(
+  conn: &Connection,
+  personnel_id: i64,
+  input: UpdatePersonnelInput,
+) -> Result<Option<PersonnelSummary>> {
+  let trimmed_name = input.name.trim();
+  let updated_at = current_timestamp();
+
+  let changed = conn.execute(
+    "UPDATE personnel
+     SET name = ?1,
+         gender = ?2,
+         ethnicity = ?3,
+         native_place = ?4,
+         id_card_number = ?5,
+         payroll_card_number = ?6,
+         bank_name = ?7,
+         phone_number = ?8,
+         updated_at = ?9
+     WHERE id = ?10",
+    params![
+      trimmed_name,
+      normalize_optional_string(input.gender),
+      normalize_optional_string(input.ethnicity),
+      normalize_optional_string(input.native_place),
+      normalize_optional_string(input.id_card_number),
+      normalize_optional_string(input.payroll_card_number),
+      normalize_optional_string(input.bank_name),
+      normalize_optional_string(input.phone_number),
+      updated_at,
+      personnel_id
+    ],
+  )?;
+
+  if changed == 0 {
+    return Ok(None);
+  }
+
+  get_personnel_by_id(conn, personnel_id)
 }
 
 pub fn list_payroll_sheets(conn: &Connection) -> Result<Vec<PayrollSheetSummary>> {
@@ -516,7 +570,7 @@ mod tests {
     add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
     get_payroll_sheet_detail, initialize_schema, list_payroll_sheets, list_personnel,
     open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
-    CreatePayrollSheetInput, CreatePersonnelInput,
+    update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
   };
 
   #[test]
@@ -765,6 +819,168 @@ mod tests {
     assert_eq!(created.payroll_card_number, None);
     assert_eq!(created.bank_name, None);
     assert_eq!(created.phone_number, None);
+  }
+
+  #[test]
+  fn updates_personnel_and_reads_back_latest_values() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = open_connection_at_path(&db_path).unwrap();
+
+    let created = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: Some("女".into()),
+        ethnicity: Some("汉".into()),
+        native_place: Some("河南".into()),
+        id_card_number: Some("410000199001010001".into()),
+        payroll_card_number: Some("6222000000000001".into()),
+        bank_name: Some("中国建设银行".into()),
+        job_type: Some("瓦工".into()),
+        phone_number: Some("13800000000".into()),
+      },
+    )
+    .unwrap();
+
+    let updated = update_personnel(
+      &conn,
+      created.id,
+      UpdatePersonnelInput {
+        name: "Alice Updated".into(),
+        gender: Some("男".into()),
+        ethnicity: Some("满".into()),
+        native_place: Some("河北".into()),
+        id_card_number: Some("130000199201020002".into()),
+        payroll_card_number: Some("6222000000000009".into()),
+        bank_name: Some("中国银行".into()),
+        phone_number: Some("13900000000".into()),
+      },
+    )
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(updated.id, created.id);
+    assert_eq!(updated.name, "Alice Updated");
+    assert_eq!(updated.gender.as_deref(), Some("男"));
+    assert_eq!(updated.ethnicity.as_deref(), Some("满"));
+    assert_eq!(updated.native_place.as_deref(), Some("河北"));
+    assert_eq!(
+      updated.id_card_number.as_deref(),
+      Some("130000199201020002")
+    );
+    assert_eq!(
+      updated.payroll_card_number.as_deref(),
+      Some("6222000000000009")
+    );
+    assert_eq!(updated.bank_name.as_deref(), Some("中国银行"));
+    assert_eq!(updated.phone_number.as_deref(), Some("13900000000"));
+    assert_eq!(updated.job_type.as_deref(), Some("瓦工"));
+  }
+
+  #[test]
+  fn updating_personnel_normalizes_blank_optional_fields() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = open_connection_at_path(&db_path).unwrap();
+
+    let created = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: Some("女".into()),
+        ethnicity: Some("汉".into()),
+        native_place: Some("河南".into()),
+        id_card_number: Some("410000199001010001".into()),
+        payroll_card_number: Some("6222000000000001".into()),
+        bank_name: Some("中国建设银行".into()),
+        job_type: None,
+        phone_number: Some("13800000000".into()),
+      },
+    )
+    .unwrap();
+
+    let updated = update_personnel(
+      &conn,
+      created.id,
+      UpdatePersonnelInput {
+        name: " Alice ".into(),
+        gender: Some(" ".into()),
+        ethnicity: Some("".into()),
+        native_place: Some("  ".into()),
+        id_card_number: Some("".into()),
+        payroll_card_number: Some(" ".into()),
+        bank_name: Some("".into()),
+        phone_number: Some(" ".into()),
+      },
+    )
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(updated.name, "Alice");
+    assert_eq!(updated.gender, None);
+    assert_eq!(updated.ethnicity, None);
+    assert_eq!(updated.native_place, None);
+    assert_eq!(updated.id_card_number, None);
+    assert_eq!(updated.payroll_card_number, None);
+    assert_eq!(updated.bank_name, None);
+    assert_eq!(updated.phone_number, None);
+  }
+
+  #[test]
+  fn updating_personnel_to_duplicate_id_card_number_fails() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = open_connection_at_path(&db_path).unwrap();
+
+    let first = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("410000199001010001".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+
+    let second = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("130000199001010002".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        phone_number: None,
+      },
+    )
+    .unwrap();
+
+    let result = update_personnel(
+      &conn,
+      second.id,
+      UpdatePersonnelInput {
+        name: second.name,
+        gender: second.gender,
+        ethnicity: second.ethnicity,
+        native_place: second.native_place,
+        id_card_number: first.id_card_number,
+        payroll_card_number: second.payroll_card_number,
+        bank_name: second.bank_name,
+        phone_number: second.phone_number,
+      },
+    );
+
+    assert!(result.is_err());
   }
 
   #[test]

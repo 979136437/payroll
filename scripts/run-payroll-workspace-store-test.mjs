@@ -11,6 +11,9 @@ try {
   await server.ssrLoadModule(
     "/tests/payroll-workspace-store.test.ts",
   )
+  await server.ssrLoadModule(
+    "/tests/personnel-management-store.test.ts",
+  )
 } finally {
   await server.close()
 }

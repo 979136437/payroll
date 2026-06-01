@@ -34,3 +34,15 @@ export function formatMoney(value: number) {
 export function formatCurrencyInput(value: number) {
   return value === 0 ? "0" : String(value)
 }
+
+export function maskSensitiveValue(value: string | null) {
+  if (!value) {
+    return "—"
+  }
+
+  if (value.length <= 7) {
+    return value
+  }
+
+  return `${value.slice(0, 3)}${"*".repeat(Math.max(1, value.length - 7))}${value.slice(-4)}`
+}

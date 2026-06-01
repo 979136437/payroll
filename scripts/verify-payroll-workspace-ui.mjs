@@ -116,6 +116,7 @@ await page.addInitScript(({ initialState }) => {
   window.__PAYROLL_VERIFY__ = {
     createSheetPayloads: [],
     createPersonnelPayloads: [],
+    updatePersonnelPayloads: [],
   }
 
   window.__TAURI_INTERNALS__ = {
@@ -166,6 +167,27 @@ await page.addInitScript(({ initialState }) => {
           }
           state.personnel.push(created)
           return clone(created)
+        }
+        case "update_personnel_command": {
+          window.__PAYROLL_VERIFY__.updatePersonnelPayloads.push(
+            clone({ payload: args.payload, personnelId: args.personnelId }),
+          )
+          if (args.payload.idCardNumber === "dup-id-card") {
+            throw new Error("身份证号码已存在")
+          }
+          const person = state.personnel.find((item) => item.id === args.personnelId)
+          if (!person) {
+            return null
+          }
+          person.name = args.payload.name
+          person.gender = args.payload.gender ?? null
+          person.ethnicity = args.payload.ethnicity ?? null
+          person.nativePlace = args.payload.nativePlace ?? null
+          person.idCardNumber = args.payload.idCardNumber ?? null
+          person.payrollCardNumber = args.payload.payrollCardNumber ?? null
+          person.bankName = args.payload.bankName ?? null
+          person.phoneNumber = args.payload.phoneNumber ?? null
+          return clone(person)
         }
         case "add_personnel_to_sheet_command": {
           const detail = state.details[args.sheetId]
@@ -235,6 +257,7 @@ await page.goto("http://127.0.0.1:5173/", { waitUntil: "networkidle" })
 
 await page.waitForSelector("text=工资工作台")
 const overviewText = await page.textContent("body")
+await page.waitForSelector('button:has-text("人员管理")')
 await page.click("text=新建工资表")
 await page.waitForSelector("text=从往期导入人员")
 await page.click('[role="combobox"]')
@@ -257,11 +280,26 @@ await page.fill('input[placeholder="例如：13800000000"]', "13911112222")
 await page.click('button:has-text("新增到人员库")')
 await page.waitForSelector("text=人员已新增到人员库")
 await page.waitForSelector("text=王五")
+const payrollWorkspaceText = await page.textContent("body")
+await page.click('button:has-text("关闭")')
+
+await page.click('button:has-text("人员管理")')
+await page.waitForSelector("text=人员资料列表")
+await page.fill('input[placeholder="搜索姓名、联系电话、身份证号、工资卡号"]', "张三")
+await page.waitForSelector("text=张三")
+await page.click('button:has-text("编辑")')
+await page.waitForSelector("text=编辑人员")
+await page.fill('input[placeholder="例如：张三"]', "张三更新")
+await page.fill('input[placeholder="例如：130000199901010001"]', "130000199901019998")
+await page.click('button:has-text("保存人员信息")')
+await page.waitForSelector("text=人员信息已更新")
+await page.waitForSelector("text=张三更新")
 
 const results = await page.evaluate(() => ({
   createPersonnelPayloads: window.__PAYROLL_VERIFY__.createPersonnelPayloads,
   createSheetPayloads: window.__PAYROLL_VERIFY__.createSheetPayloads,
   currentText: document.body.innerText,
+  updatePersonnelPayloads: window.__PAYROLL_VERIFY__.updatePersonnelPayloads,
 }))
 
 if (
@@ -280,9 +318,19 @@ if (
   )
 }
 
+if (
+  results.updatePersonnelPayloads.length !== 1 ||
+  results.updatePersonnelPayloads[0].personnelId !== 1
+) {
+  throw new Error(
+    `Unexpected updatePersonnel payload: ${JSON.stringify(results.updatePersonnelPayloads)}`,
+  )
+}
+
 const requiredOverviewTexts = [
   "工资工作台",
   "新建工资表",
+  "人员管理",
 ]
 
 for (const text of requiredOverviewTexts) {
@@ -292,7 +340,6 @@ for (const text of requiredOverviewTexts) {
 }
 
 const requiredTexts = [
-  "工资表导航",
   "工资表导航",
   "手工新增人员",
   "性别",
@@ -306,8 +353,20 @@ const requiredTexts = [
 ]
 
 for (const text of requiredTexts) {
+  if (!payrollWorkspaceText?.includes(text)) {
+    throw new Error(`Missing expected payroll text: ${text}`)
+  }
+}
+
+const personnelPageTexts = [
+  "人员资料列表",
+  "人员信息已更新",
+  "张三更新",
+]
+
+for (const text of personnelPageTexts) {
   if (!results.currentText.includes(text)) {
-    throw new Error(`Missing expected text: ${text}`)
+    throw new Error(`Missing expected personnel text: ${text}`)
   }
 }
 

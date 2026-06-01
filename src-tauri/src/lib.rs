@@ -5,9 +5,9 @@ use std::sync::Mutex;
 use db::{
   add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
   get_payroll_sheet_detail, list_payroll_sheets, list_personnel, open_connection_at_path,
-  remove_personnel_from_sheet, update_payroll_record_net_pay, CreatePayrollSheetInput,
-  CreatePersonnelInput, PayrollSheetDetail, PayrollSheetRecordRow, PayrollSheetSummary,
-  PersonnelSummary,
+  remove_personnel_from_sheet, update_payroll_record_net_pay, update_personnel,
+  CreatePayrollSheetInput, CreatePersonnelInput, PayrollSheetDetail, PayrollSheetRecordRow,
+  PayrollSheetSummary, PersonnelSummary, UpdatePersonnelInput,
 };
 use rusqlite::Connection;
 use tauri::{Manager, State};
@@ -51,6 +51,23 @@ fn create_personnel_command(
     .lock()
     .map_err(|error| format!("database lock poisoned: {error}"))?;
   create_personnel(&conn, payload).map_err(map_personnel_create_error)
+}
+
+#[tauri::command]
+fn update_personnel_command(
+  state: State<'_, DbState>,
+  personnel_id: i64,
+  payload: UpdatePersonnelInput,
+) -> Result<Option<PersonnelSummary>, String> {
+  if payload.name.trim().is_empty() {
+    return Err("姓名不能为空".into());
+  }
+
+  let conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+  update_personnel(&conn, personnel_id, payload).map_err(map_personnel_create_error)
 }
 
 #[tauri::command]
@@ -171,6 +188,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       list_personnel_command,
       create_personnel_command,
+      update_personnel_command,
       list_payroll_sheets_command,
       create_payroll_sheet_command,
       get_payroll_sheet_detail_command,

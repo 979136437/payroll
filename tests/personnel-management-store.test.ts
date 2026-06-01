@@ -29,6 +29,8 @@ function resetStore() {
     isSubmitting: false,
     notice: null,
     personnel: [],
+    personnelPageIndex: 0,
+    personnelPageSize: 10,
     query: "",
   })
 }
@@ -244,6 +246,19 @@ async function main() {
     const state = usePersonnelManagementStore.getState()
     assert.equal(state.notice, "人员已导出到 F:\\exports\\人员花名册.xlsx")
     assert.equal(state.isExporting, false)
+  })
+
+  await runTest("setQuery resets personnel pagination to first page", async () => {
+    usePersonnelManagementStore.setState({
+      personnelPageIndex: 3,
+      query: "",
+    })
+
+    usePersonnelManagementStore.getState().setQuery("chen")
+
+    const state = usePersonnelManagementStore.getState()
+    assert.equal(state.query, "chen")
+    assert.equal(state.personnelPageIndex, 0)
   })
 }
 

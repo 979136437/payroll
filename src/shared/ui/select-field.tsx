@@ -16,6 +16,7 @@ type SelectFieldProps = {
   onChange: (value: string) => void
   options: SelectFieldOption[]
   placeholder: string
+  triggerClassName?: string
   value: string
 }
 
@@ -25,6 +26,7 @@ export function SelectField({
   onChange,
   options,
   placeholder,
+  triggerClassName,
   value,
 }: SelectFieldProps) {
   const [open, setOpen] = useState(false)
@@ -120,6 +122,7 @@ export function SelectField({
         aria-expanded={open}
         className={cn(
           "h-10 w-full cursor-pointer justify-between rounded-md border-input bg-background px-3 font-normal text-foreground shadow-none hover:bg-accent hover:text-accent-foreground",
+          triggerClassName,
           open && "border-ring ring-2 ring-ring/20",
           !selectedOption && "text-muted-foreground",
         )}

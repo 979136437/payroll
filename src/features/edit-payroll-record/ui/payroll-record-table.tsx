@@ -2,15 +2,19 @@ import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   type RowData,
+  type PaginationState,
   useReactTable,
 } from "@tanstack/react-table"
 import { CircleDollarSign } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 
+import { Button } from "@/components/ui/button"
 import type { PayrollRecord } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { cn } from "@/lib/utils"
 import { maskSensitiveValue } from "@/shared/lib/formatters"
+import { SelectField } from "@/shared/ui/select-field"
 
 type PayrollRecordTableProps = {
   drafts: Record<number, string>
@@ -139,6 +143,10 @@ export function PayrollRecordTable({
   savingRecordIdSet,
   selectedPersonnelIdSet,
 }: PayrollRecordTableProps) {
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  })
   const meta = useMemo(
     () => ({
       payrollRecordTable: {
@@ -166,7 +174,12 @@ export function PayrollRecordTable({
     data: records,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     meta,
+    onPaginationChange: setPagination,
+    state: {
+      pagination,
+    },
   })
 
   return (
@@ -211,6 +224,49 @@ export function PayrollRecordTable({
           ))}
         </tbody>
       </table>
+      <div className="flex flex-col gap-3 border-t border-border/80 bg-background px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
+        <div className="text-muted-foreground">
+          第 {table.getState().pagination.pageIndex + 1} / {table.getPageCount() || 1} 页，共{" "}
+          {records.length} 条
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span>每页</span>
+            <SelectField
+              className="w-[5.25rem]"
+              placeholder="10"
+              triggerClassName="h-8 min-h-8 px-2.5 text-[0.8rem]"
+              value={`${table.getState().pagination.pageSize}`}
+              onChange={(value) => {
+                table.setPageSize(Number(value))
+              }}
+              options={[10, 20, 50].map((size) => ({
+                label: `${size}`,
+                value: `${size}`,
+              }))}
+            />
+            <span>条</span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
+              上一页
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              下一页
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

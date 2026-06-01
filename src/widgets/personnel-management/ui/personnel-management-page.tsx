@@ -23,6 +23,7 @@ import type { CreatePersonnelValues } from "@/features/manage-personnel/model/sc
 import { CreateOrEditPersonnelDialog } from "@/features/manage-personnel/ui/create-or-edit-personnel-dialog"
 import { maskSensitiveValue } from "@/shared/lib/formatters"
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog"
+import { SelectField } from "@/shared/ui/select-field"
 import { useToastFeedback } from "@/shared/ui/toast"
 import {
   EmptyPanel,
@@ -80,8 +81,12 @@ export function PersonnelManagementPage() {
     openCreateDialog,
     openEditDialog,
     personnel,
+    personnelPageIndex,
+    personnelPageSize,
     query,
     setDialogOpen,
+    setPersonnelPageIndex,
+    setPersonnelPageSize,
     setQuery,
     updatePersonnelRecord,
   } = usePersonnelManagementStore(
@@ -106,8 +111,12 @@ export function PersonnelManagementPage() {
       openCreateDialog: state.openCreateDialog,
       openEditDialog: state.openEditDialog,
       personnel: state.personnel,
+      personnelPageIndex: state.personnelPageIndex,
+      personnelPageSize: state.personnelPageSize,
       query: state.query,
       setDialogOpen: state.setDialogOpen,
+      setPersonnelPageIndex: state.setPersonnelPageIndex,
+      setPersonnelPageSize: state.setPersonnelPageSize,
       setQuery: state.setQuery,
       updatePersonnelRecord: state.updatePersonnelRecord,
     })),
@@ -129,6 +138,18 @@ export function PersonnelManagementPage() {
     () => personnel.filter((item) => matchesQuery(item, query)),
     [personnel, query],
   )
+  const totalPersonnelPages = Math.max(
+    1,
+    Math.ceil(filteredPersonnel.length / personnelPageSize),
+  )
+  const safePersonnelPageIndex = Math.min(
+    personnelPageIndex,
+    totalPersonnelPages - 1,
+  )
+  const paginatedPersonnel = useMemo(() => {
+    const start = safePersonnelPageIndex * personnelPageSize
+    return filteredPersonnel.slice(start, start + personnelPageSize)
+  }, [filteredPersonnel, personnelPageSize, safePersonnelPageIndex])
 
   const summaryText = useMemo(() => {
     if (personnel.length > 0) {
@@ -302,7 +323,7 @@ export function PersonnelManagementPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredPersonnel.map((item) => (
+                        {paginatedPersonnel.map((item) => (
                           <tr
                             key={item.id}
                             className="border-t bg-background transition hover:bg-accent/25"
@@ -344,6 +365,53 @@ export function PersonnelManagementPage() {
                         ))}
                       </tbody>
                     </table>
+                    <div className="flex flex-col gap-3 border-t border-border/80 bg-background px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
+                      <div className="text-muted-foreground">
+                        第 {safePersonnelPageIndex + 1} / {totalPersonnelPages} 页，共{" "}
+                        {filteredPersonnel.length} 条
+                      </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <span>每页</span>
+                          <SelectField
+                            className="w-[5.25rem]"
+                            placeholder="10"
+                            triggerClassName="h-8 min-h-8 px-2.5 text-[0.8rem]"
+                            value={`${personnelPageSize}`}
+                            onChange={(value) => {
+                              setPersonnelPageSize(Number(value))
+                            }}
+                            options={[10, 20, 50].map((size) => ({
+                              label: `${size}`,
+                              value: `${size}`,
+                            }))}
+                          />
+                          <span>条</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={safePersonnelPageIndex === 0}
+                            onClick={() =>
+                              setPersonnelPageIndex(safePersonnelPageIndex - 1)
+                            }
+                          >
+                            上一页
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={safePersonnelPageIndex >= totalPersonnelPages - 1}
+                            onClick={() =>
+                              setPersonnelPageIndex(safePersonnelPageIndex + 1)
+                            }
+                          >
+                            下一页
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>

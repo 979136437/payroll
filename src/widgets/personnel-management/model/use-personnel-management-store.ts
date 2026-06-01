@@ -23,6 +23,8 @@ type PersonnelManagementStore = {
   isSubmitting: boolean
   notice: string | null
   personnel: Personnel[]
+  personnelPageIndex: number
+  personnelPageSize: number
   query: string
   clearFeedback: () => void
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
@@ -33,6 +35,8 @@ type PersonnelManagementStore = {
   loadPersonnel: () => Promise<void>
   openCreateDialog: () => void
   openEditDialog: (personnel: Personnel) => void
+  setPersonnelPageIndex: (value: number) => void
+  setPersonnelPageSize: (value: number) => void
   setDialogOpen: (open: boolean) => void
   setQuery: (value: string) => void
   updatePersonnelRecord: (
@@ -55,6 +59,8 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
     isSubmitting: false,
     notice: null,
     personnel: [],
+    personnelPageIndex: 0,
+    personnelPageSize: 10,
     query: "",
 
     async initialize() {
@@ -117,8 +123,22 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
       })
     },
 
+    setPersonnelPageIndex(value) {
+      set({ personnelPageIndex: Math.max(0, value) })
+    },
+
+    setPersonnelPageSize(value) {
+      set({
+        personnelPageIndex: 0,
+        personnelPageSize: value,
+      })
+    },
+
     setQuery(value) {
-      set({ query: value })
+      set({
+        personnelPageIndex: 0,
+        query: value,
+      })
     },
 
     clearFeedback() {

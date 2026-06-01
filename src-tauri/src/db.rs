@@ -8,6 +8,7 @@ const PERSONNEL_TABLE_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS personnel (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
+  sort_index INTEGER NOT NULL DEFAULT 0,
   gender TEXT,
   ethnicity TEXT,
   native_place TEXT,
@@ -166,6 +167,7 @@ pub struct DeletePayrollSheetResult {
 
 pub fn initialize_schema(conn: &Connection) -> Result<()> {
   conn.execute_batch(PERSONNEL_TABLE_SQL)?;
+  ensure_personnel_sort_index(conn)?;
   conn.execute_batch(PAYROLL_SHEET_TABLE_SQL)?;
   conn.execute_batch(PAYROLL_RECORD_TABLE_SQL)?;
   Ok(())
@@ -205,7 +207,7 @@ pub fn list_personnel(conn: &Connection) -> Result<Vec<PersonnelSummary>> {
        phone_number,
        remark
      FROM personnel
-     ORDER BY name COLLATE NOCASE ASC, id ASC",
+     ORDER BY sort_index ASC, id ASC",
   )?;
 
   let rows = stmt.query_map([], |row| {
@@ -234,11 +236,13 @@ pub fn create_personnel(
   input: CreatePersonnelInput,
 ) -> Result<PersonnelSummary> {
   let trimmed_name = input.name.trim();
+  let sort_index = next_personnel_sort_index(conn)?;
   let updated_at = current_timestamp();
 
   conn.execute(
     "INSERT INTO personnel (
        name,
+       sort_index,
        gender,
        ethnicity,
        native_place,
@@ -251,9 +255,10 @@ pub fn create_personnel(
         phone_number,
         remark,
         updated_at
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
     params![
       trimmed_name,
+      sort_index,
       normalize_optional_string(input.gender),
       normalize_optional_string(input.ethnicity),
       normalize_optional_string(input.native_place),
@@ -495,6 +500,19 @@ pub fn delete_payroll_sheet(
   Ok(DeletePayrollSheetResult { deleted })
 }
 
+pub fn reorder_personnel_by_ids(conn: &Connection, ordered_personnel_ids: &[i64]) -> Result<()> {
+  for (sort_index, personnel_id) in ordered_personnel_ids.iter().enumerate() {
+    conn.execute(
+      "UPDATE personnel
+       SET sort_index = ?1
+       WHERE id = ?2",
+      params![sort_index as i64, personnel_id],
+    )?;
+  }
+
+  Ok(())
+}
+
 pub fn get_payroll_sheet_detail(
   conn: &Connection,
   sheet_id: i64,
@@ -522,7 +540,7 @@ pub fn get_payroll_sheet_detail(
      FROM payroll_record pr
      INNER JOIN personnel p ON p.id = pr.personnel_id
      WHERE pr.payroll_sheet_id = ?1
-     ORDER BY p.name COLLATE NOCASE ASC, pr.id ASC",
+     ORDER BY p.sort_index ASC, p.id ASC, pr.id ASC",
   )?;
 
   let records = stmt
@@ -669,6 +687,44 @@ fn copy_sheet_personnel(conn: &Connection, source_sheet_id: i64, target_sheet_id
   }
 
   Ok(())
+}
+
+fn ensure_personnel_sort_index(conn: &Connection) -> Result<()> {
+  let mut stmt = conn.prepare("PRAGMA table_info(personnel)")?;
+  let columns = stmt
+    .query_map([], |row| row.get::<_, String>(1))?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  if !columns.iter().any(|column| column == "sort_index") {
+    conn.execute(
+      "ALTER TABLE personnel ADD COLUMN sort_index INTEGER NOT NULL DEFAULT 0",
+      [],
+    )?;
+  }
+
+  let ids = conn
+    .prepare("SELECT id FROM personnel ORDER BY id ASC")?
+    .query_map([], |row| row.get::<_, i64>(0))?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  for (sort_index, personnel_id) in ids.iter().enumerate() {
+    conn.execute(
+      "UPDATE personnel
+       SET sort_index = ?1
+       WHERE id = ?2 AND sort_index = 0",
+      params![sort_index as i64, personnel_id],
+    )?;
+  }
+
+  Ok(())
+}
+
+fn next_personnel_sort_index(conn: &Connection) -> Result<i64> {
+  conn.query_row(
+    "SELECT COALESCE(MAX(sort_index), -1) + 1 FROM personnel",
+    [],
+    |row| row.get(0),
+  )
 }
 
 fn get_personnel_by_id(conn: &Connection, personnel_id: i64) -> Result<Option<PersonnelSummary>> {
@@ -1054,6 +1110,44 @@ mod tests {
 
       assert_eq!(count, 1);
     }
+  }
+
+  #[test]
+  fn initialize_schema_adds_sort_index_for_existing_personnel_table() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(&db_path).unwrap();
+    conn
+      .execute_batch(
+        r#"
+        CREATE TABLE personnel (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          gender TEXT,
+          ethnicity TEXT,
+          native_place TEXT,
+          id_card_number TEXT UNIQUE,
+          payroll_card_number TEXT,
+          bank_name TEXT,
+          job_type TEXT,
+          start_date TEXT,
+          end_date TEXT,
+          phone_number TEXT,
+          remark TEXT,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO personnel (name, updated_at) VALUES ('Charlie', '1');
+        INSERT INTO personnel (name, updated_at) VALUES ('Alice', '2');
+        "#,
+      )
+      .unwrap();
+
+    initialize_schema(&conn).unwrap();
+
+    let rows = list_personnel(&conn).unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].name, "Charlie");
+    assert_eq!(rows[1].name, "Alice");
   }
 
   #[test]

@@ -12,6 +12,7 @@ import {
   type PayrollSheetSummary,
 } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { formatCurrencyInput, readableError } from "@/shared/lib/formatters"
+import { getPersonnelDataRevision } from "@/shared/model/personnel-data-revision"
 import { payrollWorkspaceApi } from "@/widgets/payroll-workspace/model/workspace-api"
 
 export type PayrollWorkspaceView = "overview" | "sheet-detail"
@@ -36,6 +37,7 @@ type PayrollWorkspaceStore = {
   isUpdatingPersonnel: boolean
   notice: string | null
   personnel: Personnel[]
+  personnelDataRevisionSeen: number
   pickerSelection: number[]
   salaryDrafts: Record<number, string>
   savingRecordIds: number[]
@@ -138,6 +140,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   isUpdatingPersonnel: false,
   notice: null,
   personnel: [],
+  personnelDataRevisionSeen: 0,
   pickerSelection: [],
   salaryDrafts: {},
   savingRecordIds: [],
@@ -147,8 +150,16 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   sheets: [],
 
   async initializeWorkspace() {
-    const { hasInitialized, isBootstrapping } = get()
-    if (hasInitialized || isBootstrapping) {
+    const { hasInitialized, isBootstrapping, personnelDataRevisionSeen } = get()
+    const latestPersonnelDataRevision = getPersonnelDataRevision()
+    const needsPersonnelRefresh =
+      hasInitialized && latestPersonnelDataRevision !== personnelDataRevisionSeen
+
+    if (isBootstrapping) {
+      return
+    }
+
+    if (hasInitialized && !needsPersonnelRefresh) {
       return
     }
 
@@ -157,7 +168,10 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     try {
       await get().refreshWorkspace()
       if (!get().errorMessage) {
-        set({ hasInitialized: true })
+        set({
+          hasInitialized: true,
+          personnelDataRevisionSeen: latestPersonnelDataRevision,
+        })
       }
     } finally {
       set({ isBootstrapping: false })

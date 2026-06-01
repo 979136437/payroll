@@ -6,6 +6,7 @@ import type {
   UpdatePersonnelPayload,
 } from "@/entities/personnel/api/personnel"
 import { readableError } from "@/shared/lib/formatters"
+import { markPersonnelDataChanged } from "@/shared/model/personnel-data-revision"
 import { personnelManagementApi } from "@/widgets/personnel-management/model/personnel-management-api"
 
 type PersonnelDialogMode = "create" | "edit"
@@ -201,6 +202,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
       try {
         await personnelManagementApi.createPersonnel(payload)
         const personnel = await personnelManagementApi.listPersonnel()
+        markPersonnelDataChanged()
 
         set({
           isDialogOpen: false,
@@ -237,6 +239,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
         }
 
         const personnel = await personnelManagementApi.listPersonnel()
+        markPersonnelDataChanged()
 
         set({
           editingPersonnel: updated,
@@ -266,6 +269,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
       try {
         await personnelManagementApi.deletePersonnel(personnelId)
         const personnel = await personnelManagementApi.listPersonnel()
+        markPersonnelDataChanged()
 
         set({
           dialogMode: "create",
@@ -307,6 +311,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
           selectedPersonnelIds,
         )
         const personnel = await personnelManagementApi.listPersonnel()
+        markPersonnelDataChanged()
         const nextTotalPages = Math.max(
           1,
           Math.ceil(personnel.length / get().personnelPageSize),
@@ -348,6 +353,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
 
         const result = await personnelManagementApi.importPersonnelExcel(filePath)
         const personnel = await personnelManagementApi.listPersonnel()
+        markPersonnelDataChanged()
 
         set({
           notice: `人员导入完成：新增 ${result.createdCount}，更新 ${result.updatedCount}，跳过 ${result.skippedCount}`,

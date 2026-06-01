@@ -18,6 +18,10 @@ import {
   removePersonnelFromSheet,
   updatePayrollRecordNetPay,
 } from "@/entities/payroll-sheet/api/payroll-sheet"
+import {
+  markPersonnelDataChanged,
+  resetPersonnelDataRevision,
+} from "@/shared/model/personnel-data-revision"
 import { payrollWorkspaceApi } from "@/widgets/payroll-workspace/model/workspace-api"
 import { usePayrollWorkspaceStore } from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
 
@@ -28,6 +32,7 @@ type PayrollSheetDetail = NonNullable<
 >
 
 function resetStore() {
+  resetPersonnelDataRevision()
   usePayrollWorkspaceStore.setState({
     currentView: "overview",
     editingPersonnel: null,
@@ -55,6 +60,7 @@ function resetStore() {
     selectedSheetId: null,
     sheetDetail: null,
     sheets: [],
+    personnelDataRevisionSeen: 0,
   })
 }
 
@@ -182,6 +188,80 @@ async function main() {
     assert.equal(state.currentView, "sheet-detail")
     assert.equal(state.selectedSheetId, 8)
   })
+
+  await runTest(
+    "initializeWorkspace refreshes again when personnel data revision changes",
+    async () => {
+      const firstPersonnel: Personnel[] = [makePersonnel({ id: 1, name: "Alex" })]
+      const secondPersonnel: Personnel[] = [makePersonnel({ id: 1, name: "Alex Updated" })]
+      const sheet: PayrollSheetSummary = {
+        id: 8,
+        name: "2026-06 Payroll",
+        personnelCount: 1,
+        updatedAt: "200",
+      }
+      const firstDetail: PayrollSheetDetail = {
+        records: [
+          {
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
+            name: "Alex",
+            netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
+            personnelId: 1,
+            phoneNumber: null,
+            recordId: 11,
+            remark: null,
+            wageStandard: null,
+          },
+        ],
+        sheet,
+      }
+      const secondDetail: PayrollSheetDetail = {
+        records: [
+          {
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
+            name: "Alex Updated",
+            netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
+            personnelId: 1,
+            phoneNumber: null,
+            recordId: 11,
+            remark: null,
+            wageStandard: null,
+          },
+        ],
+        sheet,
+      }
+      let listPersonnelCalls = 0
+
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.listPersonnel = async () => {
+        listPersonnelCalls += 1
+        return listPersonnelCalls === 1 ? firstPersonnel : secondPersonnel
+      }
+      payrollWorkspaceApi.getPayrollSheetDetail = async () =>
+        listPersonnelCalls === 1 ? firstDetail : secondDetail
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      markPersonnelDataChanged()
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+
+      const state = usePayrollWorkspaceStore.getState()
+      assert.equal(listPersonnelCalls, 2)
+      assert.equal(state.personnel[0]?.name, "Alex Updated")
+      assert.equal(state.sheetDetail?.records[0]?.name, "Alex Updated")
+    },
+  )
 
   await runTest("showOverview keeps sheet context while leaving detail mode", async () => {
     usePayrollWorkspaceStore.setState({

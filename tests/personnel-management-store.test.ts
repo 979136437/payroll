@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
 
 import type { Personnel } from "@/entities/personnel/api/personnel"
+import {
+  getPersonnelDataRevision,
+  resetPersonnelDataRevision,
+} from "@/shared/model/personnel-data-revision"
 import { personnelManagementApi } from "@/widgets/personnel-management/model/personnel-management-api"
 import { usePersonnelManagementStore } from "@/widgets/personnel-management/model/use-personnel-management-store"
 
@@ -17,6 +21,7 @@ const originalApi = {
 }
 
 function resetStore() {
+  resetPersonnelDataRevision()
   usePersonnelManagementStore.setState({
     dialogMode: "create",
     editingPersonnel: null,
@@ -118,6 +123,7 @@ async function main() {
     const state = usePersonnelManagementStore.getState()
     assert.equal(didCreate, true)
     assert.equal(state.isDialogOpen, false)
+    assert.equal(getPersonnelDataRevision(), 1)
     assert.equal(state.notice, "人员已新增到人员库")
     assert.deepEqual(state.personnel, [created])
   })
@@ -161,6 +167,7 @@ async function main() {
     const state = usePersonnelManagementStore.getState()
     assert.equal(didUpdate, true)
     assert.equal(state.isDialogOpen, false)
+    assert.equal(getPersonnelDataRevision(), 1)
     assert.equal(state.notice, "人员信息已更新")
     assert.deepEqual(state.personnel, [updated])
   })
@@ -185,6 +192,7 @@ async function main() {
     const state = usePersonnelManagementStore.getState()
     assert.equal(didDelete, true)
     assert.equal(state.isDialogOpen, false)
+    assert.equal(getPersonnelDataRevision(), 1)
     assert.equal(state.notice, "人员已删除")
     assert.deepEqual(state.personnel, [])
   })
@@ -260,6 +268,7 @@ async function main() {
 
     const state = usePersonnelManagementStore.getState()
     assert.deepEqual(state.personnel, [imported])
+    assert.equal(getPersonnelDataRevision(), 1)
     assert.equal(state.notice, "人员导入完成：新增 1，更新 2，跳过 0")
     assert.equal(state.isImporting, false)
   })
@@ -290,6 +299,7 @@ async function main() {
     assert.equal(state.query, "chen")
     assert.equal(state.personnelPageIndex, 0)
     assert.deepEqual(state.selectedPersonnelIds, [])
+    assert.equal(getPersonnelDataRevision(), 0)
   })
 
   await runTest("deleteSelectedPersonnel clears selection and records deleted count", async () => {

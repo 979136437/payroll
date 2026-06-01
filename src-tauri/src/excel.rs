@@ -10,8 +10,9 @@ use serde::Serialize;
 use time::{format_description::BorrowedFormatItem, macros::format_description, OffsetDateTime};
 
 use crate::db::{
-  create_personnel, get_payroll_sheet_export, list_personnel, update_personnel,
-  CreatePersonnelInput, PayrollSheetExport, PersonnelSummary, UpdatePersonnelInput,
+  create_personnel, get_payroll_sheet_export, list_personnel, reorder_personnel_by_ids,
+  update_personnel, CreatePersonnelInput, PayrollSheetExport, PersonnelSummary,
+  UpdatePersonnelInput,
 };
 
 const ROSTER_HEADERS: [&str; 12] = [
@@ -104,6 +105,7 @@ pub fn import_personnel_from_excel(
   };
 
   let existing_personnel = list_personnel(conn).map_err(|error| error.to_string())?;
+  let mut imported_personnel_ids = Vec::new();
 
   for row in rows {
     if row.name.trim().is_empty() {
@@ -134,6 +136,7 @@ pub fn import_personnel_from_excel(
         };
 
         update_personnel(conn, personnel_id, payload).map_err(|error| error.to_string())?;
+        imported_personnel_ids.push(personnel_id);
         result.updated_count += 1;
       }
       None => {
@@ -152,11 +155,21 @@ pub fn import_personnel_from_excel(
           remark: row.remark,
         };
 
-        create_personnel(conn, payload).map_err(|error| error.to_string())?;
+        let created = create_personnel(conn, payload).map_err(|error| error.to_string())?;
+        imported_personnel_ids.push(created.id);
         result.created_count += 1;
       }
     }
   }
+
+  let existing_ids_to_keep = existing_personnel
+    .iter()
+    .map(|personnel| personnel.id)
+    .filter(|personnel_id| !imported_personnel_ids.contains(personnel_id))
+    .collect::<Vec<_>>();
+  let mut reordered_personnel_ids = imported_personnel_ids;
+  reordered_personnel_ids.extend(existing_ids_to_keep);
+  reorder_personnel_by_ids(conn, &reordered_personnel_ids).map_err(|error| error.to_string())?;
 
   Ok(result)
 }
@@ -793,6 +806,92 @@ mod tests {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].name, "Bob");
     assert_eq!(rows[0].id_card_number.as_deref(), Some("430623197201192214"));
+  }
+
+  #[test]
+  fn personnel_import_reorders_all_personnel_by_excel_sequence() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("roster-order.xlsx");
+
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Charlie".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("300000199001010003".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("100000199001010001".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("200000199001010002".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      worksheet.write_string(0, index as u16, *header).unwrap();
+    }
+    worksheet.write_string(1, 0, "Bob Updated").unwrap();
+    worksheet.write_string(1, 4, "200000199001010002").unwrap();
+    worksheet.write_string(2, 0, "Daisy").unwrap();
+    worksheet.write_string(2, 4, "400000199001010004").unwrap();
+    worksheet.write_string(3, 0, "Alice Updated").unwrap();
+    worksheet.write_string(3, 4, "100000199001010001").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    let result = import_personnel_from_excel(&conn, &file_path).unwrap();
+    let personnel = crate::db::list_personnel(&conn).unwrap();
+    let names = personnel.iter().map(|item| item.name.as_str()).collect::<Vec<_>>();
+
+    assert_eq!(result.created_count, 1);
+    assert_eq!(result.updated_count, 2);
+    assert_eq!(names, vec!["Bob Updated", "Daisy", "Alice Updated", "Charlie"]);
   }
 
   #[test]

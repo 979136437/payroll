@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use calamine::{open_workbook_auto, Data, Reader};
 use rfd::FileDialog;
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 use rust_xlsxwriter::{
   Color, Format, FormatAlign, FormatBorder, Workbook, Worksheet,
 };
@@ -93,10 +93,21 @@ pub fn pick_excel_export_path(default_name: &str) -> Option<String> {
 }
 
 pub fn import_personnel_from_excel(
-  conn: &Connection,
+  conn: &mut Connection,
   file_path: &Path,
 ) -> Result<PersonnelImportResult, String> {
   let rows = parse_personnel_import_rows(file_path)?;
+  let tx = conn.transaction().map_err(|error| error.to_string())?;
+  let result = import_personnel_rows_in_transaction(&tx, rows)?;
+  tx.commit().map_err(|error| error.to_string())?;
+
+  Ok(result)
+}
+
+fn import_personnel_rows_in_transaction(
+  tx: &Transaction<'_>,
+  rows: Vec<PersonnelImportRow>,
+) -> Result<PersonnelImportResult, String> {
   let mut result = PersonnelImportResult {
     created_count: 0,
     updated_count: 0,
@@ -104,7 +115,8 @@ pub fn import_personnel_from_excel(
     errors: vec![],
   };
 
-  let existing_personnel = list_personnel(conn).map_err(|error| error.to_string())?;
+  let existing_personnel = list_personnel(tx).map_err(|error| error.to_string())?;
+  let mut current_personnel = existing_personnel.clone();
   let mut imported_personnel_ids = Vec::new();
 
   for row in rows {
@@ -114,7 +126,7 @@ pub fn import_personnel_from_excel(
     }
 
     match row.id_card_number.as_deref().and_then(|id_card| {
-      existing_personnel
+      current_personnel
         .iter()
         .find(|personnel| personnel.id_card_number.as_deref() == Some(id_card))
         .map(|personnel| personnel.id)
@@ -135,7 +147,10 @@ pub fn import_personnel_from_excel(
           remark: row.remark,
         };
 
-        update_personnel(conn, personnel_id, payload).map_err(|error| error.to_string())?;
+        let updated = update_personnel(tx, personnel_id, payload)
+          .map_err(|error| error.to_string())?
+          .ok_or_else(|| "未找到需要更新的人员".to_string())?;
+        replace_personnel_snapshot(&mut current_personnel, updated);
         imported_personnel_ids.push(personnel_id);
         result.updated_count += 1;
       }
@@ -155,7 +170,8 @@ pub fn import_personnel_from_excel(
           remark: row.remark,
         };
 
-        let created = create_personnel(conn, payload).map_err(|error| error.to_string())?;
+        let created = create_personnel(tx, payload).map_err(|error| error.to_string())?;
+        current_personnel.push(created.clone());
         imported_personnel_ids.push(created.id);
         result.created_count += 1;
       }
@@ -169,9 +185,21 @@ pub fn import_personnel_from_excel(
     .collect::<Vec<_>>();
   let mut reordered_personnel_ids = imported_personnel_ids;
   reordered_personnel_ids.extend(existing_ids_to_keep);
-  reorder_personnel_by_ids(conn, &reordered_personnel_ids).map_err(|error| error.to_string())?;
+  reorder_personnel_by_ids(tx, &reordered_personnel_ids).map_err(|error| error.to_string())?;
 
   Ok(result)
+}
+
+fn replace_personnel_snapshot(
+  current_personnel: &mut [PersonnelSummary],
+  updated: PersonnelSummary,
+) {
+  if let Some(personnel) = current_personnel
+    .iter_mut()
+    .find(|personnel| personnel.id == updated.id)
+  {
+    *personnel = updated;
+  }
 }
 
 pub fn export_personnel_excel(
@@ -697,7 +725,7 @@ mod tests {
   fn personnel_import_updates_existing_record_by_id_card() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("payroll.db");
-    let conn = open_connection_at_path(&db_path).unwrap();
+    let mut conn = open_connection_at_path(&db_path).unwrap();
     let file_path = dir.path().join("roster.xlsx");
 
     create_personnel(
@@ -729,7 +757,7 @@ mod tests {
     worksheet.write_string(1, 10, "18689852329").unwrap();
     workbook.save(&file_path).unwrap();
 
-    let result = import_personnel_from_excel(&conn, &file_path).unwrap();
+    let result = import_personnel_from_excel(&mut conn, &file_path).unwrap();
     let personnel = crate::db::list_personnel(&conn).unwrap();
 
     assert_eq!(result.created_count, 0);
@@ -803,7 +831,7 @@ mod tests {
   fn personnel_import_reorders_all_personnel_by_excel_sequence() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("payroll.db");
-    let conn = open_connection_at_path(&db_path).unwrap();
+    let mut conn = open_connection_at_path(&db_path).unwrap();
     let file_path = dir.path().join("roster-order.xlsx");
 
     create_personnel(
@@ -876,13 +904,279 @@ mod tests {
     worksheet.write_string(3, 4, "100000199001010001").unwrap();
     workbook.save(&file_path).unwrap();
 
-    let result = import_personnel_from_excel(&conn, &file_path).unwrap();
+    let result = import_personnel_from_excel(&mut conn, &file_path).unwrap();
     let personnel = crate::db::list_personnel(&conn).unwrap();
     let names = personnel.iter().map(|item| item.name.as_str()).collect::<Vec<_>>();
 
     assert_eq!(result.created_count, 1);
     assert_eq!(result.updated_count, 2);
     assert_eq!(names, vec!["Bob Updated", "Daisy", "Alice Updated", "Charlie"]);
+  }
+
+  #[test]
+  fn personnel_import_allows_duplicate_id_cards_with_last_row_winning() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("duplicate-id-card.xlsx");
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      worksheet.write_string(0, index as u16, *header).unwrap();
+    }
+    worksheet.write_string(1, 0, "Alice First").unwrap();
+    worksheet.write_string(1, 4, "430623197201192213").unwrap();
+    worksheet.write_string(1, 10, "18600000001").unwrap();
+    worksheet.write_string(2, 0, "Alice Final").unwrap();
+    worksheet.write_string(2, 4, "430623197201192213").unwrap();
+    worksheet.write_string(2, 10, "18600000002").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    let result = import_personnel_from_excel(&mut conn, &file_path).unwrap();
+    let personnel = crate::db::list_personnel(&conn).unwrap();
+
+    assert_eq!(result.created_count, 1);
+    assert_eq!(result.updated_count, 1);
+    assert_eq!(personnel.len(), 1);
+    assert_eq!(personnel[0].name, "Alice Final");
+    assert_eq!(personnel[0].phone_number.as_deref(), Some("18600000002"));
+  }
+
+  #[test]
+  fn personnel_import_uses_last_duplicate_id_card_position_for_final_order() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("duplicate-order.xlsx");
+
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Charlie".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("300000199001010003".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      worksheet.write_string(0, index as u16, *header).unwrap();
+    }
+    worksheet.write_string(1, 0, "Alice First").unwrap();
+    worksheet.write_string(1, 4, "100000199001010001").unwrap();
+    worksheet.write_string(2, 0, "Bob").unwrap();
+    worksheet.write_string(2, 4, "200000199001010002").unwrap();
+    worksheet.write_string(3, 0, "Alice Final").unwrap();
+    worksheet.write_string(3, 4, "100000199001010001").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    import_personnel_from_excel(&mut conn, &file_path).unwrap();
+
+    let names = crate::db::list_personnel(&conn)
+      .unwrap()
+      .into_iter()
+      .map(|personnel| personnel.name)
+      .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["Bob", "Alice Final", "Charlie"]);
+  }
+
+  #[test]
+  fn personnel_import_rolls_back_all_changes_when_a_row_fails() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("rollback.xlsx");
+
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Existing".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("100000199001010001".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    conn
+      .execute(
+        r#"
+        CREATE TRIGGER fail_boom_personnel_insert
+        BEFORE INSERT ON personnel
+        WHEN NEW.name = 'Boom'
+        BEGIN
+          SELECT RAISE(ABORT, 'boom');
+        END;
+        "#,
+        [],
+      )
+      .unwrap();
+
+    let before_names = crate::db::list_personnel(&conn)
+      .unwrap()
+      .into_iter()
+      .map(|personnel| personnel.name)
+      .collect::<Vec<_>>();
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      worksheet.write_string(0, index as u16, *header).unwrap();
+    }
+    worksheet.write_string(1, 0, "Imported First").unwrap();
+    worksheet.write_string(2, 0, "Boom").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    let error = import_personnel_from_excel(&mut conn, &file_path).unwrap_err();
+    let after_names = crate::db::list_personnel(&conn)
+      .unwrap()
+      .into_iter()
+      .map(|personnel| personnel.name)
+      .collect::<Vec<_>>();
+
+    assert!(error.contains("boom"));
+    assert_eq!(after_names, before_names);
+  }
+
+  #[test]
+  fn personnel_import_order_survives_database_reopen() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("reopen-order.xlsx");
+
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Charlie".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("300000199001010003".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("100000199001010001".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      worksheet.write_string(0, index as u16, *header).unwrap();
+    }
+    worksheet.write_string(1, 0, "Alice Updated").unwrap();
+    worksheet.write_string(1, 4, "100000199001010001").unwrap();
+    worksheet.write_string(2, 0, "Bob").unwrap();
+    worksheet.write_string(2, 4, "200000199001010002").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    import_personnel_from_excel(&mut conn, &file_path).unwrap();
+    drop(conn);
+
+    let reopened = open_connection_at_path(&db_path).unwrap();
+    let names = crate::db::list_personnel(&reopened)
+      .unwrap()
+      .into_iter()
+      .map(|personnel| personnel.name)
+      .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["Alice Updated", "Bob", "Charlie"]);
+  }
+
+  #[test]
+  fn duplicate_id_card_import_order_survives_database_reopen() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("duplicate-reopen-order.xlsx");
+
+    create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Charlie".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("300000199001010003".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    for (index, header) in ROSTER_HEADERS.iter().enumerate() {
+      worksheet.write_string(0, index as u16, *header).unwrap();
+    }
+    worksheet.write_string(1, 0, "Alice First").unwrap();
+    worksheet.write_string(1, 4, "100000199001010001").unwrap();
+    worksheet.write_string(2, 0, "Bob").unwrap();
+    worksheet.write_string(2, 4, "200000199001010002").unwrap();
+    worksheet.write_string(3, 0, "Alice Final").unwrap();
+    worksheet.write_string(3, 4, "100000199001010001").unwrap();
+    workbook.save(&file_path).unwrap();
+
+    import_personnel_from_excel(&mut conn, &file_path).unwrap();
+    drop(conn);
+
+    let reopened = open_connection_at_path(&db_path).unwrap();
+    let names = crate::db::list_personnel(&reopened)
+      .unwrap()
+      .into_iter()
+      .map(|personnel| personnel.name)
+      .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["Bob", "Alice Final", "Charlie"]);
   }
 
   #[test]

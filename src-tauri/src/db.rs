@@ -695,13 +695,51 @@ fn ensure_personnel_sort_index(conn: &Connection) -> Result<()> {
     .query_map([], |row| row.get::<_, String>(1))?
     .collect::<Result<Vec<_>, _>>()?;
 
-  if !columns.iter().any(|column| column == "sort_index") {
+  let sort_index_added = !columns.iter().any(|column| column == "sort_index");
+
+  if sort_index_added {
     conn.execute(
       "ALTER TABLE personnel ADD COLUMN sort_index INTEGER NOT NULL DEFAULT 0",
       [],
     )?;
   }
 
+  if sort_index_added || personnel_sort_index_needs_bootstrap(conn)? {
+    initialize_personnel_sort_index(conn)?;
+  }
+
+  Ok(())
+}
+
+fn personnel_sort_index_needs_bootstrap(conn: &Connection) -> Result<bool> {
+  let sort_indexes = conn
+    .prepare("SELECT sort_index FROM personnel ORDER BY sort_index ASC, id ASC")?
+    .query_map([], |row| row.get::<_, i64>(0))?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  if sort_indexes.is_empty() {
+    return Ok(false);
+  }
+
+  let all_zero = sort_indexes.iter().all(|sort_index| *sort_index == 0);
+  if all_zero {
+    return Ok(true);
+  }
+
+  let mut previous = None;
+  for sort_index in sort_indexes {
+    if let Some(previous_sort_index) = previous {
+      if sort_index <= previous_sort_index {
+        return Ok(true);
+      }
+    }
+    previous = Some(sort_index);
+  }
+
+  Ok(false)
+}
+
+fn initialize_personnel_sort_index(conn: &Connection) -> Result<()> {
   let ids = conn
     .prepare("SELECT id FROM personnel ORDER BY id ASC")?
     .query_map([], |row| row.get::<_, i64>(0))?
@@ -711,7 +749,7 @@ fn ensure_personnel_sort_index(conn: &Connection) -> Result<()> {
     conn.execute(
       "UPDATE personnel
        SET sort_index = ?1
-       WHERE id = ?2 AND sort_index = 0",
+       WHERE id = ?2",
       params![sort_index as i64, personnel_id],
     )?;
   }
@@ -878,8 +916,8 @@ mod tests {
     add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
     delete_payroll_sheet, delete_personnel, delete_personnel_batch, get_payroll_sheet_detail,
     initialize_schema, list_payroll_sheets, list_personnel, open_connection_at_path,
-    remove_personnel_from_sheet, update_payroll_record_net_pay, update_personnel,
-    CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
+    remove_personnel_from_sheet, reorder_personnel_by_ids, update_payroll_record_net_pay,
+    update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
   };
 
   #[test]
@@ -1148,6 +1186,207 @@ mod tests {
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].name, "Charlie");
     assert_eq!(rows[1].name, "Alice");
+  }
+
+  #[test]
+  fn reopening_database_preserves_reordered_personnel_sort_order() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+
+    {
+      let conn = open_connection_at_path(&db_path).unwrap();
+      let alice = create_personnel(
+        &conn,
+        CreatePersonnelInput {
+          name: "Alice".into(),
+          gender: None,
+          ethnicity: None,
+          native_place: None,
+          id_card_number: Some("100000199001010001".into()),
+          payroll_card_number: None,
+          bank_name: None,
+          job_type: None,
+          start_date: None,
+          end_date: None,
+          phone_number: None,
+          remark: None,
+        },
+      )
+      .unwrap();
+      let bob = create_personnel(
+        &conn,
+        CreatePersonnelInput {
+          name: "Bob".into(),
+          gender: None,
+          ethnicity: None,
+          native_place: None,
+          id_card_number: Some("200000199001010002".into()),
+          payroll_card_number: None,
+          bank_name: None,
+          job_type: None,
+          start_date: None,
+          end_date: None,
+          phone_number: None,
+          remark: None,
+        },
+      )
+      .unwrap();
+      let charlie = create_personnel(
+        &conn,
+        CreatePersonnelInput {
+          name: "Charlie".into(),
+          gender: None,
+          ethnicity: None,
+          native_place: None,
+          id_card_number: Some("300000199001010003".into()),
+          payroll_card_number: None,
+          bank_name: None,
+          job_type: None,
+          start_date: None,
+          end_date: None,
+          phone_number: None,
+          remark: None,
+        },
+      )
+      .unwrap();
+
+      reorder_personnel_by_ids(&conn, &[bob.id, alice.id, charlie.id]).unwrap();
+    }
+
+    let reopened = open_connection_at_path(&db_path).unwrap();
+    let names = list_personnel(&reopened)
+      .unwrap()
+      .into_iter()
+      .map(|personnel| personnel.name)
+      .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["Bob", "Alice", "Charlie"]);
+  }
+
+  #[test]
+  fn initialize_schema_repairs_duplicate_sort_indexes_from_previous_bug() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(&db_path).unwrap();
+    conn
+      .execute_batch(
+        r#"
+        CREATE TABLE personnel (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          sort_index INTEGER NOT NULL DEFAULT 0,
+          gender TEXT,
+          ethnicity TEXT,
+          native_place TEXT,
+          id_card_number TEXT UNIQUE,
+          payroll_card_number TEXT,
+          bank_name TEXT,
+          job_type TEXT,
+          start_date TEXT,
+          end_date TEXT,
+          phone_number TEXT,
+          remark TEXT,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO personnel (id, name, sort_index, updated_at) VALUES (1, 'Alice', 1, '1');
+        INSERT INTO personnel (id, name, sort_index, updated_at) VALUES (2, 'Bob', 1, '2');
+        INSERT INTO personnel (id, name, sort_index, updated_at) VALUES (3, 'Charlie', 2, '3');
+        "#,
+      )
+      .unwrap();
+
+    initialize_schema(&conn).unwrap();
+
+    let ordered_rows = list_personnel(&conn).unwrap();
+    let names = ordered_rows
+      .iter()
+      .map(|personnel| personnel.name.as_str())
+      .collect::<Vec<_>>();
+    let sort_indexes = conn
+      .prepare("SELECT sort_index FROM personnel ORDER BY sort_index ASC, id ASC")
+      .unwrap()
+      .query_map([], |row| row.get::<_, i64>(0))
+      .unwrap()
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+
+    assert_eq!(names, vec!["Alice", "Bob", "Charlie"]);
+    assert_eq!(sort_indexes, vec![0, 1, 2]);
+  }
+
+  #[test]
+  fn reopening_database_keeps_order_when_sort_indexes_have_gap_after_delete() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("100000199001010001".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let bob = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("200000199001010002".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let charlie = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Charlie".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("300000199001010003".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    reorder_personnel_by_ids(&conn, &[charlie.id, alice.id, bob.id]).unwrap();
+    delete_personnel(&mut conn, alice.id).unwrap();
+    drop(conn);
+
+    let reopened = open_connection_at_path(&db_path).unwrap();
+    let names = list_personnel(&reopened)
+      .unwrap()
+      .into_iter()
+      .map(|personnel| personnel.name)
+      .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["Charlie", "Bob"]);
   }
 
   #[test]

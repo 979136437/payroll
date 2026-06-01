@@ -224,11 +224,11 @@ fn import_personnel_excel_command(
   state: State<'_, DbState>,
   file_path: String,
 ) -> Result<PersonnelImportResult, String> {
-  let conn = state
+  let mut conn = state
     .connection
     .lock()
     .map_err(|error| format!("database lock poisoned: {error}"))?;
-  import_personnel_from_excel(&conn, std::path::Path::new(&file_path))
+  import_personnel_from_excel(&mut conn, std::path::Path::new(&file_path))
 }
 
 #[tauri::command]

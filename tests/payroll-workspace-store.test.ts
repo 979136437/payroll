@@ -392,6 +392,52 @@ async function main() {
   )
 
   await runTest(
+    "togglePickerSelection selects all available personnel without disabled duplicates",
+    async () => {
+      const personnel: Personnel[] = [
+        makePersonnel({ id: 1, name: "Alex" }),
+        makePersonnel({ id: 2, name: "Blair" }),
+        makePersonnel({ id: 3, name: "Casey" }),
+      ]
+      const sheet: PayrollSheetSummary = {
+        id: 22,
+        name: "2026-08 Payroll",
+        personnelCount: 1,
+        updatedAt: "511",
+      }
+      const detail: PayrollSheetDetail = {
+        records: [
+          {
+            jobType: null,
+            name: "Alex",
+            netPay: 0,
+            personnelId: 1,
+            phoneNumber: null,
+            recordId: 34,
+          },
+        ],
+        sheet,
+      }
+
+      payrollWorkspaceApi.listPersonnel = async () => personnel
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      usePayrollWorkspaceStore.getState().togglePickerSelection(2)
+      usePayrollWorkspaceStore.getState().toggleAllPickerSelection()
+
+      let state = usePayrollWorkspaceStore.getState()
+      assert.deepEqual(state.pickerSelection, [2, 3])
+
+      usePayrollWorkspaceStore.getState().toggleAllPickerSelection()
+
+      state = usePayrollWorkspaceStore.getState()
+      assert.deepEqual(state.pickerSelection, [])
+    },
+  )
+
+  await runTest(
     "removeSelectedPersonnelFromSheet clears selection and records success notice",
     async () => {
       const sheet: PayrollSheetSummary = {

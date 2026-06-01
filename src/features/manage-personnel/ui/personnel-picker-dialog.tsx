@@ -18,6 +18,7 @@ type PersonnelPickerDialogProps = {
   onAddSelected: () => Promise<void>
   onCreatePersonnel: (values: CreatePersonnelValues) => Promise<boolean>
   onOpenChange: (open: boolean) => void
+  onToggleAllSelection: () => void
   onToggleSelection: (personnelId: number) => void
   open: boolean
   personnel: Personnel[]
@@ -31,6 +32,7 @@ export function PersonnelPickerDialog({
   onAddSelected,
   onCreatePersonnel,
   onOpenChange,
+  onToggleAllSelection,
   onToggleSelection,
   open,
   personnel,
@@ -57,6 +59,13 @@ export function PersonnelPickerDialog({
       name: "gender",
     }) ?? ""
 
+  const availablePersonnel = personnel.filter(
+    (person) => !currentSheetPersonIds.has(person.id),
+  )
+  const allAvailableChecked =
+    availablePersonnel.length > 0 &&
+    availablePersonnel.every((person) => pickerSelectionSet.has(person.id))
+
   return (
     <ModalShell
       open={open}
@@ -74,8 +83,20 @@ export function PersonnelPickerDialog({
                 已在当前工资表中的人员会显示为不可重复加入。
               </p>
             </div>
-            <div className="rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-              已选 {pickerSelection.length} 人
+            <div className="flex items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={allAvailableChecked}
+                  disabled={availablePersonnel.length === 0}
+                  onChange={onToggleAllSelection}
+                  className="size-4 rounded border-input"
+                />
+                <span>全选</span>
+              </label>
+              <div className="rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                已选 {pickerSelection.length} 人
+              </div>
             </div>
           </div>
 

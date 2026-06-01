@@ -48,6 +48,7 @@ export function PayrollWorkspaceDialogs() {
     setCreateSheetOpen,
     setPersonnelDialogOpen,
     setPersonnelEditDialogOpen,
+    toggleAllPickerSelection,
     togglePickerSelection,
     updatePersonnelFromWorkspace,
   } = usePayrollWorkspaceStore(
@@ -65,6 +66,7 @@ export function PayrollWorkspaceDialogs() {
       setCreateSheetOpen: state.setCreateSheetOpen,
       setPersonnelDialogOpen: state.setPersonnelDialogOpen,
       setPersonnelEditDialogOpen: state.setPersonnelEditDialogOpen,
+      toggleAllPickerSelection: state.toggleAllPickerSelection,
       togglePickerSelection: state.togglePickerSelection,
       updatePersonnelFromWorkspace: state.updatePersonnelFromWorkspace,
     })),
@@ -165,6 +167,7 @@ export function PayrollWorkspaceDialogs() {
             onAddSelected={addSelectedPersonnelToSheet}
             onCreatePersonnel={handleCreatePersonnel}
             onOpenChange={setPersonnelDialogOpen}
+            onToggleAllSelection={toggleAllPickerSelection}
             onToggleSelection={togglePickerSelection}
             open={isPersonnelDialogOpen}
             personnel={personnel}

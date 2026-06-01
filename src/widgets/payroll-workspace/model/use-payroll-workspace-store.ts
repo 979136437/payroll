@@ -59,6 +59,7 @@ type PayrollWorkspaceStore = {
   setPersonnelDialogOpen: (open: boolean) => void
   setPersonnelEditDialogOpen: (open: boolean) => void
   showOverview: () => void
+  toggleAllPickerSelection: () => void
   togglePickerSelection: (personnelId: number) => void
   toggleSelectedPersonnel: (personnelId: number) => void
   updatePersonnelFromWorkspace: (
@@ -301,6 +302,29 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
         ? state.pickerSelection.filter((item) => item !== personnelId)
         : [...state.pickerSelection, personnelId],
     }))
+  },
+
+  toggleAllPickerSelection() {
+    const existingIds = new Set(
+      (get().sheetDetail?.records ?? []).map((record) => record.personnelId),
+    )
+    const availableIds = get()
+      .personnel.map((person) => person.id)
+      .filter((personnelId) => !existingIds.has(personnelId))
+
+    set((state) => {
+      const hasUnselectedAvailable = availableIds.some(
+        (personnelId) => !state.pickerSelection.includes(personnelId),
+      )
+
+      return {
+        pickerSelection: hasUnselectedAvailable
+          ? uniqueIds([...state.pickerSelection, ...availableIds])
+          : state.pickerSelection.filter(
+              (personnelId) => !availableIds.includes(personnelId),
+            ),
+      }
+    })
   },
 
   updateSalaryDraft(recordId, value) {

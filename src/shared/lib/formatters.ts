@@ -44,5 +44,5 @@ export function maskSensitiveValue(value: string | null) {
     return value
   }
 
-  return `${value.slice(0, 3)}${"*".repeat(Math.max(1, value.length - 7))}${value.slice(-4)}`
+  return `${value.slice(0, 3)}${"*".repeat(Math.min(4, Math.max(1, value.length - 7)))}${value.slice(-4)}`
 }

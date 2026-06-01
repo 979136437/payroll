@@ -8,6 +8,7 @@ const server = await createServer({
 })
 
 try {
+  await server.ssrLoadModule("/tests/formatters.test.ts")
   await server.ssrLoadModule(
     "/tests/payroll-workspace-store.test.ts",
   )

@@ -124,9 +124,17 @@ const columns = [
               meta.onDraftChange(record.recordId, event.target.value)
             }
             onBlur={() => void meta.onSave(record)}
-            className="h-10 w-full cursor-text rounded-md border border-input bg-background px-3 pr-10 text-right text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
+            className={cn(
+              "h-10 w-full cursor-text rounded-md border border-input bg-background px-3 pr-10 text-right text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60",
+              isSaving && "bg-muted/30",
+            )}
           />
-          <CircleDollarSign className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <CircleDollarSign
+            className={cn(
+              "absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground",
+              isSaving && "text-primary",
+            )}
+          />
         </label>
       )
     },

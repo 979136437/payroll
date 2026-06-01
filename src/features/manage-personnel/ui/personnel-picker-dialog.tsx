@@ -7,11 +7,11 @@ import {
   createPersonnelSchema,
   type CreatePersonnelValues,
 } from "@/features/manage-personnel/model/schema"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { ModalShell } from "@/shared/ui/modal-shell"
 import { SelectField } from "@/shared/ui/select-field"
 import { Field } from "@/shared/ui/workspace-primitives"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 
 type PersonnelPickerDialogProps = {
   currentSheetPersonIds: Set<number>
@@ -62,7 +62,7 @@ export function PersonnelPickerDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="从人员库添加"
-      description="可以先多选已有人员，也可以顺手新增一个基础人员。"
+      description="可以先多选已有人员，也可以顺手手工新增一个基础人员。"
       wide
     >
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.95fr]">
@@ -89,29 +89,35 @@ export function PersonnelPickerDialog({
                   <label
                     key={person.id}
                     className={cn(
-                      "flex items-start gap-3 rounded-md border bg-background px-3 py-3 transition",
+                      "grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-3 rounded-md border bg-background px-3 py-3 transition",
                       disabled
                         ? "cursor-not-allowed border-border/70 bg-muted text-muted-foreground"
-                        : "cursor-pointer border-border hover:bg-accent/60",
+                        : checked
+                          ? "cursor-pointer border-primary/40 bg-accent/50 shadow-sm"
+                          : "cursor-pointer border-border hover:bg-accent/60",
                     )}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={disabled}
-                      onChange={() => onToggleSelection(person.id)}
-                      className="mt-1 size-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
-                    />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate font-medium text-foreground">{person.name}</p>
+                    <div className="flex h-5 items-center justify-center pt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => onToggleSelection(person.id)}
+                        className="size-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex min-h-5 items-center gap-2">
+                        <p className="truncate font-medium text-foreground">
+                          {person.name}
+                        </p>
                         {disabled ? (
                           <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px]">
                             已在当前工资表
                           </span>
                         ) : null}
                       </div>
-                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-muted-foreground">
                         {person.gender ? (
                           <span className="inline-flex items-center gap-1">
                             <UserRound className="size-3.5" />
@@ -124,7 +130,9 @@ export function PersonnelPickerDialog({
                             {person.phoneNumber}
                           </span>
                         ) : null}
-                        {!person.gender && !person.phoneNumber ? <span>暂无补充信息</span> : null}
+                        {!person.gender && !person.phoneNumber ? (
+                          <span>暂无补充信息</span>
+                        ) : null}
                       </div>
                     </div>
                   </label>
@@ -202,14 +210,14 @@ export function PersonnelPickerDialog({
               <input
                 {...form.register("nativePlace")}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：河南"
+                placeholder="例如：河北"
               />
             </Field>
             <Field label="身份证号码">
               <input
                 {...form.register("idCardNumber")}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                placeholder="例如：410000199001010001"
+                placeholder="例如：130000199901010001"
               />
             </Field>
             <Field label="工资卡号">

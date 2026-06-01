@@ -257,11 +257,8 @@ fn write_roster_sheet(
     .merge_range(0, 0, 0, 12, "农民工花名册", &title_format)
     .map_err(|error| format!("写入花名册标题失败: {error}"))?;
   worksheet
-    .write_with_format(1, 0, "编制单位：", &info_format)
+    .merge_range(1, 0, 1, 3, "编制单位", &info_format)
     .map_err(|error| format!("写入花名册编制单位失败: {error}"))?;
-  worksheet
-    .merge_range(1, 1, 1, 3, "", &info_format)
-    .map_err(|error| format!("写入花名册编制单位空白区失败: {error}"))?;
   worksheet
     .merge_range(1, 4, 1, 5, &export_month_label(), &info_format)
     .map_err(|error| format!("写入花名册月份失败: {error}"))?;
@@ -393,11 +390,8 @@ fn write_payroll_sheet(workbook: &mut Workbook, export: &PayrollSheetExport) -> 
     .merge_range(0, 0, 0, 11, "工资表", &title_format)
     .map_err(|error| format!("写入工资表标题失败: {error}"))?;
   worksheet
-    .write_with_format(1, 0, "编制单位名称：", &info_format)
+    .merge_range(1, 0, 1, 11, "单位名称", &info_format)
     .map_err(|error| format!("写入工资表编制单位失败: {error}"))?;
-  worksheet
-    .merge_range(1, 1, 1, 11, "", &info_format)
-    .map_err(|error| format!("写入工资表编制单位空白区失败: {error}"))?;
 
   worksheet
     .write_with_format(2, 0, "序号", &header_format)
@@ -479,11 +473,8 @@ fn write_attendance_sheet(
     .merge_range(0, 0, 0, 33, "农民工考勤表", &title_format)
     .map_err(|error| format!("写入考勤表标题失败: {error}"))?;
   worksheet
-    .write_with_format(1, 0, "编制单位：", &info_format)
+    .merge_range(1, 0, 1, 13, "编制单位", &info_format)
     .map_err(|error| format!("写入考勤表编制单位失败: {error}"))?;
-  worksheet
-    .merge_range(1, 1, 1, 13, "", &info_format)
-    .map_err(|error| format!("写入考勤表编制单位空白区失败: {error}"))?;
   worksheet
     .merge_range(1, 14, 1, 17, &export_month_label(), &info_format)
     .map_err(|error| format!("写入考勤表月份失败: {error}"))?;
@@ -671,7 +662,7 @@ mod tests {
   use std::fs;
   use std::path::Path;
 
-  use calamine::{open_workbook_auto, Reader};
+  use calamine::{open_workbook, open_workbook_auto, Dimensions, Reader, Xlsx};
   use rust_xlsxwriter::Workbook;
   use tempfile::tempdir;
 
@@ -989,5 +980,66 @@ mod tests {
     assert_eq!(cell_string(attendance_sheet.get_value((2, 0)).unwrap()), "序号");
     assert_eq!(cell_string(attendance_sheet.get_value((2, 3)).unwrap()), "1");
     assert_eq!(cell_string(attendance_sheet.get_value((2, 33)).unwrap()), "31");
+  }
+
+  #[test]
+  fn payroll_export_merges_info_rows_like_template() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("payroll-merged.xlsx");
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("430623197201192213".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-06".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id]).unwrap();
+
+    export_payroll_sheet_excel(&conn, sheet.id, &file_path).unwrap();
+
+    let mut workbook: Xlsx<_> = open_workbook(&file_path).unwrap();
+
+    let roster_merges = workbook
+      .worksheet_merge_cells("花名册")
+      .unwrap()
+      .unwrap();
+    assert!(roster_merges.contains(&Dimensions::new((1, 0), (1, 3))));
+    assert!(roster_merges.contains(&Dimensions::new((1, 4), (1, 5))));
+
+    let payroll_merges = workbook
+      .worksheet_merge_cells("工资表")
+      .unwrap()
+      .unwrap();
+    assert!(payroll_merges.contains(&Dimensions::new((1, 0), (1, 11))));
+
+    let attendance_merges = workbook
+      .worksheet_merge_cells("农民工考勤表")
+      .unwrap()
+      .unwrap();
+    assert!(attendance_merges.contains(&Dimensions::new((1, 0), (1, 13))));
+    assert!(attendance_merges.contains(&Dimensions::new((1, 14), (1, 17))));
+    assert!(attendance_merges.contains(&Dimensions::new((1, 18), (1, 33))));
   }
 }

@@ -3,13 +3,24 @@ import { invoke } from "@tauri-apps/api/core"
 export type Personnel = {
   id: number
   name: string
+  gender: string | null
+  ethnicity: string | null
+  nativePlace: string | null
+  idCardNumber: string | null
+  payrollCardNumber: string | null
+  bankName: string | null
   jobType: string | null
   phoneNumber: string | null
 }
 
 export type CreatePersonnelPayload = {
   name: string
-  jobType?: string | null
+  gender?: string | null
+  ethnicity?: string | null
+  nativePlace?: string | null
+  idCardNumber?: string | null
+  payrollCardNumber?: string | null
+  bankName?: string | null
   phoneNumber?: string | null
 }
 

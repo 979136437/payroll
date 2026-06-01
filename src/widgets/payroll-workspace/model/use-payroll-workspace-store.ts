@@ -13,7 +13,10 @@ import {
 import { formatCurrencyInput, readableError } from "@/shared/lib/formatters"
 import { payrollWorkspaceApi } from "@/widgets/payroll-workspace/model/workspace-api"
 
+export type PayrollWorkspaceView = "overview" | "sheet-detail"
+
 type PayrollWorkspaceStore = {
+  currentView: PayrollWorkspaceView
   errorMessage: string | null
   hasInitialized: boolean
   isAddingPersonnel: boolean
@@ -38,12 +41,14 @@ type PayrollWorkspaceStore = {
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
   createSheet: (payload: CreatePayrollSheetPayload) => Promise<boolean>
   initializeWorkspace: () => Promise<void>
+  openSheetDetail: (sheetId: number) => Promise<void>
   refreshWorkspace: (preferredSheetId?: number | null) => Promise<void>
   removeSelectedPersonnelFromSheet: () => Promise<void>
   saveNetPay: (record: PayrollRecord) => Promise<void>
   selectSheet: (sheetId: number) => Promise<void>
   setCreateSheetOpen: (open: boolean) => void
   setPersonnelDialogOpen: (open: boolean) => void
+  showOverview: () => void
   togglePickerSelection: (personnelId: number) => void
   toggleSelectedPersonnel: (personnelId: number) => void
   updateSalaryDraft: (recordId: number, value: string) => void
@@ -94,6 +99,7 @@ function paySavedMessage(name?: string | null) {
 
 export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
   (set, get) => ({
+    currentView: "overview",
     errorMessage: null,
     hasInitialized: false,
     isAddingPersonnel: false,
@@ -161,6 +167,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
 
         if (nextSheetId === null) {
           set({
+            currentView: "overview",
             isDetailLoading: false,
             pickerSelection: [],
             salaryDrafts: {},
@@ -208,6 +215,15 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
       })
 
       await get().refreshWorkspace(sheetId)
+    },
+
+    async openSheetDetail(sheetId) {
+      await get().selectSheet(sheetId)
+      set({ currentView: "sheet-detail" })
+    },
+
+    showOverview() {
+      set({ currentView: "overview" })
     },
 
     setCreateSheetOpen(open) {
@@ -269,6 +285,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>(
         const created = await payrollWorkspaceApi.createPayrollSheet(payload)
 
         set({
+          currentView: "sheet-detail",
           isCreateSheetOpen: false,
           notice: "工资表已创建",
         })

@@ -65,7 +65,7 @@ const columns = [
     header: () => "姓名",
     cell: ({ row, getValue }) => (
       <div className="space-y-1">
-        <p className="font-medium text-slate-950">{getValue()}</p>
+        <p className="font-medium text-foreground">{getValue()}</p>
         <p className="text-xs text-muted-foreground">
           人员编号 #{row.original.personnelId}
         </p>
@@ -105,7 +105,7 @@ const columns = [
               meta.onDraftChange(record.recordId, event.target.value)
             }
             onBlur={() => void meta.onSave(record)}
-            className="h-11 w-full rounded-2xl border border-border/70 bg-background/85 px-4 pr-10 text-right text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-ring/40 disabled:opacity-60"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 pr-10 text-right text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-60"
           />
           <CircleDollarSign className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
         </label>
@@ -153,15 +153,15 @@ export function PayrollRecordTable({
   })
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-border/70 bg-white/75">
+    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
       <table className="min-w-full border-collapse">
-        <thead className="bg-secondary/45">
+        <thead className="bg-muted/50">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-600"
+                  className="px-4 py-4 text-left text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase"
                 >
                   {header.isPlaceholder
                     ? null
@@ -174,11 +174,11 @@ export function PayrollRecordTable({
             </tr>
           ))}
         </thead>
-        <tbody className="divide-y divide-border/60">
+        <tbody className="divide-y divide-border">
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
+            <tr key={row.id} className="bg-background hover:bg-muted/30">
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-3 text-sm text-slate-700">
+                <td key={cell.id} className="px-4 py-3.5 text-sm text-foreground">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}

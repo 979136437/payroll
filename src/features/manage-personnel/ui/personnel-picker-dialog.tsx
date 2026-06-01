@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { BriefcaseBusiness, Phone, Plus } from "lucide-react"
-import { useForm } from "react-hook-form"
+import { Phone, Plus, UserRound } from "lucide-react"
+import { useForm, useWatch } from "react-hook-form"
 
 import type { Personnel } from "@/entities/personnel/api/personnel"
 import {
@@ -8,6 +8,7 @@ import {
   type CreatePersonnelValues,
 } from "@/features/manage-personnel/model/schema"
 import { ModalShell } from "@/shared/ui/modal-shell"
+import { SelectField } from "@/shared/ui/select-field"
 import { Field } from "@/shared/ui/workspace-primitives"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -40,11 +41,21 @@ export function PersonnelPickerDialog({
   const form = useForm<CreatePersonnelValues>({
     resolver: zodResolver(createPersonnelSchema),
     defaultValues: {
+      bankName: "",
+      ethnicity: "",
+      gender: "",
+      idCardNumber: "",
       name: "",
-      jobType: "",
+      nativePlace: "",
+      payrollCardNumber: "",
       phoneNumber: "",
     },
   })
+  const selectedGender =
+    useWatch({
+      control: form.control,
+      name: "gender",
+    }) ?? ""
 
   return (
     <ModalShell
@@ -54,21 +65,21 @@ export function PersonnelPickerDialog({
       description="可以先多选已有人员，也可以顺手新增一个基础人员。"
       wide
     >
-      <div className="grid gap-5 lg:grid-cols-[1.25fr_0.9fr]">
-        <div className="space-y-3">
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.95fr]">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-950">人员库</p>
+              <p className="text-sm font-medium text-foreground">人员库</p>
               <p className="text-xs text-muted-foreground">
                 已在当前工资表中的人员会显示为不可重复加入。
               </p>
             </div>
-            <div className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+            <div className="rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
               已选 {pickerSelection.length} 人
             </div>
           </div>
 
-          <div className="max-h-[24rem] space-y-2 overflow-y-auto rounded-3xl border border-border/70 bg-secondary/20 p-3">
+          <div className="max-h-[28rem] space-y-2 overflow-y-auto rounded-lg border bg-muted/30 p-3">
             {personnel.length > 0 ? (
               personnel.map((person) => {
                 const disabled = currentSheetPersonIds.has(person.id)
@@ -78,10 +89,10 @@ export function PersonnelPickerDialog({
                   <label
                     key={person.id}
                     className={cn(
-                      "flex items-start gap-3 rounded-2xl border px-3 py-3 transition",
+                      "flex items-start gap-3 rounded-md border bg-background px-3 py-3 transition",
                       disabled
-                        ? "border-border/60 bg-muted/45 text-muted-foreground"
-                        : "border-border/60 bg-white/80 hover:border-primary/35 hover:bg-white",
+                        ? "cursor-not-allowed border-border/70 bg-muted text-muted-foreground"
+                        : "cursor-pointer border-border hover:bg-accent/60",
                     )}
                   >
                     <input
@@ -93,31 +104,34 @@ export function PersonnelPickerDialog({
                     />
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate font-medium text-slate-950">
-                          {person.name}
-                        </p>
+                        <p className="truncate font-medium text-foreground">{person.name}</p>
                         {disabled ? (
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">
+                          <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px]">
                             已在当前工资表
                           </span>
                         ) : null}
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <BriefcaseBusiness className="size-3.5" />
-                          {person.jobType || "未填工种"}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="size-3.5" />
-                          {person.phoneNumber || "未填电话"}
-                        </span>
+                        {person.gender ? (
+                          <span className="inline-flex items-center gap-1">
+                            <UserRound className="size-3.5" />
+                            {person.gender}
+                          </span>
+                        ) : null}
+                        {person.phoneNumber ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Phone className="size-3.5" />
+                            {person.phoneNumber}
+                          </span>
+                        ) : null}
+                        {!person.gender && !person.phoneNumber ? <span>暂无补充信息</span> : null}
                       </div>
                     </div>
                   </label>
                 )
               })
             ) : (
-              <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                 人员库还是空的，先在右侧新增一个基础人员。
               </div>
             )}
@@ -142,7 +156,7 @@ export function PersonnelPickerDialog({
         </div>
 
         <form
-          className="space-y-4 rounded-3xl border border-border/70 bg-white/75 p-4"
+          className="space-y-5 rounded-lg border bg-card p-5"
           onSubmit={form.handleSubmit(async (values) => {
             const didCreate = await onCreatePersonnel(values)
             if (didCreate) {
@@ -151,32 +165,75 @@ export function PersonnelPickerDialog({
           })}
         >
           <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-950">手工新增人员</p>
+            <p className="text-sm font-medium text-foreground">手工新增人员</p>
             <p className="text-xs leading-5 text-muted-foreground">
-              第一版只收最基础信息，后面可以继续补完整人员资料。
+              只要求姓名必填，其余字段可按需要补充。
             </p>
           </div>
-          <Field label="姓名" error={form.formState.errors.name?.message}>
-            <input
-              {...form.register("name")}
-              className="h-11 w-full rounded-2xl border border-border/70 bg-background/90 px-4 text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-ring/40"
-              placeholder="例如：张三"
-            />
-          </Field>
-          <Field label="工种">
-            <input
-              {...form.register("jobType")}
-              className="h-11 w-full rounded-2xl border border-border/70 bg-background/90 px-4 text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-ring/40"
-              placeholder="例如：瓦工"
-            />
-          </Field>
-          <Field label="电话">
-            <input
-              {...form.register("phoneNumber")}
-              className="h-11 w-full rounded-2xl border border-border/70 bg-background/90 px-4 text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-ring/40"
-              placeholder="例如：13800000000"
-            />
-          </Field>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="姓名 *" error={form.formState.errors.name?.message}>
+              <input
+                {...form.register("name")}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                placeholder="例如：张三"
+              />
+            </Field>
+            <Field label="性别">
+              <SelectField
+                onChange={(nextValue) =>
+                  form.setValue("gender", nextValue as "男" | "女" | "")
+                }
+                options={[
+                  { label: "男", value: "男" },
+                  { label: "女", value: "女" },
+                ]}
+                placeholder="请选择性别"
+                value={selectedGender}
+              />
+            </Field>
+            <Field label="民族">
+              <input
+                {...form.register("ethnicity")}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                placeholder="例如：汉"
+              />
+            </Field>
+            <Field label="籍贯">
+              <input
+                {...form.register("nativePlace")}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                placeholder="例如：河南"
+              />
+            </Field>
+            <Field label="身份证号码">
+              <input
+                {...form.register("idCardNumber")}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                placeholder="例如：410000199001010001"
+              />
+            </Field>
+            <Field label="工资卡号">
+              <input
+                {...form.register("payrollCardNumber")}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                placeholder="例如：6222000000000001"
+              />
+            </Field>
+            <Field label="开户行">
+              <input
+                {...form.register("bankName")}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                placeholder="例如：中国建设银行"
+              />
+            </Field>
+            <Field label="联系电话">
+              <input
+                {...form.register("phoneNumber")}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                placeholder="例如：13800000000"
+              />
+            </Field>
+          </div>
           <Button type="submit" className="w-full" disabled={isBusy}>
             <Plus className="size-4" />
             新增到人员库

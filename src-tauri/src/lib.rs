@@ -16,6 +16,18 @@ struct DbState {
   connection: Mutex<Connection>,
 }
 
+fn map_personnel_create_error(error: rusqlite::Error) -> String {
+  if matches!(
+    error,
+    rusqlite::Error::SqliteFailure(_, Some(ref message))
+      if message.contains("UNIQUE constraint failed: personnel.id_card_number")
+  ) {
+    "身份证号码已存在".into()
+  } else {
+    error.to_string()
+  }
+}
+
 #[tauri::command]
 fn list_personnel_command(state: State<'_, DbState>) -> Result<Vec<PersonnelSummary>, String> {
   let conn = state
@@ -38,7 +50,7 @@ fn create_personnel_command(
     .connection
     .lock()
     .map_err(|error| format!("database lock poisoned: {error}"))?;
-  create_personnel(&conn, payload).map_err(|error| error.to_string())
+  create_personnel(&conn, payload).map_err(map_personnel_create_error)
 }
 
 #[tauri::command]
@@ -172,13 +184,28 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-  use rusqlite::Connection;
+  use rusqlite::{ffi::Error as SqliteFfiError, Connection, Error, ErrorCode};
   use tempfile::tempdir;
+
+  use super::map_personnel_create_error;
 
   #[test]
   fn compiles_with_sqlite_test_dependencies() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("payroll.db");
     let _conn = Connection::open(db_path).unwrap();
+  }
+
+  #[test]
+  fn maps_duplicate_id_card_error_to_friendly_message() {
+    let error = Error::SqliteFailure(
+      SqliteFfiError {
+        code: ErrorCode::ConstraintViolation,
+        extended_code: 2067,
+      },
+      Some("UNIQUE constraint failed: personnel.id_card_number".into()),
+    );
+
+    assert_eq!(map_personnel_create_error(error), "身份证号码已存在");
   }
 }

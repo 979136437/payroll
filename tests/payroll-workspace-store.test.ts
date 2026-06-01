@@ -23,6 +23,7 @@ type PayrollSheetDetail = NonNullable<
 
 function resetStore() {
   usePayrollWorkspaceStore.setState({
+    currentView: "overview",
     errorMessage: null,
     hasInitialized: false,
     isAddingPersonnel: false,
@@ -58,6 +59,22 @@ function restoreMocks() {
   })
 }
 
+function makePersonnel(overrides: Partial<Personnel> = {}): Personnel {
+  return {
+    id: 1,
+    name: "张三",
+    gender: null,
+    ethnicity: null,
+    nativePlace: null,
+    idCardNumber: null,
+    payrollCardNumber: null,
+    bankName: null,
+    jobType: null,
+    phoneNumber: null,
+    ...overrides,
+  }
+}
+
 async function runTest(name: string, testFn: () => Promise<void> | void) {
   resetStore()
   restoreMocks()
@@ -72,39 +89,85 @@ async function runTest(name: string, testFn: () => Promise<void> | void) {
 }
 
 async function main() {
-  await runTest("initializeWorkspace selects latest sheet", async () => {
-    const personnel: Personnel[] = [
-      { id: 1, jobType: "瓦工", name: "张三", phoneNumber: "13800000000" },
-    ]
-    const sheets: PayrollSheetSummary[] = [
-      { id: 8, name: "2026 年 6 月工资表", personnelCount: 1, updatedAt: "200" },
-      { id: 7, name: "2026 年 5 月工资表", personnelCount: 0, updatedAt: "100" },
-    ]
-    const detail: PayrollSheetDetail = {
-      records: [
-        {
+  await runTest(
+    "initializeWorkspace stays on overview while selecting latest sheet",
+    async () => {
+      const personnel: Personnel[] = [
+        makePersonnel({
+          gender: "男",
+          id: 1,
           jobType: "瓦工",
           name: "张三",
-          netPay: 0,
-          personnelId: 1,
           phoneNumber: "13800000000",
-          recordId: 11,
-        },
-      ],
-      sheet: sheets[0],
+        }),
+      ]
+      const sheets: PayrollSheetSummary[] = [
+        { id: 8, name: "2026 年 6 月工资表", personnelCount: 1, updatedAt: "200" },
+        { id: 7, name: "2026 年 5 月工资表", personnelCount: 0, updatedAt: "100" },
+      ]
+      const detail: PayrollSheetDetail = {
+        records: [
+          {
+            jobType: "瓦工",
+            name: "张三",
+            netPay: 0,
+            personnelId: 1,
+            phoneNumber: "13800000000",
+            recordId: 11,
+          },
+        ],
+        sheet: sheets[0],
+      }
+
+      payrollWorkspaceApi.listPersonnel = async () => personnel
+      payrollWorkspaceApi.listPayrollSheets = async () => sheets
+      payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+
+      const state = usePayrollWorkspaceStore.getState()
+      assert.equal(state.currentView, "overview")
+      assert.equal(state.selectedSheetId, 8)
+      assert.equal(state.sheetDetail?.records.length, 1)
+      assert.equal(state.salaryDrafts[11], "0")
+      assert.equal(state.hasInitialized, true)
+    },
+  )
+
+  await runTest("openSheetDetail enters detail view and keeps selected sheet", async () => {
+    const sheet: PayrollSheetSummary = {
+      id: 8,
+      name: "2026 年 6 月工资表",
+      personnelCount: 1,
+      updatedAt: "200",
     }
 
-    payrollWorkspaceApi.listPersonnel = async () => personnel
-    payrollWorkspaceApi.listPayrollSheets = async () => sheets
-    payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+    payrollWorkspaceApi.listPersonnel = async () => []
+    payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+    payrollWorkspaceApi.getPayrollSheetDetail = async () => ({
+      records: [],
+      sheet,
+    })
 
     await usePayrollWorkspaceStore.getState().initializeWorkspace()
+    await usePayrollWorkspaceStore.getState().openSheetDetail(8)
 
     const state = usePayrollWorkspaceStore.getState()
+    assert.equal(state.currentView, "sheet-detail")
     assert.equal(state.selectedSheetId, 8)
-    assert.equal(state.sheetDetail?.records.length, 1)
-    assert.equal(state.salaryDrafts[11], "0")
-    assert.equal(state.hasInitialized, true)
+  })
+
+  await runTest("showOverview keeps sheet context while leaving detail mode", async () => {
+    usePayrollWorkspaceStore.setState({
+      currentView: "sheet-detail",
+      selectedSheetId: 8,
+    })
+
+    usePayrollWorkspaceStore.getState().showOverview()
+
+    const state = usePayrollWorkspaceStore.getState()
+    assert.equal(state.currentView, "overview")
+    assert.equal(state.selectedSheetId, 8)
   })
 
   await runTest("createSheet selects created sheet and closes dialog", async () => {
@@ -131,18 +194,23 @@ async function main() {
 
     const state = usePayrollWorkspaceStore.getState()
     assert.equal(didCreate, true)
+    assert.equal(state.currentView, "sheet-detail")
     assert.equal(state.selectedSheetId, 12)
     assert.equal(state.isCreateSheetOpen, false)
     assert.equal(state.notice, "工资表已创建")
   })
 
   await runTest("createPersonnel keeps dialog context and selects new person", async () => {
-    const created = {
+    const created = makePersonnel({
+      bankName: "中国建设银行",
+      gender: "女",
       id: 2,
-      jobType: "钢筋工",
+      idCardNumber: "410000199201010022",
       name: "李四",
+      nativePlace: "河南",
+      payrollCardNumber: "6222000000000002",
       phoneNumber: "13900000000",
-    }
+    })
 
     payrollWorkspaceApi.createPersonnel = async () => created
     payrollWorkspaceApi.listPersonnel = async () => [created]
@@ -151,8 +219,12 @@ async function main() {
     const didCreate = await usePayrollWorkspaceStore
       .getState()
       .createPersonnelRecord({
-        jobType: created.jobType,
+        bankName: created.bankName,
+        gender: created.gender,
+        idCardNumber: created.idCardNumber,
         name: created.name,
+        nativePlace: created.nativePlace,
+        payrollCardNumber: created.payrollCardNumber,
         phoneNumber: created.phoneNumber,
       })
 
@@ -164,12 +236,33 @@ async function main() {
     assert.equal(state.notice, "人员已新增到人员库")
   })
 
+  await runTest("createPersonnel shows friendly duplicate id card error", async () => {
+    payrollWorkspaceApi.createPersonnel = async () => {
+      throw new Error("身份证号码已存在")
+    }
+    payrollWorkspaceApi.listPersonnel = async () => []
+
+    usePayrollWorkspaceStore.getState().setPersonnelDialogOpen(true)
+    const didCreate = await usePayrollWorkspaceStore
+      .getState()
+      .createPersonnelRecord({
+        idCardNumber: "410000199201010022",
+        name: "李四",
+      })
+
+    const state = usePayrollWorkspaceStore.getState()
+    assert.equal(didCreate, false)
+    assert.equal(state.isPersonnelDialogOpen, true)
+    assert.equal(state.errorMessage, "身份证号码已存在")
+    assert.equal(state.notice, null)
+  })
+
   await runTest(
     "addSelectedPersonnelToSheet skips duplicates and refreshes detail",
     async () => {
       const personnel: Personnel[] = [
-        { id: 1, jobType: "瓦工", name: "张三", phoneNumber: null },
-        { id: 2, jobType: "木工", name: "李四", phoneNumber: null },
+        makePersonnel({ id: 1, jobType: "瓦工", name: "张三" }),
+        makePersonnel({ gender: "女", id: 2, name: "李四", phoneNumber: "13900000000" }),
       ]
       const sheet: PayrollSheetSummary = {
         id: 20,
@@ -202,11 +295,11 @@ async function main() {
               recordId: 31,
             },
             {
-              jobType: "木工",
+              jobType: null,
               name: "李四",
               netPay: 0,
               personnelId: 2,
-              phoneNumber: null,
+              phoneNumber: "13900000000",
               recordId: 32,
             },
           ],

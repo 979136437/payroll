@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS payroll_record (
 pub struct PersonnelSummary {
   pub id: i64,
   pub name: String,
+  pub gender: Option<String>,
+  pub ethnicity: Option<String>,
+  pub native_place: Option<String>,
+  pub id_card_number: Option<String>,
+  pub payroll_card_number: Option<String>,
+  pub bank_name: Option<String>,
   pub job_type: Option<String>,
   pub phone_number: Option<String>,
 }
@@ -63,6 +69,12 @@ pub struct PersonnelSummary {
 #[serde(rename_all = "camelCase")]
 pub struct CreatePersonnelInput {
   pub name: String,
+  pub gender: Option<String>,
+  pub ethnicity: Option<String>,
+  pub native_place: Option<String>,
+  pub id_card_number: Option<String>,
+  pub payroll_card_number: Option<String>,
+  pub bank_name: Option<String>,
   pub job_type: Option<String>,
   pub phone_number: Option<String>,
 }
@@ -127,7 +139,17 @@ pub fn open_connection_at_path(path: &Path) -> Result<Connection> {
 
 pub fn list_personnel(conn: &Connection) -> Result<Vec<PersonnelSummary>> {
   let mut stmt = conn.prepare(
-    "SELECT id, name, job_type, phone_number
+    "SELECT
+       id,
+       name,
+       gender,
+       ethnicity,
+       native_place,
+       id_card_number,
+       payroll_card_number,
+       bank_name,
+       job_type,
+       phone_number
      FROM personnel
      ORDER BY name COLLATE NOCASE ASC, id ASC",
   )?;
@@ -137,8 +159,14 @@ pub fn list_personnel(conn: &Connection) -> Result<Vec<PersonnelSummary>> {
       Ok(PersonnelSummary {
         id: row.get(0)?,
         name: row.get(1)?,
-        job_type: row.get(2)?,
-        phone_number: row.get(3)?,
+        gender: row.get(2)?,
+        ethnicity: row.get(3)?,
+        native_place: row.get(4)?,
+        id_card_number: row.get(5)?,
+        payroll_card_number: row.get(6)?,
+        bank_name: row.get(7)?,
+        job_type: row.get(8)?,
+        phone_number: row.get(9)?,
       })
     })?;
 
@@ -153,10 +181,26 @@ pub fn create_personnel(
   let updated_at = current_timestamp();
 
   conn.execute(
-    "INSERT INTO personnel (name, job_type, phone_number, updated_at)
-     VALUES (?1, ?2, ?3, ?4)",
+    "INSERT INTO personnel (
+       name,
+       gender,
+       ethnicity,
+       native_place,
+       id_card_number,
+       payroll_card_number,
+       bank_name,
+       job_type,
+       phone_number,
+       updated_at
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     params![
       trimmed_name,
+      normalize_optional_string(input.gender),
+      normalize_optional_string(input.ethnicity),
+      normalize_optional_string(input.native_place),
+      normalize_optional_string(input.id_card_number),
+      normalize_optional_string(input.payroll_card_number),
+      normalize_optional_string(input.bank_name),
       normalize_optional_string(input.job_type),
       normalize_optional_string(input.phone_number),
       updated_at
@@ -352,7 +396,17 @@ fn copy_sheet_personnel(conn: &Connection, source_sheet_id: i64, target_sheet_id
 fn get_personnel_by_id(conn: &Connection, personnel_id: i64) -> Result<Option<PersonnelSummary>> {
   conn
     .query_row(
-      "SELECT id, name, job_type, phone_number
+      "SELECT
+         id,
+         name,
+         gender,
+         ethnicity,
+         native_place,
+         id_card_number,
+         payroll_card_number,
+         bank_name,
+         job_type,
+         phone_number
        FROM personnel
        WHERE id = ?1",
       [personnel_id],
@@ -360,8 +414,14 @@ fn get_personnel_by_id(conn: &Connection, personnel_id: i64) -> Result<Option<Pe
         Ok(PersonnelSummary {
           id: row.get(0)?,
           name: row.get(1)?,
-          job_type: row.get(2)?,
-          phone_number: row.get(3)?,
+          gender: row.get(2)?,
+          ethnicity: row.get(3)?,
+          native_place: row.get(4)?,
+          id_card_number: row.get(5)?,
+          payroll_card_number: row.get(6)?,
+          bank_name: row.get(7)?,
+          job_type: row.get(8)?,
+          phone_number: row.get(9)?,
         })
       },
     )
@@ -642,6 +702,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Alice".into(),
+        gender: Some("女".into()),
+        ethnicity: Some("汉".into()),
+        native_place: Some("河南".into()),
+        id_card_number: Some("410000199001010001".into()),
+        payroll_card_number: Some("6222000000000001".into()),
+        bank_name: Some("中国建设银行".into()),
         job_type: Some("瓦工".into()),
         phone_number: Some("13800000000".into()),
       },
@@ -649,10 +715,56 @@ mod tests {
     .unwrap();
 
     assert_eq!(created.name, "Alice");
+    assert_eq!(created.gender.as_deref(), Some("女"));
+    assert_eq!(created.ethnicity.as_deref(), Some("汉"));
+    assert_eq!(created.native_place.as_deref(), Some("河南"));
+    assert_eq!(
+      created.id_card_number.as_deref(),
+      Some("410000199001010001")
+    );
+    assert_eq!(
+      created.payroll_card_number.as_deref(),
+      Some("6222000000000001")
+    );
+    assert_eq!(created.bank_name.as_deref(), Some("中国建设银行"));
+    assert_eq!(created.job_type.as_deref(), Some("瓦工"));
+    assert_eq!(created.phone_number.as_deref(), Some("13800000000"));
 
     let personnel = list_personnel(&conn).unwrap();
     assert_eq!(personnel.len(), 1);
     assert_eq!(personnel[0], created);
+  }
+
+  #[test]
+  fn create_personnel_normalizes_blank_optional_fields() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = open_connection_at_path(&db_path).unwrap();
+
+    let created = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: " Alice ".into(),
+        gender: Some(" ".into()),
+        ethnicity: Some("".into()),
+        native_place: Some("  ".into()),
+        id_card_number: Some("".into()),
+        payroll_card_number: Some(" ".into()),
+        bank_name: Some("".into()),
+        job_type: None,
+        phone_number: Some(" ".into()),
+      },
+    )
+    .unwrap();
+
+    assert_eq!(created.name, "Alice");
+    assert_eq!(created.gender, None);
+    assert_eq!(created.ethnicity, None);
+    assert_eq!(created.native_place, None);
+    assert_eq!(created.id_card_number, None);
+    assert_eq!(created.payroll_card_number, None);
+    assert_eq!(created.bank_name, None);
+    assert_eq!(created.phone_number, None);
   }
 
   #[test]
@@ -665,6 +777,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
         job_type: None,
         phone_number: None,
       },
@@ -675,6 +793,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
         job_type: None,
         phone_number: None,
       },
@@ -707,6 +831,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
         job_type: None,
         phone_number: None,
       },
@@ -756,6 +886,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
         job_type: None,
         phone_number: None,
       },
@@ -786,6 +922,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
         job_type: None,
         phone_number: None,
       },
@@ -795,6 +937,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
         job_type: None,
         phone_number: None,
       },
@@ -827,6 +975,12 @@ mod tests {
       &conn,
       CreatePersonnelInput {
         name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
         job_type: None,
         phone_number: None,
       },

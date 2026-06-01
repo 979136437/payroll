@@ -7,6 +7,7 @@ import { usePersonnelManagementStore } from "@/widgets/personnel-management/mode
 const originalApi = {
   createPersonnel: personnelManagementApi.createPersonnel,
   deletePersonnel: personnelManagementApi.deletePersonnel,
+  deletePersonnelBatch: personnelManagementApi.deletePersonnelBatch,
   exportPersonnelExcel: personnelManagementApi.exportPersonnelExcel,
   importPersonnelExcel: personnelManagementApi.importPersonnelExcel,
   listPersonnel: personnelManagementApi.listPersonnel,
@@ -22,6 +23,7 @@ function resetStore() {
     errorMessage: null,
     hasInitialized: false,
     isDeleting: false,
+    isDeletingSelectedPersonnel: false,
     isDialogOpen: false,
     isExporting: false,
     isImporting: false,
@@ -32,6 +34,7 @@ function resetStore() {
     personnelPageIndex: 0,
     personnelPageSize: 10,
     query: "",
+    selectedPersonnelIds: [],
   })
 }
 
@@ -186,6 +189,32 @@ async function main() {
     assert.deepEqual(state.personnel, [])
   })
 
+  await runTest("toggle selection supports cross-page accumulation", async () => {
+    usePersonnelManagementStore.getState().togglePersonnelSelection(1)
+    usePersonnelManagementStore.getState().togglePersonnelSelection(2)
+    usePersonnelManagementStore.getState().setPersonnelPageIndex(1)
+    usePersonnelManagementStore.getState().togglePersonnelSelection(3)
+
+    const state = usePersonnelManagementStore.getState()
+    assert.deepEqual(state.selectedPersonnelIds, [1, 2, 3])
+  })
+
+  await runTest("toggleAllPersonnelSelection selects and clears current page only", async () => {
+    usePersonnelManagementStore.setState({
+      selectedPersonnelIds: [10],
+    })
+
+    usePersonnelManagementStore.getState().toggleAllPersonnelSelection([1, 2])
+
+    let state = usePersonnelManagementStore.getState()
+    assert.deepEqual(state.selectedPersonnelIds, [10, 1, 2])
+
+    usePersonnelManagementStore.getState().toggleAllPersonnelSelection([1, 2])
+
+    state = usePersonnelManagementStore.getState()
+    assert.deepEqual(state.selectedPersonnelIds, [10])
+  })
+
   await runTest("updatePersonnel surfaces duplicate id error", async () => {
     const original = makePersonnel({
       id: 9,
@@ -248,10 +277,11 @@ async function main() {
     assert.equal(state.isExporting, false)
   })
 
-  await runTest("setQuery resets personnel pagination to first page", async () => {
+  await runTest("setQuery clears selection and resets personnel pagination", async () => {
     usePersonnelManagementStore.setState({
       personnelPageIndex: 3,
       query: "",
+      selectedPersonnelIds: [1, 2],
     })
 
     usePersonnelManagementStore.getState().setQuery("chen")
@@ -259,6 +289,35 @@ async function main() {
     const state = usePersonnelManagementStore.getState()
     assert.equal(state.query, "chen")
     assert.equal(state.personnelPageIndex, 0)
+    assert.deepEqual(state.selectedPersonnelIds, [])
+  })
+
+  await runTest("deleteSelectedPersonnel clears selection and records deleted count", async () => {
+    const remaining = [makePersonnel({ id: 3, name: "Casey" })]
+
+    personnelManagementApi.deletePersonnelBatch = async () => ({
+      deletedCount: 2,
+    })
+    personnelManagementApi.listPersonnel = async () => remaining
+
+    usePersonnelManagementStore.setState({
+      personnel: [
+        makePersonnel({ id: 1, name: "Alex" }),
+        makePersonnel({ id: 2, name: "Blair" }),
+        ...remaining,
+      ],
+      selectedPersonnelIds: [1, 2],
+    })
+
+    const didDelete = await usePersonnelManagementStore
+      .getState()
+      .deleteSelectedPersonnel()
+
+    const state = usePersonnelManagementStore.getState()
+    assert.equal(didDelete, true)
+    assert.deepEqual(state.personnel, remaining)
+    assert.deepEqual(state.selectedPersonnelIds, [])
+    assert.equal(state.notice, "已删除 2 名人员")
   })
 }
 

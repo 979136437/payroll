@@ -1,21 +1,31 @@
-import { FolderOpen, Plus } from "lucide-react"
-import { startTransition } from "react"
+import { startTransition, useState } from "react"
 import { useShallow } from "zustand/react/shallow"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatTimestamp } from "@/shared/lib/formatters"
+import { ConfirmDialog } from "@/shared/ui/confirm-dialog"
 import { EmptyPanel } from "@/shared/ui/workspace-primitives"
 import { usePayrollWorkspaceStore } from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
+import { PayrollSheetList } from "@/widgets/payroll-workspace/ui/payroll-sheet-list"
 
 export function PayrollSheetBrowser() {
-  const { openSheetDetail, setCreateSheetOpen, sheets } = usePayrollWorkspaceStore(
+  const {
+    deletePayrollSheet,
+    isDeletingSheet,
+    openSheetDetail,
+    setCreateSheetOpen,
+    sheets,
+  } = usePayrollWorkspaceStore(
     useShallow((state) => ({
+      deletePayrollSheet: state.deletePayrollSheet,
+      isDeletingSheet: state.isDeletingSheet,
       openSheetDetail: state.openSheetDetail,
       setCreateSheetOpen: state.setCreateSheetOpen,
       sheets: state.sheets,
     })),
   )
+  const [pendingDeleteSheetId, setPendingDeleteSheetId] = useState<number | null>(null)
+
+  const pendingDeleteSheet =
+    sheets.find((sheet) => sheet.id === pendingDeleteSheetId) ?? null
 
   if (sheets.length === 0) {
     return (
@@ -29,44 +39,46 @@ export function PayrollSheetBrowser() {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {sheets.map((sheet) => (
-        <Card key={sheet.id}>
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                <FolderOpen className="size-4" />
-                工资资源
-              </div>
-              <CardTitle className="text-xl font-semibold text-foreground">
-                {sheet.name}
-              </CardTitle>
-            </div>
+    <>
+      <div className="rounded-[1.5rem] border border-border/70 bg-muted/55 p-3 shadow-inner md:p-4">
+        <PayrollSheetList
+          deletingSheetId={pendingDeleteSheetId}
+          isDeletingSheet={isDeletingSheet}
+          isLoading={false}
+          mode="card"
+          onCreate={() => setCreateSheetOpen(true)}
+          onDelete={(sheet) => setPendingDeleteSheetId(sheet.id)}
+          onSelect={(sheetId) =>
+            startTransition(() => {
+              void openSheetDetail(sheetId)
+            })
+          }
+          selectedSheetId={null}
+          sheets={sheets}
+        />
+      </div>
 
-            <div className="rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-              {sheet.personnelCount} 人
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              最近更新 {formatTimestamp(sheet.updatedAt)}
-            </p>
-
-            <Button
-              className="px-5"
-              onClick={() =>
-                startTransition(() => {
-                  void openSheetDetail(sheet.id)
-                })
-              }
-            >
-              <Plus className="size-4" />
-              打开工资表
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+      {pendingDeleteSheet ? (
+        <ConfirmDialog
+          confirmLabel="确认删除工资表"
+          description={`删除 ${pendingDeleteSheet.name} 后，会同时删除该工资表下的全部工资记录。`}
+          isBusy={isDeletingSheet}
+          onConfirm={async () => {
+            const didDelete = await deletePayrollSheet(pendingDeleteSheet.id)
+            if (didDelete) {
+              setPendingDeleteSheetId(null)
+            }
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPendingDeleteSheetId(null)
+            }
+          }}
+          open
+          title="确认删除工资表"
+          warningText="删除后将立即生效，工资记录不会保留，但不会删除人员档案。"
+        />
+      ) : null}
+    </>
   )
 }

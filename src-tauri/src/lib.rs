@@ -5,10 +5,12 @@ use std::sync::Mutex;
 
 use db::{
   add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
-  delete_personnel, get_payroll_sheet_detail, list_payroll_sheets, list_personnel,
-  open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
-  update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, PayrollSheetDetail,
-  PayrollSheetRecordRow, PayrollSheetSummary, PersonnelSummary, UpdatePersonnelInput,
+  delete_payroll_sheet, delete_personnel, delete_personnel_batch, get_payroll_sheet_detail,
+  list_payroll_sheets, list_personnel, open_connection_at_path, remove_personnel_from_sheet,
+  update_payroll_record_net_pay, update_personnel, CreatePayrollSheetInput,
+  CreatePersonnelInput, DeletePayrollSheetResult, DeletePersonnelBatchResult,
+  PayrollSheetDetail, PayrollSheetRecordRow, PayrollSheetSummary, PersonnelSummary,
+  UpdatePersonnelInput,
 };
 use excel::{
   export_payroll_sheet_excel, export_personnel_excel, import_personnel_from_excel,
@@ -93,6 +95,19 @@ fn delete_personnel_command(
 }
 
 #[tauri::command]
+fn delete_personnel_batch_command(
+  state: State<'_, DbState>,
+  personnel_ids: Vec<i64>,
+) -> Result<DeletePersonnelBatchResult, String> {
+  let mut conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+
+  delete_personnel_batch(&mut conn, &personnel_ids).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn list_payroll_sheets_command(
   state: State<'_, DbState>,
 ) -> Result<Vec<PayrollSheetSummary>, String> {
@@ -127,6 +142,19 @@ fn create_payroll_sheet_command(
       error.to_string()
     }
   })
+}
+
+#[tauri::command]
+fn delete_payroll_sheet_command(
+  state: State<'_, DbState>,
+  sheet_id: i64,
+) -> Result<DeletePayrollSheetResult, String> {
+  let mut conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+
+  delete_payroll_sheet(&mut conn, sheet_id).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -259,8 +287,10 @@ pub fn run() {
       create_personnel_command,
       update_personnel_command,
       delete_personnel_command,
+      delete_personnel_batch_command,
       list_payroll_sheets_command,
       create_payroll_sheet_command,
+      delete_payroll_sheet_command,
       get_payroll_sheet_detail_command,
       add_personnel_to_sheet_command,
       remove_personnel_from_sheet_command,

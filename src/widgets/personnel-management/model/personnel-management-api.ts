@@ -1,5 +1,6 @@
 import {
   createPersonnel,
+  deletePersonnelBatch,
   deletePersonnel,
   exportPersonnelExcel,
   importPersonnelExcel,
@@ -11,6 +12,7 @@ import {
 
 export const personnelManagementApi = {
   createPersonnel,
+  deletePersonnelBatch,
   deletePersonnel,
   exportPersonnelExcel,
   importPersonnelExcel,

@@ -4,6 +4,10 @@ export type ExcelExportResult = {
   filePath: string
 }
 
+export type DeletePayrollSheetResult = {
+  deleted: boolean
+}
+
 export type PayrollSheetSummary = {
   id: number
   name: string
@@ -78,6 +82,12 @@ export async function updatePayrollRecordNetPay(
 export async function exportPayrollSheetExcel(sheetId: number, savePath: string) {
   return invoke<ExcelExportResult>("export_payroll_sheet_excel_command", {
     savePath,
+    sheetId,
+  })
+}
+
+export async function deletePayrollSheet(sheetId: number) {
+  return invoke<DeletePayrollSheetResult>("delete_payroll_sheet_command", {
     sheetId,
   })
 }

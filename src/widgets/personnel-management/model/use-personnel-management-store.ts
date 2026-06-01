@@ -16,6 +16,7 @@ type PersonnelManagementStore = {
   errorMessage: string | null
   hasInitialized: boolean
   isDeleting: boolean
+  isDeletingSelectedPersonnel: boolean
   isDialogOpen: boolean
   isExporting: boolean
   isImporting: boolean
@@ -26,8 +27,11 @@ type PersonnelManagementStore = {
   personnelPageIndex: number
   personnelPageSize: number
   query: string
+  selectedPersonnelIds: number[]
   clearFeedback: () => void
+  clearPersonnelSelection: () => void
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
+  deleteSelectedPersonnel: () => Promise<boolean>
   deletePersonnelRecord: (personnelId: number) => Promise<boolean>
   exportPersonnelFile: () => Promise<boolean>
   importPersonnelFile: () => Promise<boolean>
@@ -39,6 +43,8 @@ type PersonnelManagementStore = {
   setPersonnelPageSize: (value: number) => void
   setDialogOpen: (open: boolean) => void
   setQuery: (value: string) => void
+  toggleAllPersonnelSelection: (personnelIdsOnPage: number[]) => void
+  togglePersonnelSelection: (personnelId: number) => void
   updatePersonnelRecord: (
     personnelId: number,
     payload: UpdatePersonnelPayload,
@@ -52,6 +58,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
     errorMessage: null,
     hasInitialized: false,
     isDeleting: false,
+    isDeletingSelectedPersonnel: false,
     isDialogOpen: false,
     isExporting: false,
     isImporting: false,
@@ -62,6 +69,7 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
     personnelPageIndex: 0,
     personnelPageSize: 10,
     query: "",
+    selectedPersonnelIds: [],
 
     async initialize() {
       if (get().hasInitialized || get().isLoading) {
@@ -138,11 +146,49 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
       set({
         personnelPageIndex: 0,
         query: value,
+        selectedPersonnelIds: [],
       })
     },
 
     clearFeedback() {
       set({ errorMessage: null, notice: null })
+    },
+
+    clearPersonnelSelection() {
+      set({ selectedPersonnelIds: [] })
+    },
+
+    togglePersonnelSelection(personnelId) {
+      set((state) => ({
+        selectedPersonnelIds: state.selectedPersonnelIds.includes(personnelId)
+          ? state.selectedPersonnelIds.filter((item) => item !== personnelId)
+          : [...state.selectedPersonnelIds, personnelId],
+      }))
+    },
+
+    toggleAllPersonnelSelection(personnelIdsOnPage) {
+      if (personnelIdsOnPage.length === 0) {
+        return
+      }
+
+      set((state) => {
+        const allSelected = personnelIdsOnPage.every((personnelId) =>
+          state.selectedPersonnelIds.includes(personnelId),
+        )
+
+        return {
+          selectedPersonnelIds: allSelected
+            ? state.selectedPersonnelIds.filter(
+                (personnelId) => !personnelIdsOnPage.includes(personnelId),
+              )
+            : [
+                ...new Set([
+                  ...state.selectedPersonnelIds,
+                  ...personnelIdsOnPage,
+                ]),
+              ],
+        }
+      })
     },
 
     async createPersonnelRecord(payload) {
@@ -227,6 +273,9 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
           isDialogOpen: false,
           notice: "人员已删除",
           personnel,
+          selectedPersonnelIds: get().selectedPersonnelIds.filter(
+            (item) => item !== personnelId,
+          ),
         })
         return true
       } catch (error) {
@@ -237,6 +286,50 @@ export const usePersonnelManagementStore = create<PersonnelManagementStore>(
         return false
       } finally {
         set({ isDeleting: false })
+      }
+    },
+
+    async deleteSelectedPersonnel() {
+      const selectedPersonnelIds = get().selectedPersonnelIds
+
+      if (selectedPersonnelIds.length === 0) {
+        return false
+      }
+
+      set({
+        errorMessage: null,
+        isDeletingSelectedPersonnel: true,
+        notice: null,
+      })
+
+      try {
+        const result = await personnelManagementApi.deletePersonnelBatch(
+          selectedPersonnelIds,
+        )
+        const personnel = await personnelManagementApi.listPersonnel()
+        const nextTotalPages = Math.max(
+          1,
+          Math.ceil(personnel.length / get().personnelPageSize),
+        )
+
+        set({
+          notice: `已删除 ${result.deletedCount} 名人员`,
+          personnel,
+          personnelPageIndex: Math.min(
+            get().personnelPageIndex,
+            nextTotalPages - 1,
+          ),
+          selectedPersonnelIds: [],
+        })
+        return true
+      } catch (error) {
+        set({
+          errorMessage: readableError(error, "批量删除人员失败"),
+          notice: null,
+        })
+        return false
+      } finally {
+        set({ isDeletingSelectedPersonnel: false })
       }
     },
 

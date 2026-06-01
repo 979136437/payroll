@@ -11,6 +11,7 @@ import {
 import {
   addPersonnelToSheet,
   createPayrollSheet,
+  deletePayrollSheet,
   exportPayrollSheetExcel,
   getPayrollSheetDetail,
   listPayrollSheets,
@@ -23,6 +24,7 @@ export const payrollWorkspaceApi = {
   createPayrollSheet,
   createPersonnel,
   deletePersonnel,
+  deletePayrollSheet,
   exportPayrollSheetExcel,
   exportPersonnelExcel,
   getPayrollSheetDetail,

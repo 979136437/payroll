@@ -9,6 +9,7 @@ type ConfirmDialogProps = {
   onOpenChange: (open: boolean) => void
   open: boolean
   title: string
+  warningText?: string
 }
 
 export function ConfirmDialog({
@@ -19,6 +20,7 @@ export function ConfirmDialog({
   onOpenChange,
   open,
   title,
+  warningText = "删除后将立即生效，当前人员及其关联工资记录不会保留。",
 }: ConfirmDialogProps) {
   return (
     <ModalShell
@@ -29,7 +31,7 @@ export function ConfirmDialog({
     >
       <div className="space-y-4">
         <div className="rounded-lg border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm leading-6 text-muted-foreground">
-          删除后将立即生效，当前人员及其关联工资记录不会保留。
+          {warningText}
         </div>
 
         <div className="flex justify-end gap-2">

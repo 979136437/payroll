@@ -26,6 +26,7 @@ type PayrollWorkspaceStore = {
   isCreateSheetOpen: boolean
   isCreatingPersonnel: boolean
   isCreatingSheet: boolean
+  isDeletingSheet: boolean
   isDeletingPersonnel: boolean
   isDetailLoading: boolean
   isExportingSheet: boolean
@@ -46,6 +47,7 @@ type PayrollWorkspaceStore = {
   clearFeedback: () => void
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
   createSheet: (payload: CreatePayrollSheetPayload) => Promise<boolean>
+  deletePayrollSheet: (sheetId: number) => Promise<boolean>
   deletePersonnelFromWorkspace: (personnelId: number) => Promise<boolean>
   exportCurrentSheet: () => Promise<boolean>
   initializeWorkspace: () => Promise<void>
@@ -126,6 +128,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   isCreateSheetOpen: false,
   isCreatingPersonnel: false,
   isCreatingSheet: false,
+  isDeletingSheet: false,
   isDeletingPersonnel: false,
   isDetailLoading: false,
   isExportingSheet: false,
@@ -381,6 +384,58 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
       return false
     } finally {
       set({ isCreatingSheet: false })
+    }
+  },
+
+  async deletePayrollSheet(sheetId) {
+    const previousSheets = get().sheets
+    const currentView = get().currentView
+    const targetIndex = previousSheets.findIndex((sheet) => sheet.id === sheetId)
+
+    if (targetIndex === -1) {
+      set({
+        errorMessage: "未找到该工资表",
+        notice: null,
+      })
+      return false
+    }
+
+    const fallbackSheetId =
+      previousSheets[targetIndex + 1]?.id ??
+      previousSheets[targetIndex - 1]?.id ??
+      null
+
+    set({
+      errorMessage: null,
+      isDeletingSheet: true,
+      notice: null,
+    })
+
+    try {
+      const result = await payrollWorkspaceApi.deletePayrollSheet(sheetId)
+
+      if (!result.deleted) {
+        throw new Error("工资表删除失败")
+      }
+
+      await get().refreshWorkspace(fallbackSheetId)
+
+      set({
+        currentView:
+          currentView === "sheet-detail" && fallbackSheetId !== null
+            ? "sheet-detail"
+            : "overview",
+        notice: "工资表已删除",
+      })
+      return true
+    } catch (error) {
+      set({
+        errorMessage: readableError(error, "删除工资表失败"),
+        notice: null,
+      })
+      return false
+    } finally {
+      set({ isDeletingSheet: false })
     }
   },
 

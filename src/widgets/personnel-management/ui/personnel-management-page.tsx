@@ -7,7 +7,7 @@ import {
   UserPlus,
   UsersRound,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useShallow } from "zustand/react/shallow"
 
 import { Button } from "@/components/ui/button"
@@ -59,11 +59,15 @@ function matchesQuery(
 export function PersonnelManagementPage() {
   const [pendingDeletePersonnel, setPendingDeletePersonnel] =
     useState<Personnel | null>(null)
+  const [isBatchDeleteConfirmOpen, setIsBatchDeleteConfirmOpen] = useState(false)
+  const selectAllRef = useRef<HTMLInputElement | null>(null)
 
   const {
     clearFeedback,
+    clearPersonnelSelection,
     createPersonnelRecord,
     deletePersonnelRecord,
+    deleteSelectedPersonnel,
     dialogMode,
     editingPersonnel,
     errorMessage,
@@ -72,6 +76,7 @@ export function PersonnelManagementPage() {
     importPersonnelFile,
     initialize,
     isDeleting,
+    isDeletingSelectedPersonnel,
     isDialogOpen,
     isExporting,
     isImporting,
@@ -84,16 +89,21 @@ export function PersonnelManagementPage() {
     personnelPageIndex,
     personnelPageSize,
     query,
+    selectedPersonnelIds,
     setDialogOpen,
     setPersonnelPageIndex,
     setPersonnelPageSize,
     setQuery,
+    toggleAllPersonnelSelection,
+    togglePersonnelSelection,
     updatePersonnelRecord,
   } = usePersonnelManagementStore(
     useShallow((state) => ({
       clearFeedback: state.clearFeedback,
+      clearPersonnelSelection: state.clearPersonnelSelection,
       createPersonnelRecord: state.createPersonnelRecord,
       deletePersonnelRecord: state.deletePersonnelRecord,
+      deleteSelectedPersonnel: state.deleteSelectedPersonnel,
       dialogMode: state.dialogMode,
       editingPersonnel: state.editingPersonnel,
       errorMessage: state.errorMessage,
@@ -102,6 +112,7 @@ export function PersonnelManagementPage() {
       importPersonnelFile: state.importPersonnelFile,
       initialize: state.initialize,
       isDeleting: state.isDeleting,
+      isDeletingSelectedPersonnel: state.isDeletingSelectedPersonnel,
       isDialogOpen: state.isDialogOpen,
       isExporting: state.isExporting,
       isImporting: state.isImporting,
@@ -114,10 +125,13 @@ export function PersonnelManagementPage() {
       personnelPageIndex: state.personnelPageIndex,
       personnelPageSize: state.personnelPageSize,
       query: state.query,
+      selectedPersonnelIds: state.selectedPersonnelIds,
       setDialogOpen: state.setDialogOpen,
       setPersonnelPageIndex: state.setPersonnelPageIndex,
       setPersonnelPageSize: state.setPersonnelPageSize,
       setQuery: state.setQuery,
+      toggleAllPersonnelSelection: state.toggleAllPersonnelSelection,
+      togglePersonnelSelection: state.togglePersonnelSelection,
       updatePersonnelRecord: state.updatePersonnelRecord,
     })),
   )
@@ -150,6 +164,29 @@ export function PersonnelManagementPage() {
     const start = safePersonnelPageIndex * personnelPageSize
     return filteredPersonnel.slice(start, start + personnelPageSize)
   }, [filteredPersonnel, personnelPageSize, safePersonnelPageIndex])
+  const paginatedPersonnelIds = useMemo(
+    () => paginatedPersonnel.map((item) => item.id),
+    [paginatedPersonnel],
+  )
+  const selectedPersonnelIdSet = useMemo(
+    () => new Set(selectedPersonnelIds),
+    [selectedPersonnelIds],
+  )
+  const allVisibleSelected =
+    paginatedPersonnelIds.length > 0 &&
+    paginatedPersonnelIds.every((personnelId) =>
+      selectedPersonnelIdSet.has(personnelId),
+    )
+  const someVisibleSelected =
+    paginatedPersonnelIds.some((personnelId) =>
+      selectedPersonnelIdSet.has(personnelId),
+    ) && !allVisibleSelected
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected
+    }
+  }, [someVisibleSelected])
 
   const summaryText = useMemo(() => {
     if (personnel.length > 0) {
@@ -190,6 +227,13 @@ export function PersonnelManagementPage() {
     const didDelete = await deletePersonnelRecord(pendingDeletePersonnel.id)
     if (didDelete) {
       setPendingDeletePersonnel(null)
+    }
+  }
+
+  const handleBatchDeleteConfirm = async () => {
+    const didDelete = await deleteSelectedPersonnel()
+    if (didDelete) {
+      setIsBatchDeleteConfirmOpen(false)
     }
   }
 
@@ -309,106 +353,173 @@ export function PersonnelManagementPage() {
                     </div>
                   )
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-                    <table className="min-w-full border-collapse text-sm">
-                      <thead className="bg-muted/70 text-left text-muted-foreground">
-                        <tr>
-                          <th className="px-4 py-3 font-medium">姓名</th>
-                          <th className="px-4 py-3 font-medium">性别</th>
-                          <th className="px-4 py-3 font-medium">民族</th>
-                          <th className="px-4 py-3 font-medium">联系电话</th>
-                          <th className="px-4 py-3 font-medium">身份证号码</th>
-                          <th className="px-4 py-3 font-medium">工资卡号</th>
-                          <th className="px-4 py-3 text-right font-medium">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedPersonnel.map((item) => (
-                          <tr
-                            key={item.id}
-                            className="border-t bg-background transition hover:bg-accent/25"
-                          >
-                            <td className="px-4 py-3 font-medium text-foreground">
-                              {item.name}
-                            </td>
-                            <td className="px-4 py-3">{item.gender || "-"}</td>
-                            <td className="px-4 py-3">{item.ethnicity || "-"}</td>
-                            <td className="px-4 py-3">{item.phoneNumber || "-"}</td>
-                            <td className="px-4 py-3">
-                              {maskSensitiveValue(item.idCardNumber)}
-                            </td>
-                            <td className="px-4 py-3">
-                              {maskSensitiveValue(item.payrollCardNumber)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openEditDialog(item)}
-                                >
-                                  <SquarePen className="size-4" />
-                                  编辑
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  disabled={isDeleting || isSubmitting}
-                                  onClick={() => handleDeleteIntent(item)}
-                                >
-                                  <Trash2 className="size-4" />
-                                  删除
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="flex flex-col gap-3 border-t border-border/80 bg-background px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
-                      <div className="text-muted-foreground">
-                        第 {safePersonnelPageIndex + 1} / {totalPersonnelPages} 页，共{" "}
-                        {filteredPersonnel.length} 条
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/25 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        已选择{" "}
+                        <span className="font-medium text-foreground">
+                          {selectedPersonnelIds.length}
+                        </span>{" "}
+                        人
                       </div>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <span>每页</span>
-                          <SelectField
-                            className="w-[5.25rem]"
-                            placeholder="10"
-                            triggerClassName="h-8 min-h-8 px-2.5 text-[0.8rem]"
-                            value={`${personnelPageSize}`}
-                            onChange={(value) => {
-                              setPersonnelPageSize(Number(value))
-                            }}
-                            options={[10, 20, 50].map((size) => ({
-                              label: `${size}`,
-                              value: `${size}`,
-                            }))}
-                          />
-                          <span>条</span>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={selectedPersonnelIds.length === 0}
+                          onClick={clearPersonnelSelection}
+                        >
+                          清空选择
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={
+                            selectedPersonnelIds.length === 0 ||
+                            isDeletingSelectedPersonnel ||
+                            isDeleting
+                          }
+                          onClick={() => setIsBatchDeleteConfirmOpen(true)}
+                        >
+                          <Trash2 className="size-4" />
+                          批量删除
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-border/80 bg-background">
+                      <table className="min-w-full border-collapse text-sm">
+                        <thead className="bg-muted/70 text-left text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-3 font-medium">
+                              <label className="flex items-center justify-center">
+                                <input
+                                  ref={selectAllRef}
+                                  type="checkbox"
+                                  checked={allVisibleSelected}
+                                  disabled={paginatedPersonnelIds.length === 0}
+                                  onChange={() =>
+                                    toggleAllPersonnelSelection(paginatedPersonnelIds)
+                                  }
+                                  className="size-4 cursor-pointer rounded border-input accent-primary"
+                                />
+                              </label>
+                            </th>
+                            <th className="px-4 py-3 font-medium">姓名</th>
+                            <th className="px-4 py-3 font-medium">性别</th>
+                            <th className="px-4 py-3 font-medium">民族</th>
+                            <th className="px-4 py-3 font-medium">联系电话</th>
+                            <th className="px-4 py-3 font-medium">身份证号</th>
+                            <th className="px-4 py-3 font-medium">工资卡号</th>
+                            <th className="px-4 py-3 text-right font-medium">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedPersonnel.map((item) => (
+                            <tr
+                              key={item.id}
+                              className={`border-t transition ${
+                                selectedPersonnelIdSet.has(item.id)
+                                  ? "bg-accent/35 hover:bg-accent/50"
+                                  : "bg-background hover:bg-accent/25"
+                              }`}
+                            >
+                              <td className="px-4 py-3">
+                                <label className="flex items-center justify-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPersonnelIdSet.has(item.id)}
+                                    onChange={() => togglePersonnelSelection(item.id)}
+                                    className="size-4 cursor-pointer rounded border-input accent-primary"
+                                  />
+                                </label>
+                              </td>
+                              <td className="px-4 py-3 font-medium text-foreground">
+                                {item.name}
+                              </td>
+                              <td className="px-4 py-3">{item.gender || "-"}</td>
+                              <td className="px-4 py-3">{item.ethnicity || "-"}</td>
+                              <td className="px-4 py-3">{item.phoneNumber || "-"}</td>
+                              <td className="px-4 py-3">
+                                {maskSensitiveValue(item.idCardNumber)}
+                              </td>
+                              <td className="px-4 py-3">
+                                {maskSensitiveValue(item.payrollCardNumber)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openEditDialog(item)}
+                                  >
+                                    <SquarePen className="size-4" />
+                                    编辑
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    disabled={
+                                      isDeleting ||
+                                      isDeletingSelectedPersonnel ||
+                                      isSubmitting
+                                    }
+                                    onClick={() => handleDeleteIntent(item)}
+                                  >
+                                    <Trash2 className="size-4" />
+                                    删除
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="flex flex-col gap-3 border-t border-border/80 bg-background px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
+                        <div className="text-muted-foreground">
+                          第 {safePersonnelPageIndex + 1} / {totalPersonnelPages} 页，共{" "}
+                          {filteredPersonnel.length} 条
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={safePersonnelPageIndex === 0}
-                            onClick={() =>
-                              setPersonnelPageIndex(safePersonnelPageIndex - 1)
-                            }
-                          >
-                            上一页
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={safePersonnelPageIndex >= totalPersonnelPages - 1}
-                            onClick={() =>
-                              setPersonnelPageIndex(safePersonnelPageIndex + 1)
-                            }
-                          >
-                            下一页
-                          </Button>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span>每页</span>
+                            <SelectField
+                              className="w-[5.25rem]"
+                              placeholder="10"
+                              triggerClassName="h-8 min-h-8 px-2.5 text-[0.8rem]"
+                              value={`${personnelPageSize}`}
+                              onChange={(value) => {
+                                setPersonnelPageSize(Number(value))
+                              }}
+                              options={[10, 20, 50].map((size) => ({
+                                label: `${size}`,
+                                value: `${size}`,
+                              }))}
+                            />
+                            <span>条</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={safePersonnelPageIndex === 0}
+                              onClick={() =>
+                                setPersonnelPageIndex(safePersonnelPageIndex - 1)
+                              }
+                            >
+                              上一页
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={safePersonnelPageIndex >= totalPersonnelPages - 1}
+                              onClick={() =>
+                                setPersonnelPageIndex(safePersonnelPageIndex + 1)
+                              }
+                            >
+                              下一页
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -451,6 +562,18 @@ export function PersonnelManagementPage() {
           }}
           open
           title="确认删除人员"
+        />
+      ) : null}
+
+      {isBatchDeleteConfirmOpen ? (
+        <ConfirmDialog
+          confirmLabel="确认批量删除"
+          description={`将删除已选择的 ${selectedPersonnelIds.length} 名人员，并同时移除他们在全部工资表中的记录。`}
+          isBusy={isDeletingSelectedPersonnel}
+          onConfirm={handleBatchDeleteConfirm}
+          onOpenChange={setIsBatchDeleteConfirmOpen}
+          open
+          title="确认批量删除人员"
         />
       ) : null}
     </>

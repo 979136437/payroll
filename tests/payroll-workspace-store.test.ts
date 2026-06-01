@@ -11,6 +11,7 @@ import {
 import {
   addPersonnelToSheet,
   createPayrollSheet,
+  deletePayrollSheet,
   exportPayrollSheetExcel,
   getPayrollSheetDetail,
   listPayrollSheets,
@@ -38,6 +39,7 @@ function resetStore() {
     isCreatingPersonnel: false,
     isCreatingSheet: false,
     isDeletingPersonnel: false,
+    isDeletingSheet: false,
     isDetailLoading: false,
     isExportingSheet: false,
     isPersonnelDialogOpen: false,
@@ -61,6 +63,7 @@ function restoreMocks() {
     addPersonnelToSheet,
     createPayrollSheet,
     createPersonnel,
+    deletePayrollSheet,
     exportPayrollSheetExcel,
     exportPersonnelExcel,
     getPayrollSheetDetail,
@@ -123,12 +126,20 @@ async function main() {
       const detail: PayrollSheetDetail = {
         records: [
           {
-            jobType: "mason",
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
             name: "Alex",
             netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
             personnelId: 1,
             phoneNumber: "13800000000",
             recordId: 11,
+            remark: null,
+            wageStandard: null,
+            attendanceDays: null,
           },
         ],
         sheet: sheets[0],
@@ -215,6 +226,77 @@ async function main() {
     assert.equal(state.notice, "工资表已创建")
   })
 
+  await runTest("deletePayrollSheet selects next sheet when deleting current sheet", async () => {
+    const firstSheet: PayrollSheetSummary = {
+      id: 11,
+      name: "2026-05 Payroll",
+      personnelCount: 1,
+      updatedAt: "100",
+    }
+    const secondSheet: PayrollSheetSummary = {
+      id: 12,
+      name: "2026-06 Payroll",
+      personnelCount: 0,
+      updatedAt: "200",
+    }
+
+    payrollWorkspaceApi.deletePayrollSheet = async () => ({ deleted: true })
+    payrollWorkspaceApi.listPersonnel = async () => []
+    payrollWorkspaceApi.listPayrollSheets = async () => [secondSheet]
+    payrollWorkspaceApi.getPayrollSheetDetail = async () => ({
+      records: [],
+      sheet: secondSheet,
+    })
+
+    usePayrollWorkspaceStore.setState({
+      currentView: "sheet-detail",
+      selectedSheetId: firstSheet.id,
+      sheetDetail: { records: [], sheet: firstSheet },
+      sheets: [firstSheet, secondSheet],
+    })
+
+    const didDelete = await usePayrollWorkspaceStore
+      .getState()
+      .deletePayrollSheet(firstSheet.id)
+
+    const state = usePayrollWorkspaceStore.getState()
+    assert.equal(didDelete, true)
+    assert.equal(state.selectedSheetId, secondSheet.id)
+    assert.equal(state.currentView, "sheet-detail")
+    assert.equal(state.notice, "工资表已删除")
+  })
+
+  await runTest("deletePayrollSheet falls back to overview when no sheets remain", async () => {
+    const onlySheet: PayrollSheetSummary = {
+      id: 21,
+      name: "2026-07 Payroll",
+      personnelCount: 0,
+      updatedAt: "300",
+    }
+
+    payrollWorkspaceApi.deletePayrollSheet = async () => ({ deleted: true })
+    payrollWorkspaceApi.listPersonnel = async () => []
+    payrollWorkspaceApi.listPayrollSheets = async () => []
+    payrollWorkspaceApi.getPayrollSheetDetail = async () => null
+
+    usePayrollWorkspaceStore.setState({
+      currentView: "sheet-detail",
+      selectedSheetId: onlySheet.id,
+      sheetDetail: { records: [], sheet: onlySheet },
+      sheets: [onlySheet],
+    })
+
+    const didDelete = await usePayrollWorkspaceStore
+      .getState()
+      .deletePayrollSheet(onlySheet.id)
+
+    const state = usePayrollWorkspaceStore.getState()
+    assert.equal(didDelete, true)
+    assert.equal(state.selectedSheetId, null)
+    assert.equal(state.currentView, "overview")
+    assert.equal(state.sheetDetail, null)
+  })
+
   await runTest("createPersonnel keeps dialog context and records success notice", async () => {
     const created = makePersonnel({
       bankName: "Bank A",
@@ -294,12 +376,20 @@ async function main() {
         {
           records: [
             {
-              jobType: "mason",
+              attendanceDays: null,
+              bankName: null,
+              deductionAmount: null,
+              grossPay: null,
+              idCardNumber: null,
               name: "Alex",
               netPay: 0,
+              payeeSignature: null,
+              payrollCardNumber: null,
               personnelId: 1,
               phoneNumber: null,
               recordId: 31,
+              remark: null,
+              wageStandard: null,
             },
           ],
           sheet,
@@ -307,20 +397,36 @@ async function main() {
         {
           records: [
             {
-              jobType: "mason",
+              attendanceDays: null,
+              bankName: null,
+              deductionAmount: null,
+              grossPay: null,
+              idCardNumber: null,
               name: "Alex",
               netPay: 0,
+              payeeSignature: null,
+              payrollCardNumber: null,
               personnelId: 1,
               phoneNumber: null,
               recordId: 31,
+              remark: null,
+              wageStandard: null,
             },
             {
-              jobType: null,
+              attendanceDays: null,
+              bankName: null,
+              deductionAmount: null,
+              grossPay: null,
+              idCardNumber: null,
               name: "Blair",
               netPay: 0,
+              payeeSignature: null,
+              payrollCardNumber: null,
               personnelId: 2,
               phoneNumber: "13900000000",
               recordId: 32,
+              remark: null,
+              wageStandard: null,
             },
           ],
           sheet,
@@ -364,12 +470,20 @@ async function main() {
       const detail: PayrollSheetDetail = {
         records: [
           {
-            jobType: null,
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
             name: "Alex",
             netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
             personnelId: 1,
             phoneNumber: null,
             recordId: 33,
+            remark: null,
+            wageStandard: null,
           },
         ],
         sheet,
@@ -408,12 +522,20 @@ async function main() {
       const detail: PayrollSheetDetail = {
         records: [
           {
-            jobType: null,
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
             name: "Alex",
             netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
             personnelId: 1,
             phoneNumber: null,
             recordId: 34,
+            remark: null,
+            wageStandard: null,
           },
         ],
         sheet,
@@ -450,12 +572,20 @@ async function main() {
         {
           records: [
             {
-              jobType: null,
+              attendanceDays: null,
+              bankName: null,
+              deductionAmount: null,
+              grossPay: null,
+              idCardNumber: null,
               name: "Casey",
               netPay: 1800,
+              payeeSignature: null,
+              payrollCardNumber: null,
               personnelId: 9,
               phoneNumber: null,
               recordId: 41,
+              remark: null,
+              wageStandard: null,
             },
           ],
           sheet,
@@ -502,12 +632,20 @@ async function main() {
       {
         records: [
           {
-            jobType: null,
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
             name: "Dana",
             netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
             personnelId: 13,
             phoneNumber: null,
             recordId: 51,
+            remark: null,
+            wageStandard: null,
           },
         ],
         sheet,
@@ -515,12 +653,20 @@ async function main() {
       {
         records: [
           {
-            jobType: null,
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
             name: "Dana",
             netPay: 2800,
+            payeeSignature: null,
+            payrollCardNumber: null,
             personnelId: 13,
             phoneNumber: null,
             recordId: 51,
+            remark: null,
+            wageStandard: null,
           },
         ],
         sheet,
@@ -536,12 +682,20 @@ async function main() {
     payrollWorkspaceApi.updatePayrollRecordNetPay = async (recordId, netPay) => {
       savedPayloads.push({ netPay, recordId })
       return {
-        jobType: null,
+        attendanceDays: null,
+        bankName: null,
+        deductionAmount: null,
+        grossPay: null,
+        idCardNumber: null,
         name: "Dana",
         netPay,
+        payeeSignature: null,
+        payrollCardNumber: null,
         personnelId: 13,
         phoneNumber: null,
         recordId,
+        remark: null,
+        wageStandard: null,
       }
     }
 
@@ -568,12 +722,20 @@ async function main() {
     const detail: PayrollSheetDetail = {
       records: [
         {
-          jobType: null,
+          attendanceDays: null,
+          bankName: null,
+          deductionAmount: null,
+          grossPay: null,
+          idCardNumber: null,
           name: "Evan",
           netPay: 1500,
+          payeeSignature: null,
+          payrollCardNumber: null,
           personnelId: 18,
           phoneNumber: null,
           recordId: 61,
+          remark: null,
+          wageStandard: null,
         },
       ],
       sheet,

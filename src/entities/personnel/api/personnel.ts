@@ -11,6 +11,10 @@ export type ExcelExportResult = {
   filePath: string
 }
 
+export type DeletePersonnelBatchResult = {
+  deletedCount: number
+}
+
 export type Personnel = {
   id: number
   name: string
@@ -67,6 +71,12 @@ export async function updatePersonnel(
 export async function deletePersonnel(personnelId: number) {
   return invoke<void>("delete_personnel_command", {
     personnelId,
+  })
+}
+
+export async function deletePersonnelBatch(personnelIds: number[]) {
+  return invoke<DeletePersonnelBatchResult>("delete_personnel_batch_command", {
+    personnelIds,
   })
 }
 

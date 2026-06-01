@@ -152,6 +152,18 @@ pub struct PayrollSheetExport {
   pub records: Vec<PayrollSheetRecordRow>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletePersonnelBatchResult {
+  pub deleted_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletePayrollSheetResult {
+  pub deleted: bool,
+}
+
 pub fn initialize_schema(conn: &Connection) -> Result<()> {
   conn.execute_batch(PERSONNEL_TABLE_SQL)?;
   conn.execute_batch(PAYROLL_SHEET_TABLE_SQL)?;
@@ -356,6 +368,69 @@ pub fn delete_personnel(conn: &mut Connection, personnel_id: i64) -> Result<bool
   Ok(true)
 }
 
+pub fn delete_personnel_batch(
+  conn: &mut Connection,
+  personnel_ids: &[i64],
+) -> Result<DeletePersonnelBatchResult> {
+  let unique_personnel_ids: Vec<i64> = personnel_ids
+    .iter()
+    .copied()
+    .collect::<std::collections::BTreeSet<_>>()
+    .into_iter()
+    .collect();
+
+  if unique_personnel_ids.is_empty() {
+    return Ok(DeletePersonnelBatchResult { deleted_count: 0 });
+  }
+
+  let tx = conn.transaction()?;
+  let mut deleted_count = 0;
+
+  for personnel_id in unique_personnel_ids {
+    let sheet_ids = {
+      let mut stmt = tx.prepare(
+        "SELECT DISTINCT payroll_sheet_id
+         FROM payroll_record
+         WHERE personnel_id = ?1",
+      )?;
+
+      let rows = stmt
+        .query_map([personnel_id], |row| row.get::<_, i64>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+      rows
+    };
+
+    let existed = tx
+      .query_row(
+        "SELECT EXISTS(SELECT 1 FROM personnel WHERE id = ?1)",
+        [personnel_id],
+        |row| row.get::<_, i64>(0),
+      )?
+      == 1;
+
+    if !existed {
+      continue;
+    }
+
+    tx.execute(
+      "DELETE FROM payroll_record WHERE personnel_id = ?1",
+      [personnel_id],
+    )?;
+    tx.execute("DELETE FROM personnel WHERE id = ?1", [personnel_id])?;
+
+    for sheet_id in sheet_ids {
+      touch_payroll_sheet(&tx, sheet_id)?;
+    }
+
+    deleted_count += 1;
+  }
+
+  tx.commit()?;
+
+  Ok(DeletePersonnelBatchResult { deleted_count })
+}
+
 pub fn list_payroll_sheets(conn: &Connection) -> Result<Vec<PayrollSheetSummary>> {
   let mut stmt = conn.prepare(
     "SELECT ps.id, ps.name, ps.updated_at, COUNT(pr.id) AS personnel_count
@@ -401,6 +476,23 @@ pub fn create_payroll_sheet(
 
   get_payroll_sheet_summary(conn, sheet_id)?
     .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
+}
+
+pub fn delete_payroll_sheet(
+  conn: &mut Connection,
+  sheet_id: i64,
+) -> Result<DeletePayrollSheetResult> {
+  let tx = conn.transaction()?;
+
+  tx.execute(
+    "DELETE FROM payroll_record WHERE payroll_sheet_id = ?1",
+    [sheet_id],
+  )?;
+  let deleted = tx.execute("DELETE FROM payroll_sheet WHERE id = ?1", [sheet_id])? > 0;
+
+  tx.commit()?;
+
+  Ok(DeletePayrollSheetResult { deleted })
 }
 
 pub fn get_payroll_sheet_detail(
@@ -728,10 +820,10 @@ mod tests {
 
   use super::{
     add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
-    delete_personnel, get_payroll_sheet_detail, initialize_schema, list_payroll_sheets,
-    list_personnel, open_connection_at_path, remove_personnel_from_sheet,
-    update_payroll_record_net_pay, update_personnel, CreatePayrollSheetInput,
-    CreatePersonnelInput, UpdatePersonnelInput,
+    delete_payroll_sheet, delete_personnel, delete_personnel_batch, get_payroll_sheet_detail,
+    initialize_schema, list_payroll_sheets, list_personnel, open_connection_at_path,
+    remove_personnel_from_sheet, update_payroll_record_net_pay, update_personnel,
+    CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
   };
 
   #[test]
@@ -1323,6 +1415,99 @@ mod tests {
     let did_delete = delete_personnel(&mut conn, 999).unwrap();
 
     assert!(!did_delete);
+  }
+
+  #[test]
+  fn delete_personnel_batch_removes_existing_ids_only() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let first = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let second = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    let result =
+      delete_personnel_batch(&mut conn, &[first.id, 999, second.id, first.id]).unwrap();
+
+    assert_eq!(result.deleted_count, 2);
+    assert!(list_personnel(&conn).unwrap().is_empty());
+  }
+
+  #[test]
+  fn delete_payroll_sheet_removes_records_without_touching_personnel() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-05".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id]).unwrap();
+
+    let result = delete_payroll_sheet(&mut conn, sheet.id).unwrap();
+
+    assert!(result.deleted);
+    assert!(get_payroll_sheet_detail(&conn, sheet.id).unwrap().is_none());
+    assert_eq!(list_personnel(&conn).unwrap().len(), 1);
+    assert!(list_payroll_sheets(&conn).unwrap().is_empty());
   }
 
   #[test]

@@ -79,6 +79,18 @@ export async function updatePayrollRecordNetPay(
   })
 }
 
+export async function addPersonnelToSheetWithNetPay(
+  sheetId: number,
+  personnelIds: number[],
+  netPay: number,
+) {
+  return invoke<PayrollSheetDetail>("add_personnel_to_sheet_with_net_pay_command", {
+    netPay,
+    personnelIds,
+    sheetId,
+  })
+}
+
 export async function exportPayrollSheetExcel(sheetId: number, savePath: string) {
   return invoke<ExcelExportResult>("export_payroll_sheet_excel_command", {
     savePath,

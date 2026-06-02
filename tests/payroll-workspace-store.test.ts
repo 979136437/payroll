@@ -10,6 +10,7 @@ import {
 } from "@/entities/personnel/api/personnel"
 import {
   addPersonnelToSheet,
+  addPersonnelToSheetWithNetPay,
   createPayrollSheet,
   deletePayrollSheet,
   exportPayrollSheetExcel,
@@ -47,12 +48,17 @@ function resetStore() {
     isDeletingSheet: false,
     isDetailLoading: false,
     isExportingSheet: false,
+    isPickerCreatePersonnelDialogOpen: false,
     isPersonnelDialogOpen: false,
     isPersonnelEditDialogOpen: false,
     isRemovingPersonnel: false,
     isUpdatingPersonnel: false,
     notice: null,
+    pendingAddNetPayDraft: "",
+    pendingAddPersonnelIds: [],
+    pendingSelectionIds: [],
     personnel: [],
+    personnelPickerQuery: "",
     pickerSelection: [],
     salaryDrafts: {},
     savingRecordIds: [],
@@ -67,6 +73,7 @@ function resetStore() {
 function restoreMocks() {
   Object.assign(payrollWorkspaceApi, {
     addPersonnelToSheet,
+    addPersonnelToSheetWithNetPay,
     createPayrollSheet,
     createPersonnel,
     deletePayrollSheet,
@@ -393,6 +400,7 @@ async function main() {
     payrollWorkspaceApi.listPersonnel = async () => [created]
 
     usePayrollWorkspaceStore.getState().setPersonnelDialogOpen(true)
+    usePayrollWorkspaceStore.getState().setPickerCreatePersonnelDialogOpen(true)
     const didCreate = await usePayrollWorkspaceStore
       .getState()
       .createPersonnelRecord({
@@ -408,8 +416,8 @@ async function main() {
     const state = usePayrollWorkspaceStore.getState()
     assert.equal(didCreate, true)
     assert.deepEqual(state.personnel, [created])
-    assert.deepEqual(state.pickerSelection, [2])
     assert.equal(state.isPersonnelDialogOpen, true)
+    assert.equal(state.isPickerCreatePersonnelDialogOpen, false)
     assert.equal(state.notice, "人员已新增到人员库")
   })
 
@@ -636,6 +644,279 @@ async function main() {
 
       state = usePayrollWorkspaceStore.getState()
       assert.deepEqual(state.pickerSelection, [])
+    },
+  )
+
+  await runTest(
+    "available picker personnel excludes current sheet personnel and pending additions",
+    async () => {
+      const personnel: Personnel[] = [
+        makePersonnel({ id: 1, name: "Alex" }),
+        makePersonnel({ id: 2, name: "Blair" }),
+      ]
+      const sheet: PayrollSheetSummary = {
+        id: 23,
+        name: "2026-08 Payroll",
+        personnelCount: 1,
+        updatedAt: "515",
+      }
+      const detail: PayrollSheetDetail = {
+        records: [
+          {
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
+            name: "Alex",
+            netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
+            personnelId: 1,
+            phoneNumber: null,
+            recordId: 35,
+            remark: null,
+            wageStandard: null,
+          },
+        ],
+        sheet,
+      }
+
+      payrollWorkspaceApi.listPersonnel = async () => personnel
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      usePayrollWorkspaceStore.getState().setPersonnelDialogOpen(true)
+      usePayrollWorkspaceStore.getState().addPendingPersonnel(2)
+
+      const available = usePayrollWorkspaceStore
+        .getState()
+        .getAvailablePersonnelForPicker()
+
+      assert.deepEqual(
+        available.map((item) => item.id),
+        [],
+      )
+    },
+  )
+
+  await runTest(
+    "picker search filters available personnel by multiple fields",
+    async () => {
+      const personnel: Personnel[] = [
+        makePersonnel({ id: 1, name: "Alex", phoneNumber: "13800000000" }),
+        makePersonnel({
+          id: 2,
+          idCardNumber: "410000199001010022",
+          name: "Blair",
+          payrollCardNumber: "6222000000000002",
+        }),
+      ]
+      const sheet: PayrollSheetSummary = {
+        id: 24,
+        name: "2026-08 Payroll",
+        personnelCount: 0,
+        updatedAt: "516",
+      }
+      const detail: PayrollSheetDetail = {
+        records: [],
+        sheet,
+      }
+
+      payrollWorkspaceApi.listPersonnel = async () => personnel
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      usePayrollWorkspaceStore.getState().setPersonnelDialogOpen(true)
+      usePayrollWorkspaceStore
+        .getState()
+        .setPersonnelPickerQuery("410000199001010022")
+
+      const filtered = usePayrollWorkspaceStore
+        .getState()
+        .getAvailablePersonnelForPicker()
+
+      assert.deepEqual(
+        filtered.map((item) => item.id),
+        [2],
+      )
+    },
+  )
+
+  await runTest(
+    "pending selection supports single remove and batch remove",
+    async () => {
+      const personnel: Personnel[] = [
+        makePersonnel({ id: 1, name: "Alex" }),
+        makePersonnel({ id: 2, name: "Blair" }),
+        makePersonnel({ id: 3, name: "Casey" }),
+      ]
+      const sheet: PayrollSheetSummary = {
+        id: 25,
+        name: "2026-08 Payroll",
+        personnelCount: 0,
+        updatedAt: "517",
+      }
+      const detail: PayrollSheetDetail = {
+        records: [],
+        sheet,
+      }
+
+      payrollWorkspaceApi.listPersonnel = async () => personnel
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      usePayrollWorkspaceStore.getState().addPendingPersonnel(2)
+      usePayrollWorkspaceStore.getState().addPendingPersonnel(3)
+      usePayrollWorkspaceStore.getState().removePendingPersonnel(2)
+      usePayrollWorkspaceStore.getState().togglePendingSelection(3)
+      usePayrollWorkspaceStore.getState().removeSelectedPendingPersonnel()
+
+      const state = usePayrollWorkspaceStore.getState()
+      assert.deepEqual(state.pendingAddPersonnelIds, [])
+      assert.deepEqual(state.pendingSelectionIds, [])
+    },
+  )
+
+  await runTest(
+    "submitPendingPersonnelToSheet without net pay uses addPersonnelToSheet",
+    async () => {
+      const personnel: Personnel[] = [
+        makePersonnel({ id: 1, name: "Alex" }),
+        makePersonnel({ id: 2, name: "Blair" }),
+      ]
+      const sheet: PayrollSheetSummary = {
+        id: 26,
+        name: "2026-08 Payroll",
+        personnelCount: 0,
+        updatedAt: "518",
+      }
+      const initialDetail: PayrollSheetDetail = {
+        records: [],
+        sheet,
+      }
+      const refreshedDetail: PayrollSheetDetail = {
+        records: [
+          {
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
+            name: "Blair",
+            netPay: 0,
+            payeeSignature: null,
+            payrollCardNumber: null,
+            personnelId: 2,
+            phoneNumber: null,
+            recordId: 36,
+            remark: null,
+            wageStandard: null,
+          },
+        ],
+        sheet: {
+          ...sheet,
+          personnelCount: 1,
+          updatedAt: "519",
+        },
+      }
+      const addedPayloads: number[][] = []
+      let detailIndex = 0
+
+      payrollWorkspaceApi.listPersonnel = async () => personnel
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.getPayrollSheetDetail = async () =>
+        [initialDetail, refreshedDetail][Math.min(detailIndex++, 1)]
+      payrollWorkspaceApi.addPersonnelToSheet = async (_sheetId, personnelIds) => {
+        addedPayloads.push(personnelIds)
+      }
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      usePayrollWorkspaceStore.getState().setPersonnelDialogOpen(true)
+      usePayrollWorkspaceStore.getState().addPendingPersonnel(2)
+      await usePayrollWorkspaceStore.getState().submitPendingPersonnelToSheet()
+
+      const state = usePayrollWorkspaceStore.getState()
+      assert.deepEqual(addedPayloads, [[2]])
+      assert.equal(state.isPersonnelDialogOpen, false)
+      assert.deepEqual(state.pendingAddPersonnelIds, [])
+      assert.equal(state.sheetDetail?.records.length, 1)
+      assert.equal(state.salaryDrafts[36], "0")
+    },
+  )
+
+  await runTest(
+    "submitPendingPersonnelToSheet with net pay uses addPersonnelToSheetWithNetPay",
+    async () => {
+      const personnel: Personnel[] = [
+        makePersonnel({ id: 1, name: "Alex" }),
+        makePersonnel({ id: 2, name: "Blair" }),
+      ]
+      const sheet: PayrollSheetSummary = {
+        id: 27,
+        name: "2026-08 Payroll",
+        personnelCount: 0,
+        updatedAt: "520",
+      }
+      const initialDetail: PayrollSheetDetail = {
+        records: [],
+        sheet,
+      }
+      const nextDetail: PayrollSheetDetail = {
+        records: [
+          {
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            grossPay: null,
+            idCardNumber: null,
+            name: "Blair",
+            netPay: 3200,
+            payeeSignature: null,
+            payrollCardNumber: null,
+            personnelId: 2,
+            phoneNumber: null,
+            recordId: 37,
+            remark: null,
+            wageStandard: null,
+          },
+        ],
+        sheet: {
+          ...sheet,
+          personnelCount: 1,
+          updatedAt: "521",
+        },
+      }
+      const payloads: Array<{ netPay: number; personnelIds: number[]; sheetId: number }> = []
+
+      payrollWorkspaceApi.listPersonnel = async () => personnel
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.getPayrollSheetDetail = async () => initialDetail
+      payrollWorkspaceApi.addPersonnelToSheetWithNetPay = async (
+        sheetId,
+        personnelIds,
+        netPay,
+      ) => {
+        payloads.push({ netPay, personnelIds, sheetId })
+        return nextDetail
+      }
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      usePayrollWorkspaceStore.getState().setPersonnelDialogOpen(true)
+      usePayrollWorkspaceStore.getState().addPendingPersonnel(2)
+      usePayrollWorkspaceStore.getState().setPendingAddNetPayDraft("3200")
+      await usePayrollWorkspaceStore.getState().submitPendingPersonnelToSheet()
+
+      const state = usePayrollWorkspaceStore.getState()
+      assert.deepEqual(payloads, [
+        { netPay: 3200, personnelIds: [2], sheetId: 27 },
+      ])
+      assert.equal(state.sheetDetail?.records[0]?.netPay, 3200)
+      assert.equal(state.salaryDrafts[37], "3200")
+      assert.equal(state.pendingAddNetPayDraft, "")
     },
   )
 

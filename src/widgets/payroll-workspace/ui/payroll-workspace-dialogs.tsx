@@ -35,39 +35,51 @@ function DialogFallback() {
 
 export function PayrollWorkspaceDialogs() {
   const {
-    addSelectedPersonnelToSheet,
+    addPendingPersonnel,
     createPersonnelRecord,
     createSheet,
     deletePersonnelFromWorkspace,
+    getAvailablePersonnelForPicker,
     isAddingPersonnel,
     isCreatingPersonnel,
     isCreatingSheet,
     isDeletingPersonnel,
     isRemovingPersonnel,
     isUpdatingPersonnel,
+    removePendingPersonnel,
+    removeSelectedPendingPersonnel,
     setCreateSheetOpen,
+    setPendingAddNetPayDraft,
     setPersonnelDialogOpen,
     setPersonnelEditDialogOpen,
-    toggleAllPickerSelection,
-    togglePickerSelection,
+    setPersonnelPickerQuery,
+    setPickerCreatePersonnelDialogOpen,
+    submitPendingPersonnelToSheet,
+    togglePendingSelection,
     updatePersonnelFromWorkspace,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
-      addSelectedPersonnelToSheet: state.addSelectedPersonnelToSheet,
+      addPendingPersonnel: state.addPendingPersonnel,
       createPersonnelRecord: state.createPersonnelRecord,
       createSheet: state.createSheet,
       deletePersonnelFromWorkspace: state.deletePersonnelFromWorkspace,
+      getAvailablePersonnelForPicker: state.getAvailablePersonnelForPicker,
       isAddingPersonnel: state.isAddingPersonnel,
       isCreatingPersonnel: state.isCreatingPersonnel,
       isCreatingSheet: state.isCreatingSheet,
       isDeletingPersonnel: state.isDeletingPersonnel,
       isRemovingPersonnel: state.isRemovingPersonnel,
       isUpdatingPersonnel: state.isUpdatingPersonnel,
+      removePendingPersonnel: state.removePendingPersonnel,
+      removeSelectedPendingPersonnel: state.removeSelectedPendingPersonnel,
       setCreateSheetOpen: state.setCreateSheetOpen,
+      setPendingAddNetPayDraft: state.setPendingAddNetPayDraft,
       setPersonnelDialogOpen: state.setPersonnelDialogOpen,
       setPersonnelEditDialogOpen: state.setPersonnelEditDialogOpen,
-      toggleAllPickerSelection: state.toggleAllPickerSelection,
-      togglePickerSelection: state.togglePickerSelection,
+      setPersonnelPickerQuery: state.setPersonnelPickerQuery,
+      setPickerCreatePersonnelDialogOpen: state.setPickerCreatePersonnelDialogOpen,
+      submitPendingPersonnelToSheet: state.submitPendingPersonnelToSheet,
+      togglePendingSelection: state.togglePendingSelection,
       updatePersonnelFromWorkspace: state.updatePersonnelFromWorkspace,
     })),
   )
@@ -77,8 +89,12 @@ export function PayrollWorkspaceDialogs() {
     isCreateSheetOpen,
     isPersonnelDialogOpen,
     isPersonnelEditDialogOpen,
+    isPickerCreatePersonnelDialogOpen,
+    pendingAddNetPayDraft,
+    pendingAddPersonnelIds,
+    pendingSelectionIds,
     personnel,
-    pickerSelection,
+    personnelPickerQuery,
     selectedSheetId,
     sheetDetail,
     sheets,
@@ -88,8 +104,12 @@ export function PayrollWorkspaceDialogs() {
       isCreateSheetOpen: state.isCreateSheetOpen,
       isPersonnelDialogOpen: state.isPersonnelDialogOpen,
       isPersonnelEditDialogOpen: state.isPersonnelEditDialogOpen,
+      isPickerCreatePersonnelDialogOpen: state.isPickerCreatePersonnelDialogOpen,
+      pendingAddNetPayDraft: state.pendingAddNetPayDraft,
+      pendingAddPersonnelIds: state.pendingAddPersonnelIds,
+      pendingSelectionIds: state.pendingSelectionIds,
       personnel: state.personnel,
-      pickerSelection: state.pickerSelection,
+      personnelPickerQuery: state.personnelPickerQuery,
       selectedSheetId: state.selectedSheetId,
       sheetDetail: state.sheetDetail,
       sheets: state.sheets,
@@ -102,15 +122,14 @@ export function PayrollWorkspaceDialogs() {
     isAddingPersonnel ||
     isRemovingPersonnel
 
-  const currentSheetPersonIds = useMemo(
-    () =>
-      new Set((sheetDetail?.records ?? []).map((record) => record.personnelId)),
-    [sheetDetail],
+  const personnelById = useMemo(
+    () => new Map(personnel.map((person) => [person.id, person])),
+    [personnel],
   )
-  const pickerSelectionSet = useMemo(
-    () => new Set(pickerSelection),
-    [pickerSelection],
-  )
+  const availablePersonnel = getAvailablePersonnelForPicker()
+  const pendingPersonnel = pendingAddPersonnelIds
+    .map((personnelId) => personnelById.get(personnelId))
+    .filter((person): person is NonNullable<typeof person> => Boolean(person))
 
   const handleCreateSheet = async (values: CreatePayrollSheetValues) =>
     createSheet({
@@ -162,20 +181,35 @@ export function PayrollWorkspaceDialogs() {
 
         {isPersonnelDialogOpen ? (
           <PersonnelPickerDialog
-            currentSheetPersonIds={currentSheetPersonIds}
+            availablePersonnel={availablePersonnel}
             isBusy={isBusy || selectedSheetId === null}
-            onAddSelected={addSelectedPersonnelToSheet}
-            onCreatePersonnel={handleCreatePersonnel}
+            onAddPendingPersonnel={addPendingPersonnel}
             onOpenChange={setPersonnelDialogOpen}
-            onToggleAllSelection={toggleAllPickerSelection}
-            onToggleSelection={togglePickerSelection}
+            onOpenCreatePersonnel={() => setPickerCreatePersonnelDialogOpen(true)}
+            onRemovePendingPersonnel={removePendingPersonnel}
+            onRemoveSelectedPendingPersonnel={removeSelectedPendingPersonnel}
+            onSetNetPayDraft={setPendingAddNetPayDraft}
+            onSetQuery={setPersonnelPickerQuery}
+            onSubmit={submitPendingPersonnelToSheet}
+            onTogglePendingSelection={togglePendingSelection}
             open={isPersonnelDialogOpen}
-            personnel={personnel}
-            pickerSelection={pickerSelection}
-            pickerSelectionSet={pickerSelectionSet}
+            pendingAddNetPayDraft={pendingAddNetPayDraft}
+            pendingPersonnel={pendingPersonnel}
+            pendingSelectionIds={pendingSelectionIds}
+            query={personnelPickerQuery}
           />
         ) : null}
       </Suspense>
+
+      {isPickerCreatePersonnelDialogOpen ? (
+        <CreateOrEditPersonnelDialog
+          isBusy={isCreatingPersonnel}
+          mode="create"
+          onOpenChange={setPickerCreatePersonnelDialogOpen}
+          onSubmit={handleCreatePersonnel}
+          open={isPickerCreatePersonnelDialogOpen}
+        />
+      ) : null}
 
       {isPersonnelEditDialogOpen && editingPersonnel ? (
         <CreateOrEditPersonnelDialog

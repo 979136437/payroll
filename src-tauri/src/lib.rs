@@ -4,13 +4,13 @@ mod excel;
 use std::sync::Mutex;
 
 use db::{
-  add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
-  delete_payroll_sheet, delete_personnel, delete_personnel_batch, get_payroll_sheet_detail,
-  list_payroll_sheets, list_personnel, open_connection_at_path, remove_personnel_from_sheet,
-  update_payroll_record_net_pay, update_personnel, CreatePayrollSheetInput,
-  CreatePersonnelInput, DeletePayrollSheetResult, DeletePersonnelBatchResult,
-  PayrollSheetDetail, PayrollSheetRecordRow, PayrollSheetSummary, PersonnelSummary,
-  UpdatePersonnelInput,
+  add_personnel_to_sheet, add_personnel_to_sheet_with_net_pay, create_payroll_sheet,
+  create_personnel, database_path_from_base_dir, delete_payroll_sheet, delete_personnel,
+  delete_personnel_batch, get_payroll_sheet_detail, list_payroll_sheets, list_personnel,
+  open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
+  update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, DeletePayrollSheetResult,
+  DeletePersonnelBatchResult, PayrollSheetDetail, PayrollSheetRecordRow, PayrollSheetSummary,
+  PersonnelSummary, UpdatePersonnelInput,
 };
 use excel::{
   export_payroll_sheet_excel, export_personnel_excel, import_personnel_from_excel,
@@ -183,6 +183,23 @@ fn add_personnel_to_sheet_command(
 }
 
 #[tauri::command]
+fn add_personnel_to_sheet_with_net_pay_command(
+  state: State<'_, DbState>,
+  sheet_id: i64,
+  personnel_ids: Vec<i64>,
+  net_pay: f64,
+) -> Result<PayrollSheetDetail, String> {
+  let mut conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+
+  add_personnel_to_sheet_with_net_pay(&mut conn, sheet_id, &personnel_ids, net_pay)
+    .map_err(|error| error.to_string())?
+    .ok_or_else(|| "宸ヨ祫琛ㄤ笉瀛樺湪".into())
+}
+
+#[tauri::command]
 fn remove_personnel_from_sheet_command(
   state: State<'_, DbState>,
   sheet_id: i64,
@@ -293,6 +310,7 @@ pub fn run() {
       delete_payroll_sheet_command,
       get_payroll_sheet_detail_command,
       add_personnel_to_sheet_command,
+      add_personnel_to_sheet_with_net_pay_command,
       remove_personnel_from_sheet_command,
       update_payroll_record_net_pay_command,
       pick_personnel_import_file_command,

@@ -33,11 +33,16 @@ type PayrollWorkspaceStore = {
   isExportingSheet: boolean
   isPersonnelDialogOpen: boolean
   isPersonnelEditDialogOpen: boolean
+  isPickerCreatePersonnelDialogOpen: boolean
   isRemovingPersonnel: boolean
   isUpdatingPersonnel: boolean
   notice: string | null
+  pendingAddNetPayDraft: string
+  pendingAddPersonnelIds: number[]
+  pendingSelectionIds: number[]
   personnel: Personnel[]
   personnelDataRevisionSeen: number
+  personnelPickerQuery: string
   pickerSelection: number[]
   salaryDrafts: Record<number, string>
   savingRecordIds: number[]
@@ -45,6 +50,7 @@ type PayrollWorkspaceStore = {
   selectedSheetId: number | null
   sheetDetail: PayrollSheetDetail | null
   sheets: PayrollSheetSummary[]
+  addPendingPersonnel: (personnelId: number) => void
   addSelectedPersonnelToSheet: () => Promise<void>
   clearFeedback: () => void
   createPersonnelRecord: (payload: CreatePersonnelPayload) => Promise<boolean>
@@ -52,18 +58,26 @@ type PayrollWorkspaceStore = {
   deletePayrollSheet: (sheetId: number) => Promise<boolean>
   deletePersonnelFromWorkspace: (personnelId: number) => Promise<boolean>
   exportCurrentSheet: () => Promise<boolean>
+  getAvailablePersonnelForPicker: () => Personnel[]
   initializeWorkspace: () => Promise<void>
   openPersonnelEditDialog: (personnelId: number) => void
   openSheetDetail: (sheetId: number) => Promise<void>
   refreshWorkspace: (preferredSheetId?: number | null) => Promise<void>
+  removePendingPersonnel: (personnelId: number) => void
+  removeSelectedPendingPersonnel: () => void
   removeSelectedPersonnelFromSheet: () => Promise<void>
   saveNetPay: (record: PayrollRecord) => Promise<void>
   selectSheet: (sheetId: number) => Promise<void>
   setCreateSheetOpen: (open: boolean) => void
+  setPendingAddNetPayDraft: (value: string) => void
   setPersonnelDialogOpen: (open: boolean) => void
   setPersonnelEditDialogOpen: (open: boolean) => void
+  setPersonnelPickerQuery: (value: string) => void
+  setPickerCreatePersonnelDialogOpen: (open: boolean) => void
   showOverview: () => void
+  submitPendingPersonnelToSheet: () => Promise<void>
   toggleAllPickerSelection: () => void
+  togglePendingSelection: (personnelId: number) => void
   togglePickerSelection: (personnelId: number) => void
   toggleSelectedPersonnel: (personnelId: number) => void
   updatePersonnelFromWorkspace: (
@@ -120,6 +134,33 @@ function currentTimestampString() {
   return String(Math.floor(Date.now() / 1000))
 }
 
+function matchesPersonnelPickerQuery(personnel: Personnel, query: string) {
+  if (!query.trim()) {
+    return true
+  }
+
+  return [
+    personnel.name,
+    personnel.phoneNumber ?? "",
+    personnel.idCardNumber ?? "",
+    personnel.payrollCardNumber ?? "",
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(query.trim().toLowerCase())
+}
+
+function buildResetPickerState() {
+  return {
+    isPickerCreatePersonnelDialogOpen: false,
+    pendingAddNetPayDraft: "",
+    pendingAddPersonnelIds: [],
+    pendingSelectionIds: [],
+    personnelPickerQuery: "",
+    pickerSelection: [],
+  }
+}
+
 export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get) => ({
   currentView: "overview",
   editingPersonnel: null,
@@ -136,11 +177,16 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   isExportingSheet: false,
   isPersonnelDialogOpen: false,
   isPersonnelEditDialogOpen: false,
+  isPickerCreatePersonnelDialogOpen: false,
   isRemovingPersonnel: false,
   isUpdatingPersonnel: false,
   notice: null,
+  pendingAddNetPayDraft: "",
+  pendingAddPersonnelIds: [],
+  pendingSelectionIds: [],
   personnel: [],
   personnelDataRevisionSeen: 0,
+  personnelPickerQuery: "",
   pickerSelection: [],
   salaryDrafts: {},
   savingRecordIds: [],
@@ -148,6 +194,22 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   selectedSheetId: null,
   sheetDetail: null,
   sheets: [],
+
+  getAvailablePersonnelForPicker() {
+    const existingIds = new Set(
+      (get().sheetDetail?.records ?? []).map((record) => record.personnelId),
+    )
+    const pendingIds = new Set(get().pendingAddPersonnelIds)
+    const query = get().personnelPickerQuery
+
+    return get().personnel.filter((personnel) => {
+      if (existingIds.has(personnel.id) || pendingIds.has(personnel.id)) {
+        return false
+      }
+
+      return matchesPersonnelPickerQuery(personnel, query)
+    })
+  },
 
   async initializeWorkspace() {
     const { hasInitialized, isBootstrapping, personnelDataRevisionSeen } = get()
@@ -212,10 +274,10 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
         set({
           currentView: "overview",
           isDetailLoading: false,
-          pickerSelection: [],
           salaryDrafts: {},
           selectedPersonnelIds: [],
           sheetDetail: null,
+          ...buildResetPickerState(),
         })
         return
       }
@@ -232,6 +294,12 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
 
       set({
         isDetailLoading: false,
+        pendingAddPersonnelIds: get().pendingAddPersonnelIds.filter((personnelId) =>
+          personnelIdSet.has(personnelId),
+        ),
+        pendingSelectionIds: get().pendingSelectionIds.filter((personnelId) =>
+          personnelIdSet.has(personnelId),
+        ),
         pickerSelection: get().pickerSelection.filter((personnelId) =>
           personnelIdSet.has(personnelId),
         ),
@@ -258,9 +326,9 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     set({
       errorMessage: null,
       notice: null,
-      pickerSelection: [],
       selectedPersonnelIds: [],
       selectedSheetId: sheetId,
+      ...buildResetPickerState(),
     })
 
     await get().refreshWorkspace(sheetId)
@@ -282,7 +350,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   setPersonnelDialogOpen(open) {
     set({
       isPersonnelDialogOpen: open,
-      pickerSelection: [],
+      ...buildResetPickerState(),
     })
   },
 
@@ -291,6 +359,18 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
       editingPersonnel: open ? get().editingPersonnel : null,
       isPersonnelEditDialogOpen: open,
     })
+  },
+
+  setPickerCreatePersonnelDialogOpen(open) {
+    set({ isPickerCreatePersonnelDialogOpen: open })
+  },
+
+  setPendingAddNetPayDraft(value) {
+    set({ pendingAddNetPayDraft: value })
+  },
+
+  setPersonnelPickerQuery(value) {
+    set({ personnelPickerQuery: value })
   },
 
   clearFeedback() {
@@ -305,43 +385,112 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     }))
   },
 
-  togglePickerSelection(personnelId) {
-    const existingIds = new Set(
-      (get().sheetDetail?.records ?? []).map((record) => record.personnelId),
-    )
-
-    if (existingIds.has(personnelId)) {
+  addPendingPersonnel(personnelId) {
+    const available = get().getAvailablePersonnelForPicker()
+    if (!available.some((item) => item.id === personnelId)) {
       return
     }
 
     set((state) => ({
-      pickerSelection: state.pickerSelection.includes(personnelId)
-        ? state.pickerSelection.filter((item) => item !== personnelId)
-        : [...state.pickerSelection, personnelId],
+      pendingAddPersonnelIds: uniqueIds([...state.pendingAddPersonnelIds, personnelId]),
+      pickerSelection: uniqueIds([...state.pickerSelection, personnelId]),
     }))
+  },
+
+  removePendingPersonnel(personnelId) {
+    set((state) => ({
+      pendingAddPersonnelIds: state.pendingAddPersonnelIds.filter(
+        (item) => item !== personnelId,
+      ),
+      pendingSelectionIds: state.pendingSelectionIds.filter((item) => item !== personnelId),
+      pickerSelection: state.pickerSelection.filter((item) => item !== personnelId),
+    }))
+  },
+
+  togglePendingSelection(personnelId) {
+    if (!get().pendingAddPersonnelIds.includes(personnelId)) {
+      return
+    }
+
+    set((state) => ({
+      pendingSelectionIds: state.pendingSelectionIds.includes(personnelId)
+        ? state.pendingSelectionIds.filter((item) => item !== personnelId)
+        : [...state.pendingSelectionIds, personnelId],
+    }))
+  },
+
+  removeSelectedPendingPersonnel() {
+    const selected = new Set(get().pendingSelectionIds)
+    if (selected.size === 0) {
+      return
+    }
+
+    set((state) => ({
+      pendingAddPersonnelIds: state.pendingAddPersonnelIds.filter(
+        (personnelId) => !selected.has(personnelId),
+      ),
+      pendingSelectionIds: [],
+    }))
+  },
+
+  togglePickerSelection(personnelId) {
+    const selected = get().pickerSelection
+
+    if (selected.includes(personnelId)) {
+      set((state) => ({
+        pendingAddPersonnelIds: state.pendingAddPersonnelIds.filter(
+          (item) => item !== personnelId,
+        ),
+        pendingSelectionIds: state.pendingSelectionIds.filter((item) => item !== personnelId),
+        pickerSelection: state.pickerSelection.filter((item) => item !== personnelId),
+      }))
+      return
+    }
+
+    set((state) => ({
+      pickerSelection: uniqueIds([...state.pickerSelection, personnelId]),
+    }))
+
+    get().addPendingPersonnel(personnelId)
   },
 
   toggleAllPickerSelection() {
     const existingIds = new Set(
       (get().sheetDetail?.records ?? []).map((record) => record.personnelId),
     )
-    const availableIds = get()
-      .personnel.map((person) => person.id)
-      .filter((personnelId) => !existingIds.has(personnelId))
+    const availableIds = get().getAvailablePersonnelForPicker().map((person) => person.id)
+    const selectableIds = uniqueIds([
+      ...availableIds,
+      ...get().pickerSelection.filter((personnelId) => !existingIds.has(personnelId)),
+    ])
+    const selected = new Set(get().pickerSelection)
+    const allSelected =
+      selectableIds.length > 0 &&
+      selectableIds.every((personnelId) => selected.has(personnelId))
 
-    set((state) => {
-      const hasUnselectedAvailable = availableIds.some(
-        (personnelId) => !state.pickerSelection.includes(personnelId),
-      )
+    if (allSelected) {
+      const selectableSet = new Set(selectableIds)
+      set((state) => ({
+        pendingAddPersonnelIds: state.pendingAddPersonnelIds.filter(
+          (personnelId) => !selectableSet.has(personnelId),
+        ),
+        pendingSelectionIds: state.pendingSelectionIds.filter(
+          (personnelId) => !selectableSet.has(personnelId),
+        ),
+        pickerSelection: state.pickerSelection.filter(
+          (personnelId) => !selectableSet.has(personnelId),
+        ),
+      }))
+      return
+    }
 
-      return {
-        pickerSelection: hasUnselectedAvailable
-          ? uniqueIds([...state.pickerSelection, ...availableIds])
-          : state.pickerSelection.filter(
-              (personnelId) => !availableIds.includes(personnelId),
-            ),
-      }
-    })
+    set((state) => ({
+      pendingAddPersonnelIds: uniqueIds([
+        ...state.pendingAddPersonnelIds,
+        ...selectableIds,
+      ]),
+      pickerSelection: uniqueIds([...state.pickerSelection, ...selectableIds]),
+    }))
   },
 
   updateSalaryDraft(recordId, value) {
@@ -461,16 +610,14 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     })
 
     try {
-      const created = await payrollWorkspaceApi.createPersonnel(payload)
+      await payrollWorkspaceApi.createPersonnel(payload)
       const personnel = await payrollWorkspaceApi.listPersonnel()
 
-      set((state) => ({
+      set({
+        isPickerCreatePersonnelDialogOpen: false,
         notice: "人员已新增到人员库",
         personnel,
-        pickerSelection: state.pickerSelection.includes(created.id)
-          ? state.pickerSelection
-          : [...state.pickerSelection, created.id],
-      }))
+      })
 
       return true
     } catch (error) {
@@ -568,10 +715,10 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
         notice: null,
       })
       return false
-      } finally {
-        set({ isDeletingPersonnel: false })
-      }
-    },
+    } finally {
+      set({ isDeletingPersonnel: false })
+    }
+  },
 
   async exportCurrentSheet() {
     const selectedSheetId = get().selectedSheetId
@@ -620,25 +767,82 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   },
 
   async addSelectedPersonnelToSheet() {
-    const { pickerSelection, selectedSheetId, sheetDetail } = get()
+    await get().submitPendingPersonnelToSheet()
+  },
+
+  async submitPendingPersonnelToSheet() {
+    const {
+      pendingAddNetPayDraft,
+      pendingAddPersonnelIds,
+      pickerSelection,
+      selectedSheetId,
+      sheetDetail,
+    } = get()
 
     if (selectedSheetId === null) {
       return
     }
 
-    const existingIds = new Set(
-      (sheetDetail?.records ?? []).map((record) => record.personnelId),
-    )
-    const nextPersonnelIds = pickerSelection.filter(
-      (personnelId) => !existingIds.has(personnelId),
-    )
+    const existingIds = new Set((sheetDetail?.records ?? []).map((record) => record.personnelId))
+    const sourceIds =
+      pendingAddPersonnelIds.length > 0 ? pendingAddPersonnelIds : pickerSelection
+    const normalizedIds = uniqueIds(sourceIds.filter((personnelId) => !existingIds.has(personnelId)))
+    const trimmedDraft = pendingAddNetPayDraft.trim()
 
-    if (nextPersonnelIds.length === 0) {
+    if (normalizedIds.length === 0) {
+      if (sourceIds.length > 0) {
+        set({
+          isPersonnelDialogOpen: false,
+          notice: "所选人员已在当前工资表中",
+          ...buildResetPickerState(),
+        })
+      }
+      return
+    }
+
+    if (trimmedDraft) {
+      const parsed = Number(trimmedDraft)
+
+      if (Number.isNaN(parsed)) {
+        set({
+          errorMessage: "请输入有效的工资金额",
+          notice: null,
+        })
+        return
+      }
+
       set({
-        isPersonnelDialogOpen: false,
-        notice: "所选人员已在当前工资表中",
-        pickerSelection: [],
+        errorMessage: null,
+        isAddingPersonnel: true,
+        notice: null,
       })
+
+      try {
+        const detail = await payrollWorkspaceApi.addPersonnelToSheetWithNetPay(
+          selectedSheetId,
+          normalizedIds,
+          parsed,
+        )
+
+        set({
+          isPersonnelDialogOpen: false,
+          notice: "人员已加入当前工资表并设置统一工资",
+          salaryDrafts: buildSalaryDrafts(detail.records),
+          sheetDetail: detail,
+          sheets: get().sheets.map((sheet) =>
+            sheet.id === detail.sheet.id ? detail.sheet : sheet,
+          ),
+          ...buildResetPickerState(),
+        })
+      } catch (error) {
+        set({
+          errorMessage: readableError(error, "添加人员失败"),
+          notice: null,
+        })
+      } finally {
+        set({ isAddingPersonnel: false })
+      }
+
       return
     }
 
@@ -649,21 +853,17 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     })
 
     try {
-      await payrollWorkspaceApi.addPersonnelToSheet(
-        selectedSheetId,
-        uniqueIds(nextPersonnelIds),
-      )
+      await payrollWorkspaceApi.addPersonnelToSheet(selectedSheetId, normalizedIds)
+      await get().refreshWorkspace(selectedSheetId)
 
       set({
         isPersonnelDialogOpen: false,
         notice: "人员已加入当前工资表",
-        pickerSelection: [],
+        ...buildResetPickerState(),
       })
-
-      await get().refreshWorkspace(selectedSheetId)
     } catch (error) {
       set({
-        errorMessage: readableError(error, "加入人员失败"),
+        errorMessage: readableError(error, "添加人员失败"),
         notice: null,
       })
     } finally {

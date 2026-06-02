@@ -611,6 +611,50 @@ pub fn add_personnel_to_sheet(
   tx.commit()
 }
 
+pub fn add_personnel_to_sheet_with_net_pay(
+  conn: &mut Connection,
+  sheet_id: i64,
+  personnel_ids: &[i64],
+  net_pay: f64,
+) -> Result<Option<PayrollSheetDetail>> {
+  let unique_personnel_ids = personnel_ids
+    .iter()
+    .copied()
+    .collect::<std::collections::BTreeSet<_>>();
+  let tx = conn.transaction()?;
+  let mut inserted_personnel_ids = Vec::new();
+
+  for personnel_id in unique_personnel_ids {
+    let inserted = tx.execute(
+      "INSERT OR IGNORE INTO payroll_record (
+         payroll_sheet_id,
+         personnel_id,
+         net_pay,
+         updated_at
+       ) VALUES (?1, ?2, 0, ?3)",
+      params![sheet_id, personnel_id, current_timestamp()],
+    )?;
+
+    if inserted > 0 {
+      inserted_personnel_ids.push(personnel_id);
+    }
+  }
+
+  for personnel_id in inserted_personnel_ids {
+    tx.execute(
+      "UPDATE payroll_record
+       SET net_pay = ?1, updated_at = ?2
+       WHERE payroll_sheet_id = ?3 AND personnel_id = ?4",
+      params![net_pay, current_timestamp(), sheet_id, personnel_id],
+    )?;
+  }
+
+  touch_payroll_sheet(&tx, sheet_id)?;
+  tx.commit()?;
+
+  get_payroll_sheet_detail(conn, sheet_id)
+}
+
 pub fn remove_personnel_from_sheet(
   conn: &mut Connection,
   sheet_id: i64,
@@ -913,11 +957,12 @@ mod tests {
   use tempfile::tempdir;
 
   use super::{
-    add_personnel_to_sheet, create_payroll_sheet, create_personnel, database_path_from_base_dir,
-    delete_payroll_sheet, delete_personnel, delete_personnel_batch, get_payroll_sheet_detail,
-    initialize_schema, list_payroll_sheets, list_personnel, open_connection_at_path,
-    remove_personnel_from_sheet, reorder_personnel_by_ids, update_payroll_record_net_pay,
-    update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
+    add_personnel_to_sheet, add_personnel_to_sheet_with_net_pay, create_payroll_sheet,
+    create_personnel, database_path_from_base_dir, delete_payroll_sheet, delete_personnel,
+    delete_personnel_batch, get_payroll_sheet_detail, initialize_schema, list_payroll_sheets,
+    list_personnel, open_connection_at_path, remove_personnel_from_sheet,
+    reorder_personnel_by_ids, update_payroll_record_net_pay, update_personnel,
+    CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
   };
 
   #[test]
@@ -2103,5 +2148,86 @@ mod tests {
 
     let refreshed = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
     assert_eq!(refreshed.records[0].net_pay, 3500.0);
+  }
+
+  #[test]
+  fn add_personnel_to_sheet_with_net_pay_only_updates_newly_added_people() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let bob = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-06".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id]).unwrap();
+    let original_detail = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+    let alice_record_id = original_detail.records[0].record_id;
+    update_payroll_record_net_pay(&conn, alice_record_id, 2800.0).unwrap();
+
+    let updated_detail = add_personnel_to_sheet_with_net_pay(
+      &mut conn,
+      sheet.id,
+      &[alice.id, bob.id, bob.id],
+      3200.0,
+    )
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(updated_detail.records.len(), 2);
+    let alice_row = updated_detail
+      .records
+      .iter()
+      .find(|record| record.personnel_id == alice.id)
+      .unwrap();
+    let bob_row = updated_detail
+      .records
+      .iter()
+      .find(|record| record.personnel_id == bob.id)
+      .unwrap();
+
+    assert_eq!(alice_row.net_pay, 2800.0);
+    assert_eq!(bob_row.net_pay, 3200.0);
   }
 }

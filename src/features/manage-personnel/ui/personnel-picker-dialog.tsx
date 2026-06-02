@@ -1,230 +1,264 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { Check, Phone, Plus, UserRound } from "lucide-react"
-import { useForm, useWatch } from "react-hook-form"
+import type { ReactNode } from "react"
+import { Check, Search, Trash2, UserPlus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { Personnel } from "@/entities/personnel/api/personnel"
-import {
-  createPersonnelSchema,
-  type CreatePersonnelValues,
-} from "@/features/manage-personnel/model/schema"
-import { PersonnelFormFields } from "@/features/manage-personnel/ui/personnel-form-fields"
 import { cn } from "@/lib/utils"
 import { ModalShell } from "@/shared/ui/modal-shell"
 
 type PersonnelPickerDialogProps = {
-  currentSheetPersonIds: Set<number>
+  availablePersonnel: Personnel[]
   isBusy: boolean
-  onAddSelected: () => Promise<void>
-  onCreatePersonnel: (values: CreatePersonnelValues) => Promise<boolean>
+  onAddPendingPersonnel: (personnelId: number) => void
   onOpenChange: (open: boolean) => void
-  onToggleAllSelection: () => void
-  onToggleSelection: (personnelId: number) => void
+  onOpenCreatePersonnel: () => void
+  onRemovePendingPersonnel: (personnelId: number) => void
+  onRemoveSelectedPendingPersonnel: () => void
+  onSetNetPayDraft: (value: string) => void
+  onSetQuery: (value: string) => void
+  onSubmit: () => Promise<void>
+  onTogglePendingSelection: (personnelId: number) => void
   open: boolean
-  personnel: Personnel[]
-  pickerSelection: number[]
-  pickerSelectionSet: ReadonlySet<number>
+  pendingAddNetPayDraft: string
+  pendingPersonnel: Personnel[]
+  pendingSelectionIds: number[]
+  query: string
+}
+
+function PersonnelCard({
+  action,
+  person,
+}: {
+  action: ReactNode
+  person: Personnel
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-foreground">{person.name}</p>
+      </div>
+      <div className="shrink-0">{action}</div>
+    </div>
+  )
 }
 
 export function PersonnelPickerDialog({
-  currentSheetPersonIds,
+  availablePersonnel,
   isBusy,
-  onAddSelected,
-  onCreatePersonnel,
+  onAddPendingPersonnel,
   onOpenChange,
-  onToggleAllSelection,
-  onToggleSelection,
+  onOpenCreatePersonnel,
+  onRemovePendingPersonnel,
+  onRemoveSelectedPendingPersonnel,
+  onSetNetPayDraft,
+  onSetQuery,
+  onSubmit,
+  onTogglePendingSelection,
   open,
-  personnel,
-  pickerSelection,
-  pickerSelectionSet,
+  pendingAddNetPayDraft,
+  pendingPersonnel,
+  pendingSelectionIds,
+  query,
 }: PersonnelPickerDialogProps) {
-  const form = useForm<CreatePersonnelValues>({
-    resolver: zodResolver(createPersonnelSchema),
-    defaultValues: {
-      bankName: "",
-      ethnicity: "",
-      gender: "",
-      idCardNumber: "",
-      name: "",
-      nativePlace: "",
-      payrollCardNumber: "",
-      phoneNumber: "",
-    },
-  })
-
-  const selectedGender =
-    useWatch({
-      control: form.control,
-      name: "gender",
-    }) ?? ""
-
-  const availablePersonnel = personnel.filter(
-    (person) => !currentSheetPersonIds.has(person.id),
-  )
-  const allAvailableChecked =
-    availablePersonnel.length > 0 &&
-    availablePersonnel.every((person) => pickerSelectionSet.has(person.id))
+  const pendingSelectionSet = new Set(pendingSelectionIds)
 
   return (
     <ModalShell
       open={open}
       onOpenChange={onOpenChange}
       title="从人员库添加"
-      description="可以先多选已有人员，也可以顺手手工新增一个基础人员。"
+      description="先从右侧挑人加入本次添加清单，再统一加入当前工资表。"
       wide
     >
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.95fr]">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">人员库</p>
-              <p className="text-xs text-muted-foreground">
-                已在当前工资表中的人员会显示为不可重复加入。
+      <div className="grid gap-6 lg:h-[min(40rem,calc(100vh-14rem))] lg:grid-cols-[0.98fr_1.02fr]">
+        <section className="flex min-h-0 flex-col gap-4 rounded-xl border border-border/70 bg-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-foreground">本次添加的人员</h3>
+              <p className="text-xs leading-5 text-muted-foreground">
+                已选 {pendingPersonnel.length} 人，可统一设置同一实发工资。
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={allAvailableChecked}
-                  disabled={availablePersonnel.length === 0}
-                  onChange={onToggleAllSelection}
-                  className="size-4 rounded border-input"
-                />
-                <span>全选</span>
-              </label>
-              <div className="rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                已选 {pickerSelection.length} 人
-              </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pendingSelectionIds.length === 0 || isBusy}
+              onClick={onRemoveSelectedPendingPersonnel}
+            >
+              <Trash2 className="size-4" />
+              批量移除
+            </Button>
+          </div>
+
+          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+            <label className="grid gap-2 text-sm md:grid-cols-[7rem_minmax(0,1fr)] md:items-center">
+              <span className="font-medium text-foreground">统一实发工资</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={pendingAddNetPayDraft}
+                onChange={(event) => onSetNetPayDraft(event.target.value)}
+                placeholder="可留空"
+                disabled={isBusy}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              />
+            </label>
+            <p className="text-xs leading-5 text-muted-foreground md:pl-[7rem]">
+              留空时只加入人员；填写后会为本次加入的人员统一写入该工资。
+            </p>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/30 p-3">
+            <div className="flex h-full flex-col gap-2 overflow-y-auto">
+              {pendingPersonnel.length > 0 ? (
+                pendingPersonnel.map((person) => {
+                  const selected = pendingSelectionSet.has(person.id)
+
+                  return (
+                    <label
+                      key={person.id}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-3 transition hover:bg-accent/30",
+                        isBusy && "cursor-not-allowed",
+                      )}
+                    >
+                      <span className="flex shrink-0 items-center">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          disabled={isBusy}
+                          onChange={() => onTogglePendingSelection(person.id)}
+                          className="peer sr-only"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "flex size-4 items-center justify-center rounded-[4px] border bg-background text-transparent shadow-sm transition",
+                            selected
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-input",
+                            isBusy
+                              ? "opacity-60"
+                              : "peer-focus-visible:border-ring peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30",
+                          )}
+                        >
+                          <Check className="size-3" strokeWidth={3} />
+                        </span>
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {person.name}
+                        </p>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={isBusy}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          onRemovePendingPersonnel(person.id)
+                        }}
+                        aria-label={`移除 ${person.name}`}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </label>
+                  )
+                })
+              ) : (
+                <div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                  右侧选择人员后，会先进入这里等待统一提交。
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="max-h-[28rem] space-y-2 overflow-y-auto rounded-lg border bg-muted/30 p-3">
-            {personnel.length > 0 ? (
-              personnel.map((person) => {
-                const disabled = currentSheetPersonIds.has(person.id)
-                const checked = pickerSelectionSet.has(person.id) || disabled
-
-                return (
-                  <label
-                    key={person.id}
-                    className={cn(
-                      "grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-3 rounded-md border bg-background px-3 py-3 transition",
-                      disabled
-                        ? "cursor-not-allowed border-border/70 bg-muted text-muted-foreground"
-                        : checked
-                          ? "cursor-pointer border-primary/40 bg-accent/50 shadow-sm"
-                          : "cursor-pointer border-border hover:bg-accent/60",
-                    )}
-                  >
-                    <div className="flex h-5 items-center justify-center pt-0.5">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={() => onToggleSelection(person.id)}
-                        className="peer sr-only"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "flex size-4 items-center justify-center rounded-[4px] border border-input bg-background text-primary-foreground shadow-sm transition",
-                          disabled
-                            ? "border-border/70 bg-muted text-muted-foreground"
-                            : "peer-focus-visible:border-ring peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30",
-                          checked
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "bg-background text-transparent",
-                        )}
-                      >
-                        <Check className="size-3" strokeWidth={3} />
-                      </span>
-                    </div>
-
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex min-h-5 items-center gap-2">
-                        <p className="truncate font-medium text-foreground">
-                          {person.name}
-                        </p>
-                        {disabled ? (
-                          <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px]">
-                            已在当前工资表
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-muted-foreground">
-                        {person.gender ? (
-                          <span className="inline-flex items-center gap-1">
-                            <UserRound className="size-3.5" />
-                            {person.gender}
-                          </span>
-                        ) : null}
-                        {person.phoneNumber ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Phone className="size-3.5" />
-                            {person.phoneNumber}
-                          </span>
-                        ) : null}
-                        {!person.gender && !person.phoneNumber ? (
-                          <span>暂无补充信息</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </label>
-                )
-              })
-            ) : (
-              <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                人员库还是空的，先在右侧新增一位基础人员。
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2">
+          <div className="mt-auto flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
+              disabled={isBusy}
               onClick={() => onOpenChange(false)}
             >
               关闭
             </Button>
             <Button
               type="button"
-              disabled={pickerSelection.length === 0 || isBusy}
-              onClick={() => void onAddSelected()}
+              disabled={pendingPersonnel.length === 0 || isBusy}
+              onClick={() => void onSubmit()}
             >
               加入当前工资表
             </Button>
           </div>
-        </div>
+        </section>
 
-        <form
-          className="space-y-5 rounded-xl border border-border/70 bg-card p-5"
-          onSubmit={form.handleSubmit(async (values) => {
-            const didCreate = await onCreatePersonnel(values)
-            if (didCreate) {
-              form.reset()
-            }
-          })}
-        >
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">手工新增人员</p>
-            <p className="text-xs leading-5 text-muted-foreground">
-              只要求姓名必填，其余字段可以按需要补充。
-            </p>
+        <section className="flex min-h-0 flex-col gap-4 rounded-xl border border-border/70 bg-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-foreground">待添加的人员</h3>
+              <p className="text-xs leading-5 text-muted-foreground">
+                自动排除已在当前工资表和已加入左侧清单的人员。
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isBusy}
+              onClick={onOpenCreatePersonnel}
+            >
+              <UserPlus className="size-4" />
+              新增人员
+            </Button>
           </div>
 
-          <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-            <PersonnelFormFields form={form} selectedGender={selectedGender} />
-          </div>
+          <label className="relative block">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => onSetQuery(event.target.value)}
+              placeholder="搜索姓名、手机号、身份证号、工资卡号"
+              disabled={isBusy}
+              className="h-10 w-full rounded-md border border-input bg-background pr-3 pl-9 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+            />
+          </label>
 
-          <Button type="submit" className="w-full" disabled={isBusy}>
-            <Plus className="size-4" />
-            新增到人员库
-          </Button>
-        </form>
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/30 p-3">
+            <div className="flex h-full flex-col gap-2 overflow-y-auto">
+              {availablePersonnel.length > 0 ? (
+                availablePersonnel.map((person) => (
+                  <PersonnelCard
+                    key={person.id}
+                    person={person}
+                    action={
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isBusy}
+                        onClick={() => onAddPendingPersonnel(person.id)}
+                      >
+                        添加
+                      </Button>
+                    }
+                  />
+                ))
+              ) : (
+                <div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                  没有可添加的人员了，可以调整搜索条件或先新增人员。
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </ModalShell>
   )

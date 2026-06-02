@@ -10,6 +10,7 @@ import {
 } from "@/entities/personnel/api/personnel"
 import {
   addPersonnelToSheet,
+  addPersonnelToSheetWithNetPay,
   createPayrollSheet,
   deletePayrollSheet,
   exportPayrollSheetExcel,
@@ -21,6 +22,7 @@ import {
 
 export const payrollWorkspaceApi = {
   addPersonnelToSheet,
+  addPersonnelToSheetWithNetPay,
   createPayrollSheet,
   createPersonnel,
   deletePersonnel,

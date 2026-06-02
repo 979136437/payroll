@@ -92,12 +92,12 @@ export function PersonnelPickerDialog({
           </div>
 
           <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-            <label className="grid gap-2 text-sm md:grid-cols-[7rem_minmax(0,1fr)] md:items-center">
+            <label className="grid gap-2 text-sm md:grid-cols-[5.75rem_minmax(0,1fr)] md:items-center">
               <span className="font-medium text-foreground">统一实发工资</span>
               <input
                 type="number"
                 inputMode="decimal"
-                step="0.01"
+                step="1"
                 min="0"
                 value={pendingAddNetPayDraft}
                 onChange={(event) => onSetNetPayDraft(event.target.value)}
@@ -106,13 +106,13 @@ export function PersonnelPickerDialog({
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
               />
             </label>
-            <p className="text-xs leading-5 text-muted-foreground md:pl-[7rem]">
+            <p className="text-xs leading-5 text-muted-foreground">
               留空时只加入人员；填写后会为本次加入的人员统一写入该工资。
             </p>
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/30 p-3">
-            <div className="flex h-full flex-col gap-2 overflow-y-auto">
+            <div className="flex h-full flex-col gap-2 overflow-y-auto pr-2">
               {pendingPersonnel.length > 0 ? (
                 pendingPersonnel.map((person) => {
                   const selected = pendingSelectionSet.has(person.id)
@@ -232,7 +232,7 @@ export function PersonnelPickerDialog({
           </label>
 
           <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/30 p-3">
-            <div className="flex h-full flex-col gap-2 overflow-y-auto">
+            <div className="flex h-full flex-col gap-2 overflow-y-auto pr-2">
               {availablePersonnel.length > 0 ? (
                 availablePersonnel.map((person) => (
                   <PersonnelCard

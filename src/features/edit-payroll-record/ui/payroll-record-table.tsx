@@ -117,7 +117,7 @@ const columns = [
           <input
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             value={meta.drafts[record.recordId] ?? ""}
             disabled={isSaving}
             onChange={(event) =>

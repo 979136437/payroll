@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "payroll",
+  "productName": "工资工作台",
   "version": "0.1.0",
   "identifier": "com.payroll.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "payroll",
+        "title": "工资工作台",
         "width": 1280,
         "height": 860,
         "center": true,

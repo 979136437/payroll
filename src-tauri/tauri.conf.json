@@ -34,6 +34,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "wix": {
+        "language": {
+          "zh-CN": {
+            "localePath": "wix/zh-CN.wxl"
+          }
+        }
+      }
+    },
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }

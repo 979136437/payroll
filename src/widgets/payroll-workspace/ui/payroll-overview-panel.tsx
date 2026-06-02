@@ -24,7 +24,7 @@ export function PayrollOverviewPanel() {
       <div className="rounded-xl border bg-card p-6 shadow-sm md:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">Payroll Workspace</p>
+            <p className="text-sm font-medium text-muted-foreground">工资工作台</p>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
               工资工作台
             </h1>

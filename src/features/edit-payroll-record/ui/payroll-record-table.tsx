@@ -62,7 +62,7 @@ const columns = [
             type="checkbox"
             checked={meta.selectedPersonnelIdSet.has(row.original.personnelId)}
             onChange={() => meta.onToggleSelection(row.original.personnelId)}
-            className="size-4 cursor-pointer rounded border-input accent-primary focus:ring-2 focus:ring-ring"
+            className="size-4 cursor-pointer rounded border-input accent-primary shadow-none outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
           />
         </label>
       )

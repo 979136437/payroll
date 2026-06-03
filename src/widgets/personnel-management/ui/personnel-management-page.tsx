@@ -21,6 +21,7 @@ import {
 import type { Personnel } from "@/entities/personnel/api/personnel"
 import type { CreatePersonnelValues } from "@/features/manage-personnel/model/schema"
 import { CreateOrEditPersonnelDialog } from "@/features/manage-personnel/ui/create-or-edit-personnel-dialog"
+import { cn } from "@/lib/utils"
 import { maskSensitiveValue } from "@/shared/lib/formatters"
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog"
 import { SelectField } from "@/shared/ui/select-field"
@@ -401,7 +402,7 @@ export function PersonnelManagementPage() {
                                   onChange={() =>
                                     toggleAllPersonnelSelection(paginatedPersonnelIds)
                                   }
-                                  className="size-4 cursor-pointer rounded border-input accent-primary"
+                                  className="size-4 cursor-pointer rounded border-input accent-primary shadow-none outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
                                 />
                               </label>
                             </th>
@@ -432,7 +433,7 @@ export function PersonnelManagementPage() {
                                     type="checkbox"
                                     checked={selectedPersonnelIdSet.has(item.id)}
                                     onChange={() => togglePersonnelSelection(item.id)}
-                                    className="size-4 cursor-pointer rounded border-input accent-primary"
+                                    className="size-4 cursor-pointer rounded border-input accent-primary shadow-none outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
                                   />
                                 </label>
                               </td>

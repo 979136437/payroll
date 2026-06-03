@@ -1,5 +1,5 @@
 import { UsersRound, WalletCards } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -28,6 +28,30 @@ const viewOptions: Array<{
 
 export function AppShell() {
   const [currentView, setCurrentView] = useState<AppView>("payroll")
+
+  useEffect(() => {
+    const handleContextMenu = (event: MouseEvent) => {
+      event.preventDefault()
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      const isReloadShortcut =
+        event.key === "F5" || ((event.ctrlKey || event.metaKey) && key === "r")
+
+      if (isReloadShortcut) {
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener("contextmenu", handleContextMenu)
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      window.removeEventListener("contextmenu", handleContextMenu)
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [])
 
   return (
     <ToastProvider>

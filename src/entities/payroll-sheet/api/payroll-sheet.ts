@@ -12,6 +12,7 @@ export type PayrollSheetSummary = {
   id: number
   name: string
   personnelCount: number
+  totalNetPay: number
   updatedAt: string
 }
 

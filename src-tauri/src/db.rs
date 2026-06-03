@@ -109,6 +109,7 @@ pub struct PayrollSheetSummary {
   pub id: i64,
   pub name: String,
   pub personnel_count: i64,
+  pub total_net_pay: f64,
   pub updated_at: String,
 }
 
@@ -438,11 +439,16 @@ pub fn delete_personnel_batch(
 
 pub fn list_payroll_sheets(conn: &Connection) -> Result<Vec<PayrollSheetSummary>> {
   let mut stmt = conn.prepare(
-    "SELECT ps.id, ps.name, ps.updated_at, COUNT(pr.id) AS personnel_count
-     FROM payroll_sheet ps
-     LEFT JOIN payroll_record pr ON pr.payroll_sheet_id = ps.id
-     GROUP BY ps.id, ps.name, ps.updated_at
-     ORDER BY ps.updated_at DESC, ps.id DESC",
+    "SELECT
+       ps.id,
+       ps.name,
+       ps.updated_at,
+       COUNT(pr.id) AS personnel_count,
+       COALESCE(SUM(pr.net_pay), 0) AS total_net_pay
+      FROM payroll_sheet ps
+      LEFT JOIN payroll_record pr ON pr.payroll_sheet_id = ps.id
+      GROUP BY ps.id, ps.name, ps.updated_at
+      ORDER BY ps.updated_at DESC, ps.id DESC",
   )?;
 
   let rows = stmt.query_map([], |row| {
@@ -451,6 +457,7 @@ pub fn list_payroll_sheets(conn: &Connection) -> Result<Vec<PayrollSheetSummary>
       name: row.get(1)?,
       updated_at: row.get(2)?,
       personnel_count: row.get(3)?,
+      total_net_pay: row.get(4)?,
     })
   })?;
 
@@ -856,11 +863,16 @@ fn get_payroll_sheet_summary(
 ) -> Result<Option<PayrollSheetSummary>> {
   conn
     .query_row(
-      "SELECT ps.id, ps.name, ps.updated_at, COUNT(pr.id) AS personnel_count
-       FROM payroll_sheet ps
-       LEFT JOIN payroll_record pr ON pr.payroll_sheet_id = ps.id
-       WHERE ps.id = ?1
-       GROUP BY ps.id, ps.name, ps.updated_at",
+      "SELECT
+         ps.id,
+         ps.name,
+         ps.updated_at,
+         COUNT(pr.id) AS personnel_count,
+         COALESCE(SUM(pr.net_pay), 0) AS total_net_pay
+        FROM payroll_sheet ps
+        LEFT JOIN payroll_record pr ON pr.payroll_sheet_id = ps.id
+        WHERE ps.id = ?1
+        GROUP BY ps.id, ps.name, ps.updated_at",
       [sheet_id],
       |row| {
         Ok(PayrollSheetSummary {
@@ -868,6 +880,7 @@ fn get_payroll_sheet_summary(
           name: row.get(1)?,
           updated_at: row.get(2)?,
           personnel_count: row.get(3)?,
+          total_net_pay: row.get(4)?,
         })
       },
     )
@@ -1946,6 +1959,70 @@ mod tests {
     let sheets = list_payroll_sheets(&conn).unwrap();
     assert_eq!(sheets.len(), 1);
     assert_eq!(sheets[0].personnel_count, 2);
+    assert_eq!(sheets[0].total_net_pay, 0.0);
+  }
+
+  #[test]
+  fn list_payroll_sheets_returns_total_net_pay() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let bob = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Bob".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-06".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id, bob.id]).unwrap();
+    let detail = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+
+    update_payroll_record_net_pay(&conn, detail.records[0].record_id, 1200.0).unwrap();
+    update_payroll_record_net_pay(&conn, detail.records[1].record_id, 2300.0).unwrap();
+
+    let sheets = list_payroll_sheets(&conn).unwrap();
+    assert_eq!(sheets.len(), 1);
+    assert_eq!(sheets[0].total_net_pay, 3500.0);
   }
 
   #[test]

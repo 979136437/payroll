@@ -106,6 +106,19 @@ function makePersonnel(overrides: Partial<Personnel> = {}): Personnel {
   }
 }
 
+function makeSheetSummary(
+  overrides: Partial<PayrollSheetSummary> = {},
+): PayrollSheetSummary {
+  return {
+    id: 1,
+    name: "2026-06 Payroll",
+    personnelCount: 0,
+    totalNetPay: 0,
+    updatedAt: "100",
+    ...overrides,
+  }
+}
+
 async function runTest(name: string, testFn: () => Promise<void> | void) {
   resetStore()
   restoreMocks()
@@ -133,8 +146,8 @@ async function main() {
         }),
       ]
       const sheets: PayrollSheetSummary[] = [
-        { id: 8, name: "2026-06 Payroll", personnelCount: 1, updatedAt: "200" },
-        { id: 7, name: "2026-05 Payroll", personnelCount: 0, updatedAt: "100" },
+        makeSheetSummary({ id: 8, name: "2026-06 Payroll", personnelCount: 1, updatedAt: "200" }),
+        makeSheetSummary({ id: 7, name: "2026-05 Payroll", updatedAt: "100" }),
       ]
       const detail: PayrollSheetDetail = {
         records: [
@@ -174,12 +187,12 @@ async function main() {
   )
 
   await runTest("openSheetDetail enters detail view and keeps selected sheet", async () => {
-    const sheet: PayrollSheetSummary = {
+    const sheet = makeSheetSummary({
       id: 8,
       name: "2026-06 Payroll",
       personnelCount: 1,
       updatedAt: "200",
-    }
+    })
 
     payrollWorkspaceApi.listPersonnel = async () => []
     payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
@@ -201,12 +214,12 @@ async function main() {
     async () => {
       const firstPersonnel: Personnel[] = [makePersonnel({ id: 1, name: "Alex" })]
       const secondPersonnel: Personnel[] = [makePersonnel({ id: 1, name: "Alex Updated" })]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 8,
         name: "2026-06 Payroll",
         personnelCount: 1,
         updatedAt: "200",
-      }
+      })
       const firstDetail: PayrollSheetDetail = {
         records: [
           {
@@ -284,12 +297,12 @@ async function main() {
   })
 
   await runTest("createSheet selects created sheet and records success notice", async () => {
-    const createdSheet: PayrollSheetSummary = {
+    const createdSheet = makeSheetSummary({
       id: 12,
       name: "2026-07 Payroll",
       personnelCount: 0,
       updatedAt: "300",
-    }
+    })
 
     payrollWorkspaceApi.listPersonnel = async () => []
     payrollWorkspaceApi.createPayrollSheet = async () => createdSheet
@@ -314,18 +327,18 @@ async function main() {
   })
 
   await runTest("deletePayrollSheet selects next sheet when deleting current sheet", async () => {
-    const firstSheet: PayrollSheetSummary = {
+    const firstSheet = makeSheetSummary({
       id: 11,
       name: "2026-05 Payroll",
       personnelCount: 1,
       updatedAt: "100",
-    }
-    const secondSheet: PayrollSheetSummary = {
+    })
+    const secondSheet = makeSheetSummary({
       id: 12,
       name: "2026-06 Payroll",
       personnelCount: 0,
       updatedAt: "200",
-    }
+    })
 
     payrollWorkspaceApi.deletePayrollSheet = async () => ({ deleted: true })
     payrollWorkspaceApi.listPersonnel = async () => []
@@ -354,12 +367,12 @@ async function main() {
   })
 
   await runTest("deletePayrollSheet falls back to overview when no sheets remain", async () => {
-    const onlySheet: PayrollSheetSummary = {
+    const onlySheet = makeSheetSummary({
       id: 21,
       name: "2026-07 Payroll",
       personnelCount: 0,
       updatedAt: "300",
-    }
+    })
 
     payrollWorkspaceApi.deletePayrollSheet = async () => ({ deleted: true })
     payrollWorkspaceApi.listPersonnel = async () => []
@@ -454,12 +467,12 @@ async function main() {
           phoneNumber: "13900000000",
         }),
       ]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 20,
         name: "2026-08 Payroll",
         personnelCount: 2,
         updatedAt: "500",
-      }
+      })
       const details: PayrollSheetDetail[] = [
         {
           records: [
@@ -549,12 +562,12 @@ async function main() {
     "addSelectedPersonnelToSheet duplicate-only selection records duplicate notice",
     async () => {
       const personnel: Personnel[] = [makePersonnel({ id: 1, name: "Alex" })]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 21,
         name: "2026-08 Payroll",
         personnelCount: 1,
         updatedAt: "510",
-      }
+      })
       const detail: PayrollSheetDetail = {
         records: [
           {
@@ -601,12 +614,12 @@ async function main() {
         makePersonnel({ id: 2, name: "Blair" }),
         makePersonnel({ id: 3, name: "Casey" }),
       ]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 22,
         name: "2026-08 Payroll",
         personnelCount: 1,
         updatedAt: "511",
-      }
+      })
       const detail: PayrollSheetDetail = {
         records: [
           {
@@ -654,12 +667,12 @@ async function main() {
         makePersonnel({ id: 1, name: "Alex" }),
         makePersonnel({ id: 2, name: "Blair" }),
       ]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 23,
         name: "2026-08 Payroll",
         personnelCount: 1,
         updatedAt: "515",
-      }
+      })
       const detail: PayrollSheetDetail = {
         records: [
           {
@@ -713,12 +726,12 @@ async function main() {
           payrollCardNumber: "6222000000000002",
         }),
       ]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 24,
         name: "2026-08 Payroll",
         personnelCount: 0,
         updatedAt: "516",
-      }
+      })
       const detail: PayrollSheetDetail = {
         records: [],
         sheet,
@@ -753,12 +766,12 @@ async function main() {
         makePersonnel({ id: 2, name: "Blair" }),
         makePersonnel({ id: 3, name: "Casey" }),
       ]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 25,
         name: "2026-08 Payroll",
         personnelCount: 0,
         updatedAt: "517",
-      }
+      })
       const detail: PayrollSheetDetail = {
         records: [],
         sheet,
@@ -788,12 +801,12 @@ async function main() {
         makePersonnel({ id: 1, name: "Alex" }),
         makePersonnel({ id: 2, name: "Blair" }),
       ]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 26,
         name: "2026-08 Payroll",
         personnelCount: 0,
         updatedAt: "518",
-      }
+      })
       const initialDetail: PayrollSheetDetail = {
         records: [],
         sheet,
@@ -855,12 +868,12 @@ async function main() {
         makePersonnel({ id: 1, name: "Alex" }),
         makePersonnel({ id: 2, name: "Blair" }),
       ]
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 27,
         name: "2026-08 Payroll",
         personnelCount: 0,
         updatedAt: "520",
-      }
+      })
       const initialDetail: PayrollSheetDetail = {
         records: [],
         sheet,
@@ -923,12 +936,12 @@ async function main() {
   await runTest(
     "removeSelectedPersonnelFromSheet clears selection and records success notice",
     async () => {
-      const sheet: PayrollSheetSummary = {
+      const sheet = makeSheetSummary({
         id: 30,
         name: "2026-09 Payroll",
         personnelCount: 1,
         updatedAt: "600",
-      }
+      })
       const details: PayrollSheetDetail[] = [
         {
           records: [
@@ -983,12 +996,12 @@ async function main() {
   )
 
   await runTest("saveNetPay persists value and records success notice", async () => {
-    const sheet: PayrollSheetSummary = {
+    const sheet = makeSheetSummary({
       id: 40,
       name: "2026-10 Payroll",
       personnelCount: 1,
       updatedAt: "700",
-    }
+    })
     const details: PayrollSheetDetail[] = [
       {
         records: [
@@ -1074,12 +1087,12 @@ async function main() {
   })
 
   await runTest("saveNetPay rolls back draft when persistence fails", async () => {
-    const sheet: PayrollSheetSummary = {
+    const sheet = makeSheetSummary({
       id: 50,
       name: "2026-11 Payroll",
       personnelCount: 1,
       updatedAt: "800",
-    }
+    })
     const detail: PayrollSheetDetail = {
       records: [
         {
@@ -1121,12 +1134,12 @@ async function main() {
   })
 
   await runTest("exportCurrentSheet records exported path notice", async () => {
-    const sheet: PayrollSheetSummary = {
+    const sheet = makeSheetSummary({
       id: 60,
       name: "2026-12 Payroll",
       personnelCount: 1,
       updatedAt: "900",
-    }
+    })
 
     payrollWorkspaceApi.pickExcelExportPath = async () =>
       "F:\\exports\\2026-12 Payroll.xlsx"

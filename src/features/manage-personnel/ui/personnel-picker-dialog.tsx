@@ -33,7 +33,7 @@ function PersonnelCard({
   person: Personnel
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-3 transition hover:border-primary/30 hover:bg-accent/20 hover:shadow-sm">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-foreground">{person.name}</p>
       </div>
@@ -121,7 +121,7 @@ export function PersonnelPickerDialog({
                     <label
                       key={person.id}
                       className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-3 transition hover:bg-accent/30",
+                        "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-3 transition hover:border-primary/30 hover:bg-accent/30 hover:shadow-sm",
                         isBusy && "cursor-not-allowed",
                       )}
                     >

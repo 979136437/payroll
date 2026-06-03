@@ -213,18 +213,20 @@ export function PayrollRecordTable({
           ))}
         </thead>
         <tbody className="divide-y divide-border/80">
-          {table.getRowModel().rows.map((row) => (
-            <tr
-              key={row.id}
-              className={cn(
-                "transition",
-                selectedPersonnelIdSet.has(row.original.personnelId)
-                  ? "bg-accent/40 hover:bg-accent/55"
-                  : "bg-background hover:bg-accent/25",
-              )}
-            >
+          {table.getRowModel().rows.map((row, index) => (
+            <tr key={row.id} className="group transition-colors">
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-3.5 text-sm text-foreground">
+                <td
+                  key={cell.id}
+                  className={cn(
+                    "px-4 py-3.5 text-sm text-foreground transition-colors",
+                    selectedPersonnelIdSet.has(row.original.personnelId)
+                      ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                      : index % 2 === 0
+                        ? "bg-background group-hover:bg-foreground/[0.03]"
+                        : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                  )}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}

@@ -415,16 +415,18 @@ export function PersonnelManagementPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {paginatedPersonnel.map((item) => (
-                            <tr
-                              key={item.id}
-                              className={`border-t transition ${
-                                selectedPersonnelIdSet.has(item.id)
-                                  ? "bg-accent/35 hover:bg-accent/50"
-                                  : "bg-background hover:bg-accent/25"
-                              }`}
-                            >
-                              <td className="px-4 py-3">
+                          {paginatedPersonnel.map((item, index) => (
+                            <tr key={item.id} className="group border-t transition">
+                              <td
+                                className={cn(
+                                  "px-4 py-3 transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
                                 <label className="flex items-center justify-center">
                                   <input
                                     type="checkbox"
@@ -434,19 +436,88 @@ export function PersonnelManagementPage() {
                                   />
                                 </label>
                               </td>
-                              <td className="px-4 py-3 font-medium text-foreground">
+                              <td
+                                className={cn(
+                                  "px-4 py-3 font-medium text-foreground transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
                                 {item.name}
                               </td>
-                              <td className="px-4 py-3">{item.gender || "-"}</td>
-                              <td className="px-4 py-3">{item.ethnicity || "-"}</td>
-                              <td className="px-4 py-3">{item.phoneNumber || "-"}</td>
-                              <td className="px-4 py-3">
+                              <td
+                                className={cn(
+                                  "px-4 py-3 transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
+                                {item.gender || "-"}
+                              </td>
+                              <td
+                                className={cn(
+                                  "px-4 py-3 transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
+                                {item.ethnicity || "-"}
+                              </td>
+                              <td
+                                className={cn(
+                                  "px-4 py-3 transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
+                                {item.phoneNumber || "-"}
+                              </td>
+                              <td
+                                className={cn(
+                                  "px-4 py-3 transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
                                 {maskSensitiveValue(item.idCardNumber)}
                               </td>
-                              <td className="px-4 py-3">
+                              <td
+                                className={cn(
+                                  "px-4 py-3 transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
                                 {maskSensitiveValue(item.payrollCardNumber)}
                               </td>
-                              <td className="px-4 py-3">
+                              <td
+                                className={cn(
+                                  "px-4 py-3 transition-colors",
+                                  selectedPersonnelIdSet.has(item.id)
+                                    ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
+                                    : index % 2 === 0
+                                      ? "bg-background group-hover:bg-foreground/[0.03]"
+                                      : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                                )}
+                              >
                                 <div className="flex justify-end gap-2">
                                   <Button
                                     size="sm"

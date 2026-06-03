@@ -6,7 +6,15 @@ import { EmptyPanel } from "@/shared/ui/workspace-primitives"
 import { usePayrollWorkspaceStore } from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
 import { PayrollSheetList } from "@/widgets/payroll-workspace/ui/payroll-sheet-list"
 
-export function PayrollSheetBrowser() {
+type PayrollSheetBrowserProps = {
+  overviewStats?: {
+    latestSheetName: string
+    personnelCount: number
+    sheetCount: number
+  }
+}
+
+export function PayrollSheetBrowser({ overviewStats }: PayrollSheetBrowserProps) {
   const {
     deletePayrollSheet,
     isDeletingSheet,
@@ -53,6 +61,7 @@ export function PayrollSheetBrowser() {
               void openSheetDetail(sheetId)
             })
           }
+          overviewStats={overviewStats}
           selectedSheetId={null}
           sheets={sheets}
         />

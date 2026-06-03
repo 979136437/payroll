@@ -1,4 +1,4 @@
-import { Plus, Trash2, WalletCards } from "lucide-react"
+import { CalendarRange, CircleDollarSign, Plus, Trash2, UsersRound, WalletCards } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -11,12 +11,17 @@ import {
 import type { PayrollSheetSummary } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { cn } from "@/lib/utils"
 import { formatTimestamp } from "@/shared/lib/formatters"
-import { LoadingState } from "@/shared/ui/workspace-primitives"
+import { LoadingState, SummaryTile } from "@/shared/ui/workspace-primitives"
 
 type PayrollSheetListProps = {
   deletingSheetId?: number | null
   isDeletingSheet?: boolean
   isLoading: boolean
+  overviewStats?: {
+    latestSheetName: string
+    personnelCount: number
+    sheetCount: number
+  }
   mode?: "card" | "embedded"
   onCreate: () => void
   onCreateIntent?: () => void
@@ -30,6 +35,7 @@ export function PayrollSheetList({
   deletingSheetId = null,
   isDeletingSheet = false,
   isLoading,
+  overviewStats,
   mode = "embedded",
   onCreate,
   onCreateIntent,
@@ -150,6 +156,25 @@ export function PayrollSheetList({
             新建
           </Button>
         </div>
+        {overviewStats ? (
+          <div className="flex flex-wrap gap-1.5 pt-2">
+            <SummaryTile
+              icon={<CalendarRange className="size-4" />}
+              label="工资表数量"
+              value={`${overviewStats.sheetCount}`}
+            />
+            <SummaryTile
+              icon={<UsersRound className="size-4" />}
+              label="人员数量"
+              value={`${overviewStats.personnelCount}`}
+            />
+            <SummaryTile
+              icon={<CircleDollarSign className="size-4" />}
+              label="最近上下文"
+              value={overviewStats.latestSheetName}
+            />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-3 pb-3">{listContent}</CardContent>
     </Card>

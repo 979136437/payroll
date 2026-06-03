@@ -317,7 +317,7 @@ export function PersonnelManagementPage() {
                       人员资料列表
                     </CardTitle>
                     <CardDescription className="leading-6">
-                      {summaryText}
+                      可集中维护基础资料，支持搜索、编辑与批量管理。
                     </CardDescription>
                   </div>
 

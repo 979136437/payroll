@@ -1,12 +1,10 @@
-import { ArrowLeft, BadgePlus, CircleDollarSign, UsersRound } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { startTransition, useMemo, useState } from "react"
 import { useShallow } from "zustand/react/shallow"
 
 import { Button } from "@/components/ui/button"
 import { PayrollRecordTable } from "@/features/edit-payroll-record/ui/payroll-record-table"
-import { formatMoney } from "@/shared/lib/formatters"
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog"
-import { SummaryTile } from "@/shared/ui/workspace-primitives"
 import { usePayrollWorkspaceStore } from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
 import { PayrollRecordToolbar } from "@/widgets/payroll-workspace/ui/payroll-record-toolbar"
 import { PayrollSheetList } from "@/widgets/payroll-workspace/ui/payroll-sheet-list"
@@ -59,10 +57,6 @@ export function PayrollSheetDetailPanel() {
   const selectedSheetSummary =
     sheets.find((sheet) => sheet.id === selectedSheetId) ?? sheetDetail?.sheet ?? null
   const records = sheetDetail?.records ?? []
-  const totalNetPay = useMemo(
-    () => records.reduce((sum, record) => sum + record.netPay, 0),
-    [records],
-  )
   const savingRecordIdSet = useMemo(() => new Set(savingRecordIds), [savingRecordIds])
   const selectedPersonnelIdSet = useMemo(
     () => new Set(selectedPersonnelIds),
@@ -86,7 +80,7 @@ export function PayrollSheetDetailPanel() {
     <>
       <section className="flex min-h-full flex-col gap-3">
         <div className="rounded-md border border-border/35 bg-background/45 px-3 py-2.5 shadow-none">
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-2">
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -110,24 +104,6 @@ export function PayrollSheetDetailPanel() {
                   在这里维护当前工资表的人员、证件与实发工资数据。
                 </p>
               </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              <SummaryTile
-                icon={<UsersRound className="size-3.5" />}
-                label="人员记录"
-                value={`${records.length}`}
-              />
-              <SummaryTile
-                icon={<BadgePlus className="size-3.5" />}
-                label="当前选中"
-                value={`${selectedPersonnelIds.length}`}
-              />
-              <SummaryTile
-                icon={<CircleDollarSign className="size-3.5" />}
-                label="工资总和"
-                value={`¥${formatMoney(totalNetPay)}`}
-              />
             </div>
           </div>
         </div>

@@ -96,7 +96,6 @@ export function PayrollWorkspaceDialogs() {
     personnel,
     personnelPickerQuery,
     selectedSheetId,
-    sheetDetail,
     sheets,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
@@ -111,7 +110,6 @@ export function PayrollWorkspaceDialogs() {
       personnel: state.personnel,
       personnelPickerQuery: state.personnelPickerQuery,
       selectedSheetId: state.selectedSheetId,
-      sheetDetail: state.sheetDetail,
       sheets: state.sheets,
     })),
   )

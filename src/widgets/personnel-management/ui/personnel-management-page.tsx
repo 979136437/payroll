@@ -189,14 +189,6 @@ export function PersonnelManagementPage() {
     }
   }, [someVisibleSelected])
 
-  const summaryText = useMemo(() => {
-    if (personnel.length > 0) {
-      return `已收录 ${personnel.length} 位人员，可集中维护基础资料。`
-    }
-
-    return "先新增人员，后续即可在工资工作台中直接使用。"
-  }, [personnel])
-
   const handleSubmit = async (values: CreatePersonnelValues) => {
     const payload = {
       bankName: values.bankName || null,

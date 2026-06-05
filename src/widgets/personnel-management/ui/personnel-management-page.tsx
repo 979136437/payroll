@@ -309,7 +309,7 @@ export function PersonnelManagementPage() {
             ) : null}
           </div>
 
-          <div className="rounded-[1.5rem] border border-border/70 bg-muted/55 p-3 shadow-inner md:p-4">
+          <div className="mt-8 rounded-[1.5rem] border border-border/70 bg-muted/55 p-3 shadow-inner md:p-4">
             <Card className="border-border/80 bg-background shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
               <CardHeader className="border-b border-border/60 pb-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

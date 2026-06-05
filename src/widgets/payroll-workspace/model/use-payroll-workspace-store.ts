@@ -44,6 +44,7 @@ type PayrollWorkspaceStore = {
   personnelDataRevisionSeen: number
   personnelPickerQuery: string
   pickerSelection: number[]
+  exportWeightDrafts: Record<number, string>
   salaryDrafts: Record<number, string>
   savingRecordIds: number[]
   selectedPersonnelIds: number[]
@@ -66,6 +67,7 @@ type PayrollWorkspaceStore = {
   removePendingPersonnel: (personnelId: number) => void
   removeSelectedPendingPersonnel: () => void
   removeSelectedPersonnelFromSheet: () => Promise<void>
+  saveExportWeight: (record: PayrollRecord) => Promise<void>
   saveNetPay: (record: PayrollRecord) => Promise<void>
   selectSheet: (sheetId: number) => Promise<void>
   setCreateSheetOpen: (open: boolean) => void
@@ -80,6 +82,7 @@ type PayrollWorkspaceStore = {
   togglePendingSelection: (personnelId: number) => void
   togglePickerSelection: (personnelId: number) => void
   toggleSelectedPersonnel: (personnelId: number) => void
+  updateExportWeightDraft: (recordId: number, value: string) => void
   updatePersonnelFromWorkspace: (
     personnelId: number,
     payload: UpdatePersonnelPayload,
@@ -92,6 +95,12 @@ let workspaceRequestId = 0
 function buildSalaryDrafts(records: PayrollRecord[]) {
   return Object.fromEntries(
     records.map((record) => [record.recordId, formatCurrencyInput(record.netPay)]),
+  ) as Record<number, string>
+}
+
+function buildExportWeightDrafts(records: PayrollRecord[]) {
+  return Object.fromEntries(
+    records.map((record) => [record.recordId, record.exportWeight?.toString() ?? ""]),
   ) as Record<number, string>
 }
 
@@ -128,6 +137,10 @@ function buildIdSet(ids: number[]) {
 
 function paySavedMessage(name?: string | null) {
   return name ? `已保存 ${name} 的工资` : "工资已保存"
+}
+
+function exportWeightSavedMessage(name?: string | null) {
+  return name ? `已保存 ${name} 的导出权重` : "导出权重已保存"
 }
 
 function currentTimestampString() {
@@ -188,6 +201,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   personnelDataRevisionSeen: 0,
   personnelPickerQuery: "",
   pickerSelection: [],
+  exportWeightDrafts: {},
   salaryDrafts: {},
   savingRecordIds: [],
   selectedPersonnelIds: [],
@@ -273,6 +287,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
       if (nextSheetId === null) {
         set({
           currentView: "overview",
+          exportWeightDrafts: {},
           isDetailLoading: false,
           salaryDrafts: {},
           selectedPersonnelIds: [],
@@ -303,6 +318,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
         pickerSelection: get().pickerSelection.filter((personnelId) =>
           personnelIdSet.has(personnelId),
         ),
+        exportWeightDrafts: buildExportWeightDrafts(detail?.records ?? []),
         salaryDrafts: buildSalaryDrafts(detail?.records ?? []),
         selectedPersonnelIds: get().selectedPersonnelIds.filter((personnelId) =>
           recordPersonnelIdSet.has(personnelId),
@@ -497,6 +513,15 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     set((state) => ({
       salaryDrafts: {
         ...state.salaryDrafts,
+        [recordId]: value,
+      },
+    }))
+  },
+
+  updateExportWeightDraft(recordId, value) {
+    set((state) => ({
+      exportWeightDrafts: {
+        ...state.exportWeightDrafts,
         [recordId]: value,
       },
     }))
@@ -827,6 +852,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
         set({
           isPersonnelDialogOpen: false,
           notice: "人员已加入当前工资表并设置统一工资",
+          exportWeightDrafts: buildExportWeightDrafts(detail.records),
           salaryDrafts: buildSalaryDrafts(detail.records),
           sheetDetail: detail,
           sheets: get().sheets.map((sheet) =>
@@ -903,6 +929,90 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
       })
     } finally {
       set({ isRemovingPersonnel: false })
+    }
+  },
+
+  async saveExportWeight(record) {
+    const draftValue =
+      get().exportWeightDrafts[record.recordId] ?? (record.exportWeight?.toString() ?? "")
+    const trimmedDraft = draftValue.trim()
+
+    if (!trimmedDraft) {
+      if (record.exportWeight === null) {
+        return
+      }
+    } else if (!/^-?\d+$/.test(trimmedDraft)) {
+      set((state) => ({
+        errorMessage: "请输入有效的整数权重",
+        exportWeightDrafts: {
+          ...state.exportWeightDrafts,
+          [record.recordId]: record.exportWeight?.toString() ?? "",
+        },
+      }))
+      return
+    }
+
+    const parsed = trimmedDraft ? Number(trimmedDraft) : null
+
+    if (parsed === record.exportWeight) {
+      return
+    }
+
+    set((state) => ({
+      errorMessage: null,
+      notice: null,
+      savingRecordIds: uniqueIds([...state.savingRecordIds, record.recordId]),
+    }))
+
+    try {
+      const updated = await payrollWorkspaceApi.updatePayrollRecordExportWeight(
+        record.recordId,
+        parsed,
+      )
+      const updatedAt = currentTimestampString()
+
+      set((state) => ({
+        exportWeightDrafts: {
+          ...state.exportWeightDrafts,
+          [record.recordId]: parsed === null ? "" : String(parsed),
+        },
+        notice: exportWeightSavedMessage(updated?.name),
+        sheetDetail: state.sheetDetail
+          ? {
+              ...state.sheetDetail,
+              records: state.sheetDetail.records.map((item) =>
+                item.recordId === record.recordId && updated ? updated : item,
+              ),
+              sheet: {
+                ...state.sheetDetail.sheet,
+                updatedAt,
+              },
+            }
+          : state.sheetDetail,
+        sheets: state.sheets.map((sheet) =>
+          sheet.id === state.selectedSheetId
+            ? {
+                ...sheet,
+                updatedAt,
+              }
+            : sheet,
+        ),
+      }))
+    } catch (error) {
+      set((state) => ({
+        errorMessage: readableError(error, "保存导出权重失败"),
+        exportWeightDrafts: {
+          ...state.exportWeightDrafts,
+          [record.recordId]: record.exportWeight?.toString() ?? "",
+        },
+        notice: null,
+      }))
+    } finally {
+      set((state) => ({
+        savingRecordIds: state.savingRecordIds.filter(
+          (item) => item !== record.recordId,
+        ),
+      }))
     }
   },
 

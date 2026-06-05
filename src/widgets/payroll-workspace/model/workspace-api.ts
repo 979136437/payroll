@@ -17,6 +17,7 @@ import {
   getPayrollSheetDetail,
   listPayrollSheets,
   removePersonnelFromSheet,
+  updatePayrollRecordExportWeight,
   updatePayrollRecordNetPay,
 } from "@/entities/payroll-sheet/api/payroll-sheet"
 
@@ -36,6 +37,7 @@ export const payrollWorkspaceApi = {
   pickExcelExportPath,
   pickPersonnelImportFile,
   removePersonnelFromSheet,
+  updatePayrollRecordExportWeight,
   updatePayrollRecordNetPay,
   updatePersonnel,
 }

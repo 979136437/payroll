@@ -522,13 +522,20 @@ fn write_attendance_sheet(
       .map_err(|error| format!("写入考勤表日期表头失败: {error}"))?;
   }
 
-  for index in 0..export.personnel.len() {
+  for (index, person) in export.personnel.iter().enumerate() {
     let excel_row = (index + 3) as u32;
     worksheet
       .write_with_format(excel_row, 0, (index + 1) as i64, &cell_format)
       .map_err(|error| format!("写入考勤表序号失败: {error}"))?;
 
-    for column in 1..=33 {
+    worksheet
+      .write_with_format(excel_row, 1, &person.name, &cell_format)
+      .map_err(|error| format!("write attendance name failed: {error}"))?;
+    worksheet
+      .write_with_format(excel_row, 2, value_or_empty(&person.id_card_number), &cell_format)
+      .map_err(|error| format!("write attendance id card failed: {error}"))?;
+
+    for column in 3..=33 {
       worksheet
         .write_with_format(excel_row, column, "", &cell_format)
         .map_err(|error| format!("写入考勤表空白模板失败: {error}"))?;
@@ -696,7 +703,8 @@ mod tests {
 
   use crate::db::{
     add_personnel_to_sheet, create_payroll_sheet, create_personnel, get_payroll_sheet_detail,
-    open_connection_at_path, update_payroll_record_net_pay, CreatePayrollSheetInput,
+    open_connection_at_path, update_payroll_record_export_weight,
+    update_payroll_record_net_pay, CreatePayrollSheetInput,
     CreatePersonnelInput,
   };
 
@@ -1335,5 +1343,120 @@ mod tests {
     assert!(attendance_merges.contains(&Dimensions::new((1, 0), (1, 13))));
     assert!(attendance_merges.contains(&Dimensions::new((1, 14), (1, 17))));
     assert!(attendance_merges.contains(&Dimensions::new((1, 18), (1, 33))));
+  }
+
+  #[test]
+  fn payroll_export_sorts_all_sheets_by_export_weight_then_record_order() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+    let file_path = dir.path().join("payroll-sorted.xlsx");
+
+    let first = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "First".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("100000199001010001".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let second = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Second".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("200000199001010002".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let third = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Third".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: Some("300000199001010003".into()),
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-07".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[first.id, second.id, third.id]).unwrap();
+    let detail = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+
+    let first_record = detail
+      .records
+      .iter()
+      .find(|record| record.personnel_id == first.id)
+      .unwrap();
+    let second_record = detail
+      .records
+      .iter()
+      .find(|record| record.personnel_id == second.id)
+      .unwrap();
+    let third_record = detail
+      .records
+      .iter()
+      .find(|record| record.personnel_id == third.id)
+      .unwrap();
+
+    update_payroll_record_export_weight(&conn, first_record.record_id, Some(2)).unwrap();
+    update_payroll_record_export_weight(&conn, second_record.record_id, Some(1)).unwrap();
+    update_payroll_record_export_weight(&conn, third_record.record_id, Some(2)).unwrap();
+
+    export_payroll_sheet_excel(&conn, sheet.id, &file_path).unwrap();
+
+    let mut workbook = open_workbook_auto(&file_path).unwrap();
+
+    let roster_sheet = workbook.worksheet_range("花名册").unwrap();
+    let payroll_sheet = workbook.worksheet_range("工资表").unwrap();
+    let attendance_sheet = workbook.worksheet_range("农民工考勤表").unwrap();
+
+    assert_eq!(cell_string(roster_sheet.get_value((3, 1)).unwrap()), "Second");
+    assert_eq!(cell_string(roster_sheet.get_value((4, 1)).unwrap()), "First");
+    assert_eq!(cell_string(roster_sheet.get_value((5, 1)).unwrap()), "Third");
+
+    assert_eq!(cell_string(payroll_sheet.get_value((3, 1)).unwrap()), "Second");
+    assert_eq!(cell_string(payroll_sheet.get_value((4, 1)).unwrap()), "First");
+    assert_eq!(cell_string(payroll_sheet.get_value((5, 1)).unwrap()), "Third");
+
+    assert_eq!(cell_string(attendance_sheet.get_value((3, 1)).unwrap()), "Second");
+    assert_eq!(cell_string(attendance_sheet.get_value((4, 1)).unwrap()), "First");
+    assert_eq!(cell_string(attendance_sheet.get_value((5, 1)).unwrap()), "Third");
   }
 }

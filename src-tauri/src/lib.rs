@@ -7,8 +7,9 @@ use db::{
   add_personnel_to_sheet, add_personnel_to_sheet_with_net_pay, create_payroll_sheet,
   create_personnel, database_path_from_base_dir, delete_payroll_sheet, delete_personnel,
   delete_personnel_batch, get_payroll_sheet_detail, list_payroll_sheets, list_personnel,
-  open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_net_pay,
-  update_personnel, CreatePayrollSheetInput, CreatePersonnelInput, DeletePayrollSheetResult,
+  open_connection_at_path, remove_personnel_from_sheet, update_payroll_record_export_weight,
+  update_payroll_record_net_pay, update_personnel, CreatePayrollSheetInput,
+  CreatePersonnelInput, DeletePayrollSheetResult,
   DeletePersonnelBatchResult, PayrollSheetDetail, PayrollSheetRecordRow, PayrollSheetSummary,
   PersonnelSummary, UpdatePersonnelInput,
 };
@@ -227,6 +228,20 @@ fn update_payroll_record_net_pay_command(
 }
 
 #[tauri::command]
+fn update_payroll_record_export_weight_command(
+  state: State<'_, DbState>,
+  record_id: i64,
+  export_weight: Option<i64>,
+) -> Result<Option<PayrollSheetRecordRow>, String> {
+  let conn = state
+    .connection
+    .lock()
+    .map_err(|error| format!("database lock poisoned: {error}"))?;
+  update_payroll_record_export_weight(&conn, record_id, export_weight)
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn pick_personnel_import_file_command() -> Option<String> {
   pick_personnel_import_file()
 }
@@ -313,6 +328,7 @@ pub fn run() {
       add_personnel_to_sheet_with_net_pay_command,
       remove_personnel_from_sheet_command,
       update_payroll_record_net_pay_command,
+      update_payroll_record_export_weight_command,
       pick_personnel_import_file_command,
       pick_excel_export_path_command,
       import_personnel_excel_command,

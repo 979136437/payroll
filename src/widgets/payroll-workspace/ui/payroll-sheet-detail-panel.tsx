@@ -18,11 +18,13 @@ export function PayrollSheetDetailPanel() {
 
   const {
     deletePayrollSheet,
+    exportWeightDrafts,
     isCreatingSheet,
     isDeletingSheet,
     openPersonnelEditDialog,
     openSheetDetail,
     salaryDrafts,
+    saveExportWeight,
     saveNetPay,
     savingRecordIds,
     selectedPersonnelIds,
@@ -32,15 +34,18 @@ export function PayrollSheetDetailPanel() {
     sheets,
     showOverview,
     toggleSelectedPersonnel,
+    updateExportWeightDraft,
     updateSalaryDraft,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
       deletePayrollSheet: state.deletePayrollSheet,
+      exportWeightDrafts: state.exportWeightDrafts,
       isCreatingSheet: state.isCreatingSheet,
       isDeletingSheet: state.isDeletingSheet,
       openPersonnelEditDialog: state.openPersonnelEditDialog,
       openSheetDetail: state.openSheetDetail,
       salaryDrafts: state.salaryDrafts,
+      saveExportWeight: state.saveExportWeight,
       saveNetPay: state.saveNetPay,
       savingRecordIds: state.savingRecordIds,
       selectedPersonnelIds: state.selectedPersonnelIds,
@@ -50,6 +55,7 @@ export function PayrollSheetDetailPanel() {
       sheets: state.sheets,
       showOverview: state.showOverview,
       toggleSelectedPersonnel: state.toggleSelectedPersonnel,
+      updateExportWeightDraft: state.updateExportWeightDraft,
       updateSalaryDraft: state.updateSalaryDraft,
     })),
   )
@@ -135,8 +141,11 @@ export function PayrollSheetDetailPanel() {
             <PayrollRecordToolbar />
             <PayrollRecordTable
               drafts={salaryDrafts}
+              exportWeightDrafts={exportWeightDrafts}
+              onExportWeightDraftChange={updateExportWeightDraft}
               onDraftChange={updateSalaryDraft}
               onEditPersonnel={openPersonnelEditDialog}
+              onSaveExportWeight={saveExportWeight}
               onSave={saveNetPay}
               onToggleSelection={toggleSelectedPersonnel}
               records={records}

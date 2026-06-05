@@ -17,6 +17,7 @@ import {
   getPayrollSheetDetail,
   listPayrollSheets,
   removePersonnelFromSheet,
+  updatePayrollRecordExportWeight,
   updatePayrollRecordNetPay,
 } from "@/entities/payroll-sheet/api/payroll-sheet"
 import {
@@ -86,6 +87,7 @@ function restoreMocks() {
     pickExcelExportPath,
     pickPersonnelImportFile,
     removePersonnelFromSheet,
+    updatePayrollRecordExportWeight,
     updatePayrollRecordNetPay,
   })
 }
@@ -1131,6 +1133,173 @@ async function main() {
     assert.equal(state.salaryDrafts[61], "1500")
     assert.equal(state.errorMessage, "save failed")
     assert.deepEqual(state.savingRecordIds, [])
+  })
+
+  await runTest(
+    "saveExportWeight persists integer value and records success notice",
+    async () => {
+      const sheet = makeSheetSummary({
+        id: 55,
+        name: "2026-11 Payroll",
+        personnelCount: 1,
+        updatedAt: "850",
+      })
+      const detail: PayrollSheetDetail = {
+        records: [
+          {
+            attendanceDays: null,
+            bankName: null,
+            deductionAmount: null,
+            exportWeight: null,
+            grossPay: null,
+            idCardNumber: null,
+            name: "Frank",
+            netPay: 2200,
+            payeeSignature: null,
+            payrollCardNumber: null,
+            personnelId: 19,
+            phoneNumber: null,
+            recordId: 71,
+            remark: null,
+            wageStandard: null,
+          },
+        ],
+        sheet,
+      }
+      const payloads: Array<{ exportWeight: number | null; recordId: number }> = []
+
+      payrollWorkspaceApi.listPersonnel = async () => []
+      payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+      payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+      payrollWorkspaceApi.updatePayrollRecordExportWeight = async (
+        recordId,
+        exportWeight,
+      ) => {
+        payloads.push({ exportWeight, recordId })
+        return {
+          ...detail.records[0],
+          exportWeight,
+          recordId,
+        }
+      }
+
+      await usePayrollWorkspaceStore.getState().initializeWorkspace()
+      usePayrollWorkspaceStore.getState().updateExportWeightDraft(71, "3")
+      await usePayrollWorkspaceStore
+        .getState()
+        .saveExportWeight(usePayrollWorkspaceStore.getState().sheetDetail!.records[0])
+
+      const state = usePayrollWorkspaceStore.getState()
+      assert.deepEqual(payloads, [{ exportWeight: 3, recordId: 71 }])
+      assert.equal(state.exportWeightDrafts[71], "3")
+      assert.equal(state.sheetDetail?.records[0]?.exportWeight, 3)
+      assert.equal(state.notice, "已保存 Frank 的导出权重")
+      assert.deepEqual(state.savingRecordIds, [])
+    },
+  )
+
+  await runTest("saveExportWeight supports clearing weight to null", async () => {
+    const sheet = makeSheetSummary({
+      id: 56,
+      name: "2026-11 Payroll",
+      personnelCount: 1,
+      updatedAt: "851",
+    })
+    const detail: PayrollSheetDetail = {
+      records: [
+        {
+          attendanceDays: null,
+          bankName: null,
+          deductionAmount: null,
+          exportWeight: 8,
+          grossPay: null,
+          idCardNumber: null,
+          name: "Grace",
+          netPay: 2000,
+          payeeSignature: null,
+          payrollCardNumber: null,
+          personnelId: 20,
+          phoneNumber: null,
+          recordId: 72,
+          remark: null,
+          wageStandard: null,
+        },
+      ],
+      sheet,
+    }
+
+    payrollWorkspaceApi.listPersonnel = async () => []
+    payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+    payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+    payrollWorkspaceApi.updatePayrollRecordExportWeight = async (
+      recordId,
+      exportWeight,
+    ) => ({
+      ...detail.records[0],
+      exportWeight,
+      recordId,
+    })
+
+    await usePayrollWorkspaceStore.getState().initializeWorkspace()
+    usePayrollWorkspaceStore.getState().updateExportWeightDraft(72, "")
+    await usePayrollWorkspaceStore
+      .getState()
+      .saveExportWeight(usePayrollWorkspaceStore.getState().sheetDetail!.records[0])
+
+    const state = usePayrollWorkspaceStore.getState()
+    assert.equal(state.exportWeightDrafts[72], "")
+    assert.equal(state.sheetDetail?.records[0]?.exportWeight, null)
+  })
+
+  await runTest("saveExportWeight rejects non-integer values", async () => {
+    const sheet = makeSheetSummary({
+      id: 57,
+      name: "2026-11 Payroll",
+      personnelCount: 1,
+      updatedAt: "852",
+    })
+    const detail: PayrollSheetDetail = {
+      records: [
+        {
+          attendanceDays: null,
+          bankName: null,
+          deductionAmount: null,
+          exportWeight: 5,
+          grossPay: null,
+          idCardNumber: null,
+          name: "Hank",
+          netPay: 1800,
+          payeeSignature: null,
+          payrollCardNumber: null,
+          personnelId: 21,
+          phoneNumber: null,
+          recordId: 73,
+          remark: null,
+          wageStandard: null,
+        },
+      ],
+      sheet,
+    }
+    let didPersist = false
+
+    payrollWorkspaceApi.listPersonnel = async () => []
+    payrollWorkspaceApi.listPayrollSheets = async () => [sheet]
+    payrollWorkspaceApi.getPayrollSheetDetail = async () => detail
+    payrollWorkspaceApi.updatePayrollRecordExportWeight = async () => {
+      didPersist = true
+      return detail.records[0]
+    }
+
+    await usePayrollWorkspaceStore.getState().initializeWorkspace()
+    usePayrollWorkspaceStore.getState().updateExportWeightDraft(73, "1.5")
+    await usePayrollWorkspaceStore
+      .getState()
+      .saveExportWeight(usePayrollWorkspaceStore.getState().sheetDetail!.records[0])
+
+    const state = usePayrollWorkspaceStore.getState()
+    assert.equal(didPersist, false)
+    assert.equal(state.errorMessage, "请输入有效的整数权重")
+    assert.equal(state.exportWeightDrafts[73], "5")
   })
 
   await runTest("exportCurrentSheet records exported path notice", async () => {

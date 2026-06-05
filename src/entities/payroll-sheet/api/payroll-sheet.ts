@@ -28,6 +28,7 @@ export type PayrollRecord = {
   idCardNumber: string | null
   payrollCardNumber: string | null
   phoneNumber: string | null
+  exportWeight: number | null
   netPay: number
 }
 
@@ -77,6 +78,16 @@ export async function updatePayrollRecordNetPay(
   return invoke<PayrollRecord | null>("update_payroll_record_net_pay_command", {
     recordId,
     netPay,
+  })
+}
+
+export async function updatePayrollRecordExportWeight(
+  recordId: number,
+  exportWeight: number | null,
+) {
+  return invoke<PayrollRecord | null>("update_payroll_record_export_weight_command", {
+    exportWeight,
+    recordId,
   })
 }
 

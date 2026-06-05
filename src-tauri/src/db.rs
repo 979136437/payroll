@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS payroll_record (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   payroll_sheet_id INTEGER NOT NULL,
   personnel_id INTEGER NOT NULL,
+  export_weight INTEGER,
   attendance_days REAL,
   wage_standard REAL,
   gross_pay REAL,
@@ -129,6 +130,7 @@ pub struct PayrollSheetRecordRow {
   pub id_card_number: Option<String>,
   pub payroll_card_number: Option<String>,
   pub bank_name: Option<String>,
+  pub export_weight: Option<i64>,
   pub attendance_days: Option<f64>,
   pub wage_standard: Option<f64>,
   pub gross_pay: Option<f64>,
@@ -171,6 +173,7 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
   ensure_personnel_sort_index(conn)?;
   conn.execute_batch(PAYROLL_SHEET_TABLE_SQL)?;
   conn.execute_batch(PAYROLL_RECORD_TABLE_SQL)?;
+  ensure_payroll_record_export_weight(conn)?;
   Ok(())
 }
 
@@ -536,6 +539,7 @@ pub fn get_payroll_sheet_detail(
        p.id_card_number,
        p.payroll_card_number,
        p.bank_name,
+       pr.export_weight,
        pr.attendance_days,
        pr.wage_standard,
        pr.gross_pay,
@@ -559,14 +563,15 @@ pub fn get_payroll_sheet_detail(
         id_card_number: row.get(3)?,
         payroll_card_number: row.get(4)?,
         bank_name: row.get(5)?,
-        attendance_days: row.get(6)?,
-        wage_standard: row.get(7)?,
-        gross_pay: row.get(8)?,
-        deduction_amount: row.get(9)?,
-        phone_number: row.get(10)?,
-        net_pay: row.get(11)?,
-        payee_signature: row.get(12)?,
-        remark: row.get(13)?,
+        export_weight: row.get(6)?,
+        attendance_days: row.get(7)?,
+        wage_standard: row.get(8)?,
+        gross_pay: row.get(9)?,
+        deduction_amount: row.get(10)?,
+        phone_number: row.get(11)?,
+        net_pay: row.get(12)?,
+        payee_signature: row.get(13)?,
+        remark: row.get(14)?,
       })
     })?
     .collect::<Result<Vec<_>, _>>()?;
@@ -582,8 +587,9 @@ pub fn get_payroll_sheet_export(
     return Ok(None);
   };
 
-  let personnel = detail
-    .records
+  let sorted_records = sort_payroll_records_for_export(&detail.records);
+
+  let personnel = sorted_records
     .iter()
     .filter_map(|record| get_personnel_by_id(conn, record.personnel_id).transpose())
     .collect::<Result<Vec<_>, _>>()?;
@@ -591,7 +597,7 @@ pub fn get_payroll_sheet_export(
   Ok(Some(PayrollSheetExport {
     sheet: detail.sheet,
     personnel,
-    records: detail.records,
+    records: sorted_records,
   }))
 }
 
@@ -713,6 +719,38 @@ pub fn update_payroll_record_net_pay(
   get_payroll_record_row(conn, record_id)
 }
 
+pub fn update_payroll_record_export_weight(
+  conn: &Connection,
+  record_id: i64,
+  export_weight: Option<i64>,
+) -> Result<Option<PayrollSheetRecordRow>> {
+  let updated_at = current_timestamp();
+
+  let changed = conn.execute(
+    "UPDATE payroll_record
+     SET export_weight = ?1, updated_at = ?2
+     WHERE id = ?3",
+    params![export_weight, updated_at, record_id],
+  )?;
+
+  if changed == 0 {
+    return Ok(None);
+  }
+
+  conn.execute(
+    "UPDATE payroll_sheet
+     SET updated_at = ?1
+     WHERE id = (
+       SELECT payroll_sheet_id
+       FROM payroll_record
+       WHERE id = ?2
+     )",
+    params![current_timestamp(), record_id],
+  )?;
+
+  get_payroll_record_row(conn, record_id)
+}
+
 fn copy_sheet_personnel(conn: &Connection, source_sheet_id: i64, target_sheet_id: i64) -> Result<()> {
   let mut stmt = conn.prepare(
     "SELECT personnel_id
@@ -757,6 +795,22 @@ fn ensure_personnel_sort_index(conn: &Connection) -> Result<()> {
 
   if sort_index_added || personnel_sort_index_needs_bootstrap(conn)? {
     initialize_personnel_sort_index(conn)?;
+  }
+
+  Ok(())
+}
+
+fn ensure_payroll_record_export_weight(conn: &Connection) -> Result<()> {
+  let mut stmt = conn.prepare("PRAGMA table_info(payroll_record)")?;
+  let columns = stmt
+    .query_map([], |row| row.get::<_, String>(1))?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  if !columns.iter().any(|column| column == "export_weight") {
+    conn.execute(
+      "ALTER TABLE payroll_record ADD COLUMN export_weight INTEGER",
+      [],
+    )?;
   }
 
   Ok(())
@@ -900,6 +954,7 @@ fn get_payroll_record_row(
          p.id_card_number,
          p.payroll_card_number,
          p.bank_name,
+         pr.export_weight,
          pr.attendance_days,
          pr.wage_standard,
          pr.gross_pay,
@@ -920,18 +975,34 @@ fn get_payroll_record_row(
           id_card_number: row.get(3)?,
           payroll_card_number: row.get(4)?,
           bank_name: row.get(5)?,
-          attendance_days: row.get(6)?,
-          wage_standard: row.get(7)?,
-          gross_pay: row.get(8)?,
-          deduction_amount: row.get(9)?,
-          phone_number: row.get(10)?,
-          net_pay: row.get(11)?,
-          payee_signature: row.get(12)?,
-          remark: row.get(13)?,
+          export_weight: row.get(6)?,
+          attendance_days: row.get(7)?,
+          wage_standard: row.get(8)?,
+          gross_pay: row.get(9)?,
+          deduction_amount: row.get(10)?,
+          phone_number: row.get(11)?,
+          net_pay: row.get(12)?,
+          payee_signature: row.get(13)?,
+          remark: row.get(14)?,
         })
       },
     )
     .optional()
+}
+
+fn sort_payroll_records_for_export(records: &[PayrollSheetRecordRow]) -> Vec<PayrollSheetRecordRow> {
+  let mut sorted = records.to_vec();
+  sorted.sort_by(|left, right| {
+    let weight_order = match (left.export_weight, right.export_weight) {
+      (Some(a), Some(b)) => a.cmp(&b),
+      (Some(_), None) => std::cmp::Ordering::Less,
+      (None, Some(_)) => std::cmp::Ordering::Greater,
+      (None, None) => std::cmp::Ordering::Equal,
+    };
+
+    weight_order.then(left.record_id.cmp(&right.record_id))
+  });
+  sorted
 }
 
 fn touch_payroll_sheet(conn: &Connection, sheet_id: i64) -> Result<()> {
@@ -974,7 +1045,8 @@ mod tests {
     create_personnel, database_path_from_base_dir, delete_payroll_sheet, delete_personnel,
     delete_personnel_batch, get_payroll_sheet_detail, initialize_schema, list_payroll_sheets,
     list_personnel, open_connection_at_path, remove_personnel_from_sheet,
-    reorder_personnel_by_ids, update_payroll_record_net_pay, update_personnel,
+    reorder_personnel_by_ids, update_payroll_record_export_weight,
+    update_payroll_record_net_pay, update_personnel,
     CreatePayrollSheetInput, CreatePersonnelInput, UpdatePersonnelInput,
   };
 
@@ -1012,6 +1084,7 @@ mod tests {
     initialize_schema(&conn).unwrap();
 
     let columns = [
+      "export_weight",
       "attendance_days",
       "wage_standard",
       "gross_pay",
@@ -2225,6 +2298,102 @@ mod tests {
 
     let refreshed = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
     assert_eq!(refreshed.records[0].net_pay, 3500.0);
+  }
+
+  #[test]
+  fn initialize_schema_adds_export_weight_for_existing_payroll_record_table() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let conn = Connection::open(&db_path).unwrap();
+
+    conn
+      .execute_batch(
+        r#"
+        CREATE TABLE personnel (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          sort_index INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE payroll_sheet (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE payroll_record (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          payroll_sheet_id INTEGER NOT NULL,
+          personnel_id INTEGER NOT NULL,
+          net_pay REAL NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(payroll_sheet_id, personnel_id)
+        );
+        "#,
+      )
+      .unwrap();
+    drop(conn);
+
+    let reopened = open_connection_at_path(&db_path).unwrap();
+    let columns = reopened
+      .prepare("PRAGMA table_info(payroll_record)")
+      .unwrap()
+      .query_map([], |row| row.get::<_, String>(1))
+      .unwrap()
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+
+    assert!(columns.iter().any(|column| column == "export_weight"));
+  }
+
+  #[test]
+  fn updates_payroll_record_export_weight_and_reads_back_detail() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("payroll.db");
+    let mut conn = open_connection_at_path(&db_path).unwrap();
+
+    let alice = create_personnel(
+      &conn,
+      CreatePersonnelInput {
+        name: "Alice".into(),
+        gender: None,
+        ethnicity: None,
+        native_place: None,
+        id_card_number: None,
+        payroll_card_number: None,
+        bank_name: None,
+        job_type: None,
+        start_date: None,
+        end_date: None,
+        phone_number: None,
+        remark: None,
+      },
+    )
+    .unwrap();
+    let sheet = create_payroll_sheet(
+      &mut conn,
+      CreatePayrollSheetInput {
+        name: "2026-12".into(),
+        source_sheet_id: None,
+      },
+    )
+    .unwrap();
+
+    add_personnel_to_sheet(&mut conn, sheet.id, &[alice.id]).unwrap();
+    let detail = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+    let record_id = detail.records[0].record_id;
+
+    let updated = update_payroll_record_export_weight(&conn, record_id, Some(4))
+      .unwrap()
+      .unwrap();
+    assert_eq!(updated.export_weight, Some(4));
+
+    let refreshed = get_payroll_sheet_detail(&conn, sheet.id).unwrap().unwrap();
+    assert_eq!(refreshed.records[0].export_weight, Some(4));
+
+    let cleared = update_payroll_record_export_weight(&conn, record_id, None)
+      .unwrap()
+      .unwrap();
+    assert_eq!(cleared.export_weight, None);
   }
 
   #[test]

@@ -134,20 +134,27 @@ export function ToastViewport() {
         >
           <span className="mt-0.5 shrink-0">
             {item.variant === "error" ? (
-              <AlertCircle className="size-4" />
+              <AlertCircle className="size-4 text-white" />
             ) : (
               <CheckCircle2 className="size-4" />
             )}
           </span>
 
-          <p className="min-w-0 flex-1 text-sm leading-6">{item.message}</p>
+          <p
+            className={cn(
+              "min-w-0 flex-1 text-sm leading-6",
+              item.variant === "error" && "text-white",
+            )}
+          >
+            {item.message}
+          </p>
 
           <button
             type="button"
             className={cn(
               "shrink-0 rounded-sm p-0.5 transition",
               item.variant === "error"
-                ? "hover:bg-white/10"
+                ? "text-white hover:bg-white/10"
                 : "hover:bg-accent hover:text-accent-foreground",
             )}
             onClick={() => store.dismiss(item.id)}

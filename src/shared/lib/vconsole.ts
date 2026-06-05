@@ -3,7 +3,7 @@ type VConsoleConstructor = new () => unknown
 type InitVConsoleOptions = {
   isDev: boolean
   search?: string
-  loadVConsole?: () => Promise<VConsoleConstructor>
+  loadVConsole: () => Promise<VConsoleConstructor>
 }
 
 export function shouldEnableVConsole(isDev: boolean, search = "") {
@@ -18,10 +18,7 @@ export function shouldEnableVConsole(isDev: boolean, search = "") {
 export async function initVConsole({
   isDev,
   search = typeof window === "undefined" ? "" : window.location.search,
-  loadVConsole = async () => {
-    const module = await import("vconsole")
-    return module.default
-  },
+  loadVConsole,
 }: InitVConsoleOptions) {
   if (!shouldEnableVConsole(isDev, search)) {
     return null

@@ -1,7 +1,7 @@
 {
   "name": "payroll",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,16 @@
     "test": "pnpm test:workspace-store && pnpm test:rust",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:workspace-store": "node scripts/run-payroll-workspace-store-test.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare": "simple-git-hooks",
+    "version:bump": "bumpp package.json --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\"",
+    "version:commit": "bumpp package.json --release patch --yes --no-commit --no-tag --no-push --no-verify --execute \"node scripts/sync-tauri-version.mjs\" && git add package.json pnpm-lock.yaml src-tauri/tauri.conf.json",
+    "version:major": "bumpp package.json --release major --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\"",
+    "version:minor": "bumpp package.json --release minor --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\"",
+    "version:patch": "bumpp package.json --release patch --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\""
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm version:commit"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -43,11 +52,13 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "bumpp": "^11.1.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "playwright-core": "^1.60.0",
+    "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",

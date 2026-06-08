@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "工资工作台",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "com.payroll.app",
   "build": {
     "frontendDist": "../dist",
@@ -36,6 +36,7 @@
     ],
     "windows": {
       "wix": {
+        "upgradeCode": "033d551d-4431-5825-b222-3d18171a68df",
         "language": {
           "zh-CN": {
             "localePath": "wix/zh-CN.wxl"

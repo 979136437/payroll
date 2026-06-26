@@ -436,8 +436,8 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     }
 
     set((state) => ({
-      pendingAddPersonnelIds: uniqueIds([...state.pendingAddPersonnelIds, personnelId]),
-      pickerSelection: uniqueIds([...state.pickerSelection, personnelId]),
+      pendingAddPersonnelIds: uniqueIds([personnelId, ...state.pendingAddPersonnelIds]),
+      pickerSelection: uniqueIds([personnelId, ...state.pickerSelection]),
     }))
   },
 
@@ -530,10 +530,10 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
 
     set((state) => ({
       pendingAddPersonnelIds: uniqueIds([
-        ...state.pendingAddPersonnelIds,
         ...selectableIds,
+        ...state.pendingAddPersonnelIds,
       ]),
-      pickerSelection: uniqueIds([...state.pickerSelection, ...selectableIds]),
+      pickerSelection: uniqueIds([...selectableIds, ...state.pickerSelection]),
     }))
   },
 

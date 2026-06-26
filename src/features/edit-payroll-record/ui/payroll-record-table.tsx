@@ -10,11 +10,12 @@ import {
 import { CircleDollarSign, ListOrdered } from "lucide-react"
 import { useMemo, useState } from "react"
 
-import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import type { PayrollRecord } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { cn } from "@/lib/utils"
 import { maskSensitiveValue } from "@/shared/lib/formatters"
-import { SelectField } from "@/shared/ui/select-field"
+import { tableRowBackgroundClassName } from "@/shared/lib/table"
+import { TablePaginationFooter } from "@/shared/ui/data-table"
 
 type PayrollRecordTableProps = {
   drafts: Record<number, string>
@@ -66,15 +67,11 @@ const columns = [
       }
 
       return (
-        <label className="flex justify-center">
-          <input
-            type="checkbox"
-            aria-label={`选择 ${row.original.name}`}
-            checked={meta.selectedPersonnelIdSet.has(row.original.personnelId)}
-            onChange={() => meta.onToggleSelection(row.original.personnelId)}
-            className="size-4 cursor-pointer rounded border-input accent-primary shadow-none outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
-          />
-        </label>
+        <Checkbox
+          aria-label={`选择 ${row.original.name}`}
+          checked={meta.selectedPersonnelIdSet.has(row.original.personnelId)}
+          onCheckedChange={() => meta.onToggleSelection(row.original.personnelId)}
+        />
       )
     },
   }),
@@ -304,14 +301,13 @@ export function PayrollRecordTable({
                   <td
                     key={cell.id}
                     className={cn(
-                      "px-4 py-4 text-sm text-foreground transition-colors align-middle",
+                      "px-4 py-4 text-sm text-foreground align-middle",
                       isSelectColumn && "px-2",
                       isNumericInputColumn && "px-3",
-                      selectedPersonnelIdSet.has(row.original.personnelId)
-                        ? "bg-foreground/[0.04] group-hover:bg-foreground/[0.06]"
-                        : index % 2 === 0
-                          ? "bg-background group-hover:bg-foreground/[0.03]"
-                          : "bg-muted/[0.2] group-hover:bg-foreground/[0.03]",
+                      tableRowBackgroundClassName(
+                        selectedPersonnelIdSet.has(row.original.personnelId),
+                        index,
+                      ),
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -322,49 +318,14 @@ export function PayrollRecordTable({
           ))}
         </tbody>
       </table>
-      <div className="flex flex-col gap-3 border-t border-border/80 bg-background px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
-        <div className="text-muted-foreground">
-          第 {table.getState().pagination.pageIndex + 1} / {table.getPageCount() || 1} 页，共{" "}
-          {records.length} 条
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <span>每页</span>
-            <SelectField
-              className="w-[5.25rem]"
-              placeholder="10"
-              triggerClassName="h-8 min-h-8 px-2.5 text-[0.8rem]"
-              value={`${table.getState().pagination.pageSize}`}
-              onChange={(value) => {
-                table.setPageSize(Number(value))
-              }}
-              options={[10, 20, 50].map((size) => ({
-                label: `${size}`,
-                value: `${size}`,
-              }))}
-            />
-            <span>条</span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-            >
-              上一页
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-            >
-              下一页
-            </Button>
-          </div>
-        </div>
-      </div>
+      <TablePaginationFooter
+        onPageIndexChange={(nextIndex) => table.setPageIndex(nextIndex)}
+        onPageSizeChange={(nextSize) => table.setPageSize(nextSize)}
+        pageIndex={table.getState().pagination.pageIndex}
+        pageSize={table.getState().pagination.pageSize}
+        totalCount={records.length}
+        totalPages={table.getPageCount() || 1}
+      />
     </div>
   )
 }

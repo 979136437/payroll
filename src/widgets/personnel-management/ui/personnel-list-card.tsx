@@ -1,4 +1,5 @@
-import { Search, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
+import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -8,9 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { Personnel } from "@/entities/personnel/api/personnel"
-import { EmptyPanel, LoadingState } from "@/shared/ui/workspace-primitives"
-import { PersonnelTable } from "@/widgets/personnel-management/ui/personnel-table"
+import {
+  EmptyPanel,
+  LoadingState,
+  SearchInput,
+} from "@/shared/ui/workspace-primitives"
 
 // 列表区的互斥渲染态：加载中 / 空库 / 无匹配 / 正常列表。
 export type PersonnelListViewState =
@@ -20,50 +23,26 @@ export type PersonnelListViewState =
   | "list"
 
 type PersonnelListCardProps = {
+  children: ReactNode
   isBatchDeleteBusy: boolean
-  isRowActionBusy: boolean
   onClearSelection: () => void
-  onDeleteIntent: (personnel: Personnel) => void
-  onEdit: (personnel: Personnel) => void
   onOpenBatchDelete: () => void
   onOpenCreate: () => void
-  onPageIndexChange: (pageIndex: number) => void
-  onPageSizeChange: (pageSize: number) => void
   onQueryChange: (query: string) => void
-  onToggleAll: (personnelIds: number[]) => void
-  onToggleOne: (personnelId: number) => void
-  pageIndex: number
-  pageSize: number
-  paginatedPersonnel: Personnel[]
   query: string
   selectedCount: number
-  selectedPersonnelIdSet: Set<number>
-  totalFilteredCount: number
-  totalPages: number
   viewState: PersonnelListViewState
 }
 
 export function PersonnelListCard({
+  children,
   isBatchDeleteBusy,
-  isRowActionBusy,
   onClearSelection,
-  onDeleteIntent,
-  onEdit,
   onOpenBatchDelete,
   onOpenCreate,
-  onPageIndexChange,
-  onPageSizeChange,
   onQueryChange,
-  onToggleAll,
-  onToggleOne,
-  pageIndex,
-  pageSize,
-  paginatedPersonnel,
   query,
   selectedCount,
-  selectedPersonnelIdSet,
-  totalFilteredCount,
-  totalPages,
   viewState,
 }: PersonnelListCardProps) {
   return (
@@ -80,15 +59,12 @@ export function PersonnelListCard({
               </CardDescription>
             </div>
 
-            <label className="relative block w-full max-w-sm">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                className="h-10 w-full cursor-text rounded-md border border-input bg-background pr-3 pl-9 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                onChange={(event) => onQueryChange(event.target.value)}
-                placeholder="搜索姓名、联系电话、身份证号、工资卡号"
-                value={query}
-              />
-            </label>
+            <SearchInput
+              className="w-full max-w-sm"
+              onChange={onQueryChange}
+              placeholder="搜索姓名、联系电话、身份证号、工资卡号"
+              value={query}
+            />
           </div>
         </CardHeader>
 
@@ -135,21 +111,7 @@ export function PersonnelListCard({
                 </div>
               </div>
 
-              <PersonnelTable
-                isMutating={isRowActionBusy}
-                onDeleteIntent={onDeleteIntent}
-                onEdit={onEdit}
-                onPageIndexChange={onPageIndexChange}
-                onPageSizeChange={onPageSizeChange}
-                onToggleAll={onToggleAll}
-                onToggleOne={onToggleOne}
-                pageIndex={pageIndex}
-                pageSize={pageSize}
-                personnel={paginatedPersonnel}
-                selectedPersonnelIdSet={selectedPersonnelIdSet}
-                totalFilteredCount={totalFilteredCount}
-                totalPages={totalPages}
-              />
+              {children}
             </div>
           )}
         </CardContent>

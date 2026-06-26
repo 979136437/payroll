@@ -13,6 +13,7 @@ import {
 } from "@/widgets/personnel-management/ui/personnel-list-card"
 import { PersonnelPageHeader } from "@/widgets/personnel-management/ui/personnel-page-header"
 import { PersonnelSummaryTiles } from "@/widgets/personnel-management/ui/personnel-summary-tiles"
+import { PersonnelTable } from "@/widgets/personnel-management/ui/personnel-table"
 
 function matchesQuery(
   personnel: {
@@ -227,29 +228,32 @@ export function PersonnelManagementPage() {
 
           <PersonnelListCard
             isBatchDeleteBusy={isDeleting || isDeletingSelectedPersonnel}
-            isRowActionBusy={
-              isDeleting || isDeletingSelectedPersonnel || isSubmitting
-            }
             onClearSelection={clearPersonnelSelection}
-            onDeleteIntent={handleDeleteIntent}
-            onEdit={openEditDialog}
             onOpenBatchDelete={() => setIsBatchDeleteConfirmOpen(true)}
             onOpenCreate={openCreateDialog}
-            onPageIndexChange={setPersonnelPageIndex}
-            onPageSizeChange={setPersonnelPageSize}
             onQueryChange={handleQueryChange}
-            onToggleAll={toggleAllPersonnelSelection}
-            onToggleOne={togglePersonnelSelection}
-            pageIndex={safePersonnelPageIndex}
-            pageSize={personnelPageSize}
-            paginatedPersonnel={paginatedPersonnel}
             query={query}
             selectedCount={selectedPersonnelIds.length}
-            selectedPersonnelIdSet={selectedPersonnelIdSet}
-            totalFilteredCount={filteredPersonnel.length}
-            totalPages={totalPersonnelPages}
             viewState={listViewState}
-          />
+          >
+            <PersonnelTable
+              isMutating={
+                isDeleting || isDeletingSelectedPersonnel || isSubmitting
+              }
+              onDeleteIntent={handleDeleteIntent}
+              onEdit={openEditDialog}
+              onPageIndexChange={setPersonnelPageIndex}
+              onPageSizeChange={setPersonnelPageSize}
+              onToggleAll={toggleAllPersonnelSelection}
+              onToggleOne={togglePersonnelSelection}
+              pageIndex={safePersonnelPageIndex}
+              pageSize={personnelPageSize}
+              personnel={paginatedPersonnel}
+              selectedPersonnelIdSet={selectedPersonnelIdSet}
+              totalFilteredCount={filteredPersonnel.length}
+              totalPages={totalPersonnelPages}
+            />
+          </PersonnelListCard>
         </div>
       </main>
 

@@ -49,22 +49,15 @@ export function CreateOrEditPersonnelDialog({
   open,
   showDeleteAction = false,
 }: CreateOrEditPersonnelDialogProps) {
+  const isEdit = mode === "edit"
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
+  // 新增模式下始终以空表单为准，避免将来某个调用方传入预填的 initialPersonnel
+  // 时，提交后的 form.reset(空) 又被响应式 values 重新覆盖。
   const form = useForm<CreatePersonnelValues>({
     resolver: zodResolver(createPersonnelSchema),
-    values: toFormValues(initialPersonnel),
+    values: toFormValues(isEdit ? initialPersonnel : null),
   })
-
-  // 对话框关闭时清掉删除确认弹窗状态：在渲染期跟踪 open 的上一次取值，
-  // 避免用 useEffect 在 open 变化后再额外渲染一帧。
-  const [prevOpen, setPrevOpen] = useState(open)
-  if (open !== prevOpen) {
-    setPrevOpen(open)
-    if (!open) {
-      setIsConfirmOpen(false)
-    }
-  }
 
   const selectedGender =
     useWatch({
@@ -72,7 +65,6 @@ export function CreateOrEditPersonnelDialog({
       name: "gender",
     }) ?? ""
 
-  const isEdit = mode === "edit"
   const isMutating = isBusy || isDeleting
 
   return (

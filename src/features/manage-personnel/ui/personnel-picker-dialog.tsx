@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { memo } from "react"
 import { Check, Search, Trash2, UserPlus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -42,7 +43,7 @@ function PersonnelCard({
   )
 }
 
-export function PersonnelPickerDialog({
+export const PersonnelPickerDialog = memo(function PersonnelPickerDialog({
   availablePersonnel,
   isBusy,
   onAddPendingPersonnel,
@@ -262,4 +263,4 @@ export function PersonnelPickerDialog({
       </div>
     </ModalShell>
   )
-}
+})

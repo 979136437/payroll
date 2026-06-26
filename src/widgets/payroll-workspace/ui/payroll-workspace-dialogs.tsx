@@ -1,11 +1,14 @@
-import { lazy, Suspense, useMemo } from "react"
+import { lazy, Suspense, useCallback, useMemo } from "react"
 import { useShallow } from "zustand/react/shallow"
 
 import type { CreatePayrollSheetValues } from "@/features/create-payroll-sheet/model/schema"
 import type { CreatePersonnelValues } from "@/features/manage-personnel/model/schema"
 import { CreateOrEditPersonnelDialog } from "@/features/manage-personnel/ui/create-or-edit-personnel-dialog"
 import { LoadingState } from "@/shared/ui/workspace-primitives"
-import { usePayrollWorkspaceStore } from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
+import {
+  selectAvailablePersonnelForPicker,
+  usePayrollWorkspaceStore,
+} from "@/widgets/payroll-workspace/model/use-payroll-workspace-store"
 
 const CreatePayrollSheetDialog = lazy(async () => {
   const module = await import(
@@ -39,7 +42,6 @@ export function PayrollWorkspaceDialogs() {
     createPersonnelRecord,
     createSheet,
     deletePersonnelFromWorkspace,
-    getAvailablePersonnelForPicker,
     isAddingPersonnel,
     isCreatingPersonnel,
     isCreatingSheet,
@@ -63,7 +65,6 @@ export function PayrollWorkspaceDialogs() {
       createPersonnelRecord: state.createPersonnelRecord,
       createSheet: state.createSheet,
       deletePersonnelFromWorkspace: state.deletePersonnelFromWorkspace,
-      getAvailablePersonnelForPicker: state.getAvailablePersonnelForPicker,
       isAddingPersonnel: state.isAddingPersonnel,
       isCreatingPersonnel: state.isCreatingPersonnel,
       isCreatingSheet: state.isCreatingSheet,
@@ -96,6 +97,7 @@ export function PayrollWorkspaceDialogs() {
     personnel,
     personnelPickerQuery,
     selectedSheetId,
+    sheetDetail,
     sheets,
   } = usePayrollWorkspaceStore(
     useShallow((state) => ({
@@ -110,6 +112,7 @@ export function PayrollWorkspaceDialogs() {
       personnel: state.personnel,
       personnelPickerQuery: state.personnelPickerQuery,
       selectedSheetId: state.selectedSheetId,
+      sheetDetail: state.sheetDetail,
       sheets: state.sheets,
     })),
   )
@@ -124,13 +127,27 @@ export function PayrollWorkspaceDialogs() {
     () => new Map(personnel.map((person) => [person.id, person])),
     [personnel],
   )
-  const availablePersonnel = getAvailablePersonnelForPicker()
+  const availablePersonnel = useMemo(
+    () =>
+      selectAvailablePersonnelForPicker({
+        pendingAddPersonnelIds,
+        personnel,
+        query: personnelPickerQuery,
+        sheetDetail,
+      }),
+    [pendingAddPersonnelIds, personnel, personnelPickerQuery, sheetDetail],
+  )
   const pendingPersonnel = useMemo(
     () =>
       pendingAddPersonnelIds
         .map((personnelId) => personnelById.get(personnelId))
         .filter((person): person is NonNullable<typeof person> => Boolean(person)),
     [pendingAddPersonnelIds, personnelById],
+  )
+
+  const handleOpenCreatePersonnel = useCallback(
+    () => setPickerCreatePersonnelDialogOpen(true),
+    [setPickerCreatePersonnelDialogOpen],
   )
 
   const handleCreateSheet = async (values: CreatePayrollSheetValues) =>
@@ -187,7 +204,7 @@ export function PayrollWorkspaceDialogs() {
             isBusy={isBusy || selectedSheetId === null}
             onAddPendingPersonnel={addPendingPersonnel}
             onOpenChange={setPersonnelDialogOpen}
-            onOpenCreatePersonnel={() => setPickerCreatePersonnelDialogOpen(true)}
+            onOpenCreatePersonnel={handleOpenCreatePersonnel}
             onRemovePendingPersonnel={removePendingPersonnel}
             onRemoveSelectedPendingPersonnel={removeSelectedPendingPersonnel}
             onSetNetPayDraft={setPendingAddNetPayDraft}

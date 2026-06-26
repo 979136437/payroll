@@ -163,6 +163,28 @@ function matchesPersonnelPickerQuery(personnel: Personnel, query: string) {
     .includes(query.trim().toLowerCase())
 }
 
+// 选人弹窗的可选人员过滤：排除已在当前工资表及待添加清单中的人员，再按查询过滤。
+// 抽成纯函数，供 store getter 与 UI 层 useMemo 共用，避免逻辑重复。
+export function selectAvailablePersonnelForPicker(input: {
+  pendingAddPersonnelIds: number[]
+  personnel: Personnel[]
+  query: string
+  sheetDetail: PayrollSheetDetail | null
+}) {
+  const existingIds = new Set(
+    (input.sheetDetail?.records ?? []).map((record) => record.personnelId),
+  )
+  const pendingIds = new Set(input.pendingAddPersonnelIds)
+
+  return input.personnel.filter((personnel) => {
+    if (existingIds.has(personnel.id) || pendingIds.has(personnel.id)) {
+      return false
+    }
+
+    return matchesPersonnelPickerQuery(personnel, input.query)
+  })
+}
+
 function buildResetPickerState() {
   return {
     isPickerCreatePersonnelDialogOpen: false,
@@ -210,18 +232,11 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   sheets: [],
 
   getAvailablePersonnelForPicker() {
-    const existingIds = new Set(
-      (get().sheetDetail?.records ?? []).map((record) => record.personnelId),
-    )
-    const pendingIds = new Set(get().pendingAddPersonnelIds)
-    const query = get().personnelPickerQuery
-
-    return get().personnel.filter((personnel) => {
-      if (existingIds.has(personnel.id) || pendingIds.has(personnel.id)) {
-        return false
-      }
-
-      return matchesPersonnelPickerQuery(personnel, query)
+    return selectAvailablePersonnelForPicker({
+      pendingAddPersonnelIds: get().pendingAddPersonnelIds,
+      personnel: get().personnel,
+      query: get().personnelPickerQuery,
+      sheetDetail: get().sheetDetail,
     })
   },
 

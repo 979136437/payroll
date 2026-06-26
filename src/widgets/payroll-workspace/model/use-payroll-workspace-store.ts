@@ -841,6 +841,8 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     const sourceIds =
       pendingAddPersonnelIds.length > 0 ? pendingAddPersonnelIds : pickerSelection
     const normalizedIds = uniqueIds(sourceIds.filter((personnelId) => !existingIds.has(personnelId)))
+    // 待添加清单最新在上，反转后最早入库拿到最小 pr.id，表格 ORDER BY pr.id ASC 时最早在上
+    normalizedIds.reverse()
     const trimmedDraft = pendingAddNetPayDraft.trim()
 
     if (normalizedIds.length === 0) {

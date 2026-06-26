@@ -1,8 +1,16 @@
-import { SquarePen, Trash2 } from "lucide-react"
+import { AlertTriangle, SquarePen, Trash2 } from "lucide-react"
 import { memo, useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import type { Personnel } from "@/entities/personnel/api/personnel"
 import { cn } from "@/lib/utils"
 import { maskSensitiveValue } from "@/shared/lib/formatters"
@@ -27,6 +35,9 @@ type PersonnelTableProps = {
 
 const cellClassName = (isSelected: boolean, index: number) =>
   cn("px-4 py-3", tableRowBackgroundClassName(isSelected, index))
+
+const stickyCellClassName = () =>
+  cn("bg-background px-4 py-3")
 
 export const PersonnelTable = memo(function PersonnelTable({
   isMutating,
@@ -61,11 +72,11 @@ export const PersonnelTable = memo(function PersonnelTable({
   }, [personnelIds, selectedPersonnelIdSet])
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/80 bg-background">
-      <table className="min-w-full border-collapse text-sm">
-        <thead className="bg-muted/70 text-left text-muted-foreground">
-          <tr>
-            <th className="px-4 py-3 font-medium">
+    <div className="rounded-xl border border-border/80 bg-background">
+      <Table className="min-w-full border-collapse">
+        <TableHeader className="bg-muted/70 text-muted-foreground">
+          <TableRow className="border-b-0 hover:bg-transparent">
+            <TableHead className="px-4 py-3 text-muted-foreground">
               <Checkbox
                 aria-label="全选当前页人员"
                 checked={allVisibleSelected}
@@ -73,41 +84,51 @@ export const PersonnelTable = memo(function PersonnelTable({
                 disabled={personnelIds.length === 0}
                 onCheckedChange={() => onToggleAll(personnelIds)}
               />
-            </th>
-            <th className="px-4 py-3 font-medium">姓名</th>
-            <th className="px-4 py-3 font-medium">性别</th>
-            <th className="px-4 py-3 font-medium">民族</th>
-            <th className="px-4 py-3 font-medium">联系电话</th>
-            <th className="px-4 py-3 font-medium">身份证号</th>
-            <th className="px-4 py-3 font-medium">工资卡号</th>
-            <th className="px-4 py-3 text-right font-medium">操作</th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+            <TableHead className="px-4 py-3 text-muted-foreground">姓名</TableHead>
+            <TableHead className="px-4 py-3 text-muted-foreground">性别</TableHead>
+            <TableHead className="px-4 py-3 text-muted-foreground">民族</TableHead>
+            <TableHead className="px-4 py-3 text-muted-foreground">联系电话</TableHead>
+            <TableHead className="px-4 py-3 text-muted-foreground">身份证号</TableHead>
+            <TableHead className="px-4 py-3 text-muted-foreground">工资卡号</TableHead>
+            <TableHead className="sticky right-0 z-10 border-l border-border bg-background px-4 py-3 text-right text-muted-foreground">操作</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {personnel.map((item, index) => {
             const isSelected = selectedPersonnelIdSet.has(item.id)
             const cellClass = cellClassName(isSelected, index)
 
             return (
-              <tr key={item.id} className="group border-t transition">
-                <td className={cellClass}>
+              <TableRow key={item.id} className="border-t">
+                <TableCell className={cellClass}>
                   <Checkbox
                     aria-label={`选择 ${item.name}`}
                     checked={isSelected}
                     onCheckedChange={() => onToggleOne(item.id)}
                   />
-                </td>
-                <td className={cn(cellClass, "font-medium text-foreground")}>
-                  {item.name}
-                </td>
-                <td className={cellClass}>{item.gender || "-"}</td>
-                <td className={cellClass}>{item.ethnicity || "-"}</td>
-                <td className={cellClass}>{item.phoneNumber || "-"}</td>
-                <td className={cellClass}>{maskSensitiveValue(item.idCardNumber)}</td>
-                <td className={cellClass}>
+                </TableCell>
+                <TableCell className={cn(cellClass, "font-medium text-foreground")}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {item.name}
+                    {!item.idCardNumber ||
+                    !item.payrollCardNumber ||
+                    !item.phoneNumber ? (
+                      <AlertTriangle
+                        className="size-3 shrink-0 text-foreground"
+                        aria-label="人员信息不完整"
+                      />
+                    ) : null}
+                  </span>
+                </TableCell>
+                <TableCell className={cellClass}>{item.gender || "-"}</TableCell>
+                <TableCell className={cellClass}>{item.ethnicity || "-"}</TableCell>
+                <TableCell className={cellClass}>{item.phoneNumber || "-"}</TableCell>
+                <TableCell className={cellClass}>{maskSensitiveValue(item.idCardNumber)}</TableCell>
+                <TableCell className={cellClass}>
                   {maskSensitiveValue(item.payrollCardNumber)}
-                </td>
-                <td className={cellClass}>
+                </TableCell>
+                <TableCell className={cn(stickyCellClassName(), "sticky right-0 z-10 border-l border-border")}>
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => onEdit(item)}>
                       <SquarePen className="size-4" />
@@ -123,12 +144,12 @@ export const PersonnelTable = memo(function PersonnelTable({
                       删除
                     </Button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
       <TablePaginationFooter
         onPageIndexChange={onPageIndexChange}
         onPageSizeChange={onPageSizeChange}

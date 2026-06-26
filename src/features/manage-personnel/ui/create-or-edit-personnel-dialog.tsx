@@ -78,21 +78,8 @@ export function CreateOrEditPersonnelDialog({
             ? "更新人员基础资料后，工资工作台和人员管理页都会同步显示最新信息。"
             : "新增一位人员到人员库，后续可以在工资工作台中直接选用。"
         }
-      >
-        <form
-          className="space-y-5"
-          onSubmit={form.handleSubmit(async (values) => {
-            const didSubmit = await onSubmit(values)
-            if (didSubmit && !isEdit) {
-              form.reset(toFormValues(null))
-            }
-          })}
-        >
-          <div className="rounded-xl border border-border/60 bg-muted/20 p-4 md:p-5">
-            <PersonnelFormFields form={form} selectedGender={selectedGender} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3 pt-1">
+        footer={
+          <div className="flex items-center justify-between gap-3">
             <div>
               {isEdit && showDeleteAction && onDelete ? (
                 <Button
@@ -116,11 +103,26 @@ export function CreateOrEditPersonnelDialog({
               >
                 取消
               </Button>
-              <Button type="submit" disabled={isMutating}>
+              <Button type="submit" form="personnel-form" disabled={isMutating}>
                 {isEdit ? <Save className="size-4" /> : <Plus className="size-4" />}
                 {isEdit ? "保存人员信息" : "新增人员"}
               </Button>
             </div>
+          </div>
+        }
+      >
+        <form
+          id="personnel-form"
+          className="space-y-5"
+          onSubmit={form.handleSubmit(async (values) => {
+            const didSubmit = await onSubmit(values)
+            if (didSubmit && !isEdit) {
+              form.reset(toFormValues(null))
+            }
+          })}
+        >
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-4 md:p-5">
+            <PersonnelFormFields form={form} selectedGender={selectedGender} />
           </div>
         </form>
       </ModalShell>

@@ -28,12 +28,7 @@ export function ConfirmDialog({
       onOpenChange={onOpenChange}
       title={title}
       description={description}
-    >
-      <div className="space-y-4">
-        <div className="rounded-lg border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm leading-6 text-muted-foreground">
-          {warningText}
-        </div>
-
+      footer={
         <div className="flex justify-end gap-2">
           <Button
             type="button"
@@ -54,6 +49,10 @@ export function ConfirmDialog({
             {isBusy ? "删除中..." : confirmLabel}
           </Button>
         </div>
+      }
+    >
+      <div className="rounded-lg border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm leading-6 text-muted-foreground">
+        {warningText}
       </div>
     </ModalShell>
   )

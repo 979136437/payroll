@@ -55,8 +55,23 @@ export function CreatePayrollSheetDialog({
       }}
       title="新建工资表"
       description="可以从空表开始，也可以复制往期人员名单。"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            取消
+          </Button>
+          <Button type="submit" form="create-payroll-sheet-form" disabled={isBusy}>
+            创建工资表
+          </Button>
+        </div>
+      }
     >
       <form
+        id="create-payroll-sheet-form"
         className="space-y-5"
         onSubmit={form.handleSubmit(async (values) => {
           const didSubmit = await onSubmit(values)
@@ -88,18 +103,6 @@ export function CreatePayrollSheetDialog({
             value={selectedSourceSheetId}
           />
         </Field>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            取消
-          </Button>
-          <Button type="submit" disabled={isBusy}>
-            创建工资表
-          </Button>
-        </div>
       </form>
     </ModalShell>
   )

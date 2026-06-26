@@ -69,6 +69,7 @@ const columns = [
         <label className="flex justify-center">
           <input
             type="checkbox"
+            aria-label={`选择 ${row.original.name}`}
             checked={meta.selectedPersonnelIdSet.has(row.original.personnelId)}
             onChange={() => meta.onToggleSelection(row.original.personnelId)}
             className="size-4 cursor-pointer rounded border-input accent-primary shadow-none outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"

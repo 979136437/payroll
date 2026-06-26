@@ -125,9 +125,13 @@ export function PayrollWorkspaceDialogs() {
     [personnel],
   )
   const availablePersonnel = getAvailablePersonnelForPicker()
-  const pendingPersonnel = pendingAddPersonnelIds
-    .map((personnelId) => personnelById.get(personnelId))
-    .filter((person): person is NonNullable<typeof person> => Boolean(person))
+  const pendingPersonnel = useMemo(
+    () =>
+      pendingAddPersonnelIds
+        .map((personnelId) => personnelById.get(personnelId))
+        .filter((person): person is NonNullable<typeof person> => Boolean(person)),
+    [pendingAddPersonnelIds, personnelById],
+  )
 
   const handleCreateSheet = async (values: CreatePayrollSheetValues) =>
     createSheet({

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Plus, Save, Trash2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useForm, useWatch } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
@@ -53,15 +53,18 @@ export function CreateOrEditPersonnelDialog({
 
   const form = useForm<CreatePersonnelValues>({
     resolver: zodResolver(createPersonnelSchema),
-    defaultValues: toFormValues(initialPersonnel),
+    values: toFormValues(initialPersonnel),
   })
 
-  useEffect(() => {
-    form.reset(toFormValues(initialPersonnel))
+  // 对话框关闭时清掉删除确认弹窗状态：在渲染期跟踪 open 的上一次取值，
+  // 避免用 useEffect 在 open 变化后再额外渲染一帧。
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (!open) {
       setIsConfirmOpen(false)
     }
-  }, [form, initialPersonnel, open])
+  }
 
   const selectedGender =
     useWatch({

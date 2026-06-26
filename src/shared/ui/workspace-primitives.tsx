@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -102,5 +103,36 @@ export function SummaryTile({ icon, label, value }: SummaryTileProps) {
         {value}
       </span>
     </div>
+  )
+}
+
+type SearchInputProps = {
+  className?: string
+  disabled?: boolean
+  onChange: (value: string) => void
+  placeholder: string
+  value: string
+}
+
+// 带放大镜图标的搜索输入框，统一图标定位与聚焦描边，供列表/选人弹窗复用。
+export function SearchInput({
+  className,
+  disabled = false,
+  onChange,
+  placeholder,
+  value,
+}: SearchInputProps) {
+  return (
+    <label className={cn("relative block", className)}>
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      <input
+        type="search"
+        className="h-10 w-full cursor-text rounded-md border border-input bg-background pr-3 pl-9 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        value={value}
+      />
+    </label>
   )
 }

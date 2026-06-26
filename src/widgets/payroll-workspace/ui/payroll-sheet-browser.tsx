@@ -48,7 +48,7 @@ export function PayrollSheetBrowser({ overviewStats }: PayrollSheetBrowserProps)
 
   return (
     <>
-      <div className="rounded-[1.5rem] border border-border/70 bg-muted/55 p-3 shadow-inner md:p-4">
+      <div className="rounded-3xl border border-border/70 bg-muted/55 p-3 shadow-inner md:p-4">
         <PayrollSheetList
           deletingSheetId={pendingDeleteSheetId}
           isDeletingSheet={isDeletingSheet}

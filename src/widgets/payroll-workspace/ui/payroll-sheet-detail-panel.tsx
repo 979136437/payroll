@@ -114,8 +114,8 @@ export function PayrollSheetDetailPanel() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
-          <aside className="w-full xl:max-w-[17rem]">
+        <div className="flex gap-3">
+          <aside className="w-64 shrink-0">
             <PayrollSheetList
               deletingSheetId={pendingDeleteSheetId}
               isDeletingSheet={isDeletingSheet}
@@ -137,7 +137,7 @@ export function PayrollSheetDetailPanel() {
             />
           </aside>
 
-          <div className="flex min-w-0 flex-1 flex-col gap-3 rounded-[1.5rem] border border-border/70 bg-muted/55 p-3 shadow-inner md:p-4">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 rounded-3xl border border-border/70 bg-muted/55 p-3 shadow-inner md:p-4">
             <PayrollRecordToolbar />
             <PayrollRecordTable
               drafts={salaryDrafts}

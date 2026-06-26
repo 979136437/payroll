@@ -265,7 +265,7 @@ export function PayrollSheetList({
 
   if (mode === "embedded") {
     return (
-      <div className="flex h-full flex-col gap-2 rounded-lg border border-border/55 bg-background/55 p-2 shadow-none">
+      <div className="flex h-full flex-col gap-2 rounded-3xl border border-border/55 bg-background/55 p-2 shadow-none">
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground/75">

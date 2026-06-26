@@ -7,10 +7,18 @@ import {
   type RowData,
   useReactTable,
 } from "@tanstack/react-table"
-import { CircleDollarSign, ListOrdered } from "lucide-react"
-import { useMemo, useState } from "react"
+import { AlertTriangle, CircleDollarSign, ListOrdered } from "lucide-react"
+import { useCallback, useMemo, useState } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import type { PayrollRecord } from "@/entities/payroll-sheet/api/payroll-sheet"
 import { cn } from "@/lib/utils"
 import { maskSensitiveValue } from "@/shared/lib/formatters"
@@ -52,6 +60,10 @@ declare module "@tanstack/react-table" {
 
 const columnHelper = createColumnHelper<PayrollRecord>()
 
+function isPersonnelIncomplete(record: PayrollRecord) {
+  return !record.idCardNumber || !record.payrollCardNumber || !record.phoneNumber
+}
+
 const cellInputClassName =
   "h-10 w-full cursor-text rounded-xl border border-input bg-background px-3 pr-10 text-right text-sm outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
 
@@ -80,13 +92,23 @@ const columns = [
     cell: ({ row, getValue, table }) => {
       const meta = table.options.meta?.payrollRecordTable
 
+      const incomplete = isPersonnelIncomplete(row.original)
+
       return (
         <button
           type="button"
           className="cursor-pointer space-y-1 rounded-sm text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/30"
           onClick={() => meta?.onEditPersonnel(row.original.personnelId)}
         >
-          <p className="font-medium text-foreground">{getValue()}</p>
+          <p className="flex items-center gap-1.5 font-medium text-foreground">
+            {getValue()}
+            {incomplete ? (
+              <AlertTriangle
+                className="size-3 shrink-0 text-foreground"
+                aria-label="人员信息不完整"
+              />
+            ) : null}
+          </p>
           <p className="text-xs text-muted-foreground">人员编号 #{row.original.personnelId}</p>
         </button>
       )
@@ -201,6 +223,23 @@ export function PayrollRecordTable({
     pageIndex: 0,
     pageSize: 10,
   })
+
+  const safeSetPagination = useCallback(
+    (updaterOrValue: PaginationState | ((prev: PaginationState) => PaginationState)) => {
+      setPagination((prev) => {
+        const next =
+          typeof updaterOrValue === "function"
+            ? updaterOrValue(prev)
+            : updaterOrValue
+        if (next.pageIndex === prev.pageIndex && next.pageSize === prev.pageSize) {
+          return prev
+        }
+        return next
+      })
+    },
+    [],
+  )
+
   const meta = useMemo(
     () => ({
       payrollRecordTable: {
@@ -236,15 +275,15 @@ export function PayrollRecordTable({
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     meta,
-    onPaginationChange: setPagination,
+    onPaginationChange: safeSetPagination,
     state: {
       pagination,
     },
   })
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-      <table className="min-w-full table-fixed border-collapse">
+    <div className="rounded-2xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+      <Table className="min-w-full table-fixed border-collapse">
         <colgroup>
           <col className="w-14" />
           <col className="w-23" />
@@ -254,9 +293,9 @@ export function PayrollRecordTable({
           <col className="w-56" />
           <col className="w-28" />
         </colgroup>
-        <thead className="bg-muted/60">
+        <TableHeader className="bg-muted/60">
           {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
+            <TableRow key={headerGroup.id} className="border-b-0 hover:bg-transparent">
               {table.getVisibleLeafColumns().map((column, index) => {
                 const header = headerGroup.headers.find((item) => item.id === column.id)
                 if (!header) {
@@ -268,10 +307,10 @@ export function PayrollRecordTable({
                 const isSelectColumn = column.id === "select"
 
                 return (
-                  <th
+                  <TableHead
                     key={header.id}
                     className={cn(
-                      "px-4 py-3 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap",
+                      "px-4 py-3 text-left text-xs font-semibold text-muted-foreground",
                       isSelectColumn && "px-2 text-center",
                       isNumericInputColumn && "px-3",
                       index === 0 && "pl-4",
@@ -283,25 +322,25 @@ export function PayrollRecordTable({
                           header.column.columnDef.header,
                           header.getContext(),
                         )}
-                  </th>
+                  </TableHead>
                 )
               })}
-            </tr>
+            </TableRow>
           ))}
-        </thead>
-        <tbody className="divide-y divide-border/80">
+        </TableHeader>
+        <TableBody>
           {table.getRowModel().rows.map((row, index) => (
-            <tr key={row.id} className="group transition-colors">
+            <TableRow key={row.id} className="group">
               {row.getVisibleCells().map((cell) => {
                 const isSelectColumn = cell.column.id === "select"
                 const isNumericInputColumn =
                   cell.column.id === "exportWeight" || cell.column.id === "netPay"
 
                 return (
-                  <td
+                  <TableCell
                     key={cell.id}
                     className={cn(
-                      "px-4 py-4 text-sm text-foreground align-middle",
+                      "px-4 py-4 text-foreground",
                       isSelectColumn && "px-2",
                       isNumericInputColumn && "px-3",
                       tableRowBackgroundClassName(
@@ -311,13 +350,13 @@ export function PayrollRecordTable({
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                  </TableCell>
                 )
               })}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
       <TablePaginationFooter
         onPageIndexChange={(nextIndex) => table.setPageIndex(nextIndex)}
         onPageSizeChange={(nextSize) => table.setPageSize(nextSize)}

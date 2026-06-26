@@ -1,5 +1,5 @@
 import { CircleDollarSign, Download, Plus, Trash2, UsersRound } from "lucide-react"
-import { startTransition } from "react"
+import { startTransition, useMemo } from "react"
 import { useShallow } from "zustand/react/shallow"
 
 import { Button } from "@/components/ui/button"
@@ -10,32 +10,25 @@ function preloadPersonnelPickerDialog() {
   void import("@/features/manage-personnel/ui/personnel-picker-dialog")
 }
 
+const EMPTY_RECORDS: never[] = []
+
 export function PayrollRecordToolbar() {
-  const {
-    records,
-    isRemovingPersonnel,
-    isExportingSheet,
-    exportCurrentSheet,
-    removeSelectedPersonnelFromSheet,
-    selectedPersonnelIds,
-    selectedSheetId,
-    setPersonnelDialogOpen,
-    totalNetPay,
-  } = usePayrollWorkspaceStore(
-    useShallow((state) => ({
-      exportCurrentSheet: state.exportCurrentSheet,
-      isExportingSheet: state.isExportingSheet,
-      isRemovingPersonnel: state.isRemovingPersonnel,
-      records: state.sheetDetail?.records ?? [],
-      removeSelectedPersonnelFromSheet: state.removeSelectedPersonnelFromSheet,
-      selectedPersonnelIds: state.selectedPersonnelIds,
-      selectedSheetId: state.selectedSheetId,
-      setPersonnelDialogOpen: state.setPersonnelDialogOpen,
-      totalNetPay: (state.sheetDetail?.records ?? []).reduce(
-        (sum, record) => sum + record.netPay,
-        0,
-      ),
+  const state = usePayrollWorkspaceStore(
+    useShallow((s) => ({
+      records: s.sheetDetail?.records ?? EMPTY_RECORDS,
+      isRemovingPersonnel: s.isRemovingPersonnel,
+      isExportingSheet: s.isExportingSheet,
+      exportCurrentSheet: s.exportCurrentSheet,
+      removeSelectedPersonnelFromSheet: s.removeSelectedPersonnelFromSheet,
+      selectedPersonnelIds: s.selectedPersonnelIds,
+      selectedSheetId: s.selectedSheetId,
+      setPersonnelDialogOpen: s.setPersonnelDialogOpen,
     })),
+  )
+
+  const totalNetPay = useMemo(
+    () => state.records.reduce((sum, r) => sum + r.netPay, 0),
+    [state.records],
   )
 
   return (
@@ -45,12 +38,12 @@ export function PayrollRecordToolbar() {
           <SummaryTile
             icon={<UsersRound className="size-3.5" />}
             label="人员记录"
-            value={`${records.length}`}
+            value={`${state.records.length}`}
           />
           <SummaryTile
             icon={<Plus className="size-3.5" />}
             label="当前选中"
-            value={`${selectedPersonnelIds.length}`}
+            value={`${state.selectedPersonnelIds.length}`}
           />
           <SummaryTile
             icon={<CircleDollarSign className="size-3.5" />}
@@ -62,12 +55,12 @@ export function PayrollRecordToolbar() {
         <div className="flex flex-wrap gap-2">
           <Button
             className="h-8 px-3 text-sm"
-            disabled={selectedSheetId === null}
+            disabled={state.selectedSheetId === null}
             size="sm"
             onClick={() =>
               startTransition(() => {
                 preloadPersonnelPickerDialog()
-                setPersonnelDialogOpen(true)
+                state.setPersonnelDialogOpen(true)
               })
             }
             onFocus={preloadPersonnelPickerDialog}
@@ -80,10 +73,10 @@ export function PayrollRecordToolbar() {
           <Button
             variant="outline"
             className="h-8 px-3 text-sm"
-            disabled={selectedSheetId === null || isExportingSheet}
+            disabled={state.selectedSheetId === null || state.isExportingSheet}
             size="sm"
             onClick={() => {
-              void exportCurrentSheet()
+              void state.exportCurrentSheet()
             }}
           >
             <Download className="size-3.5" />
@@ -94,13 +87,13 @@ export function PayrollRecordToolbar() {
             variant="outline"
             className="h-8 px-3 text-sm"
             disabled={
-              selectedSheetId === null ||
-              selectedPersonnelIds.length === 0 ||
-              isRemovingPersonnel
+              state.selectedSheetId === null ||
+              state.selectedPersonnelIds.length === 0 ||
+              state.isRemovingPersonnel
             }
             size="sm"
             onClick={() => {
-              void removeSelectedPersonnelFromSheet()
+              void state.removeSelectedPersonnelFromSheet()
             }}
           >
             <Trash2 className="size-3.5" />

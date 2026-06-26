@@ -1,7 +1,7 @@
 {
   "name": "payroll",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,7 +19,8 @@
     "version:commit": "bumpp package.json --release patch --yes --no-commit --no-tag --no-push --no-verify --execute \"node scripts/sync-tauri-version.mjs\" && git add package.json pnpm-lock.yaml src-tauri/tauri.conf.json",
     "version:major": "bumpp package.json --release major --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\"",
     "version:minor": "bumpp package.json --release minor --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\"",
-    "version:patch": "bumpp package.json --release patch --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\""
+    "version:patch": "bumpp package.json --release patch --no-commit --no-tag --no-push --execute \"node scripts/sync-tauri-version.mjs\"",
+    "doctor": "npx react-doctor@latest"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm version:commit"

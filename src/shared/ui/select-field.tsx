@@ -143,7 +143,7 @@ export function SelectField({
           id={listboxId}
           role="listbox"
           className={cn(
-            "absolute left-0 z-[60] w-full overflow-y-auto rounded-md border bg-background p-1 text-foreground shadow-md",
+            "absolute left-0 z-60 w-full overflow-y-auto rounded-md border bg-background p-1 text-foreground shadow-md",
             panelStyle.placement === "top"
               ? "bottom-[calc(100%+0.5rem)]"
               : "top-[calc(100%+0.5rem)]",

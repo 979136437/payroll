@@ -121,7 +121,7 @@ export function ToastViewport() {
   const { items } = useSyncExternalStore(store.subscribe, store.getSnapshot)
 
   return (
-    <div className="pointer-events-none fixed top-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2 px-4">
+    <div className="pointer-events-none fixed top-4 right-4 z-100 flex w-full max-w-sm flex-col gap-2 px-4">
       {items.map((item) => (
         <div
           key={item.id}

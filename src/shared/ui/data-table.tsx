@@ -30,7 +30,7 @@ export function TablePaginationFooter({
         <div className="flex items-center gap-2 text-muted-foreground">
           <span>每页</span>
           <SelectField
-            className="w-[5.25rem]"
+            className="w-21"
             placeholder="10"
             triggerClassName="h-8 min-h-8 px-2.5 text-[0.8rem]"
             value={`${pageSize}`}

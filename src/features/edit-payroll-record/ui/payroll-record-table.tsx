@@ -118,7 +118,7 @@ const columns = [
       const isSaving = meta.savingRecordIdSet.has(record.recordId)
 
       return (
-        <div className="w-full max-w-[12.5rem]">
+        <div className="w-full max-w-50">
           <label className="relative block">
             <input
               type="number"
@@ -157,7 +157,7 @@ const columns = [
       const isSaving = meta.savingRecordIdSet.has(record.recordId)
 
       return (
-        <div className="w-full max-w-[6.25rem]">
+        <div className="w-full max-w-25">
           <label className="relative block">
             <input
               type="text"
@@ -247,12 +247,12 @@ export function PayrollRecordTable({
       <table className="min-w-full table-fixed border-collapse">
         <colgroup>
           <col className="w-14" />
-          <col className="w-[5.75rem]" />
-          <col className="w-[7rem]" />
-          <col className="w-[7rem]" />
-          <col className="w-[7rem]" />
-          <col className="w-[14rem]" />
-          <col className="w-[7rem]" />
+          <col className="w-23" />
+          <col className="w-28" />
+          <col className="w-28" />
+          <col className="w-28" />
+          <col className="w-56" />
+          <col className="w-28" />
         </colgroup>
         <thead className="bg-muted/60">
           {table.getHeaderGroups().map((headerGroup) => (

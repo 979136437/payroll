@@ -279,6 +279,7 @@ fn write_roster_sheet(
   let title_format = title_cell_format(16.0);
   let info_format = info_cell_format();
   let cell_format = body_cell_format();
+  let native_place_format = native_place_cell_format();
   let header_format = header_cell_format();
 
   worksheet
@@ -326,10 +327,21 @@ fn write_roster_sheet(
     ];
 
     for (column_index, value) in values.iter().enumerate() {
+      let format = if column_index == 3 {
+        &native_place_format
+      } else {
+        &cell_format
+      };
       worksheet
-        .write_with_format(excel_row, (column_index + 1) as u16, value, &cell_format)
+        .write_with_format(excel_row, (column_index + 1) as u16, value, format)
         .map_err(|error| format!("写入花名册数据失败: {error}"))?;
     }
+
+    let native_place_text = value_or_empty(&row.native_place);
+    let lines = estimate_text_lines(&native_place_text, 28.0);
+    worksheet
+      .set_row_height(excel_row, roster_row_height(lines))
+      .map_err(|error| format!("设置花名册行高失败: {error}"))?;
   }
 
   apply_roster_layout(worksheet).map_err(|error| format!("设置花名册样式失败: {error}"))?;
@@ -630,6 +642,29 @@ fn info_cell_format() -> Format {
 
 fn body_cell_format() -> Format {
   base_cell_format()
+}
+
+fn native_place_cell_format() -> Format {
+  body_cell_format().set_text_wrap()
+}
+
+fn estimate_text_lines(text: &str, column_width: f64) -> u32 {
+  if text.is_empty() {
+    return 1;
+  }
+  let padding = 2.5;
+  let usable_width = (column_width - padding).max(1.0);
+  let text_width: f64 = text
+    .chars()
+    .map(|c| if c.is_ascii() { 1.0 } else { 2.0 })
+    .sum();
+  (text_width / usable_width).ceil().max(1.0) as u32
+}
+
+fn roster_row_height(lines: u32) -> f64 {
+  let base = 22.0;
+  let line_height = 14.0;
+  base + (lines.saturating_sub(1) as f64) * line_height
 }
 
 fn total_label_cell_format() -> Format {

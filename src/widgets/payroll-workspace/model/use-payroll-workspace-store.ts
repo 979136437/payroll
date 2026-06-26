@@ -38,6 +38,7 @@ type PayrollWorkspaceStore = {
   isUpdatingPersonnel: boolean
   notice: string | null
   pendingAddNetPayDraft: string
+  perPersonNetPayDrafts: Record<number, string>
   pendingAddPersonnelIds: number[]
   pendingSelectionIds: number[]
   personnel: Personnel[]
@@ -74,6 +75,7 @@ type PayrollWorkspaceStore = {
   setPendingAddNetPayDraft: (value: string) => void
   setPersonnelDialogOpen: (open: boolean) => void
   setPersonnelEditDialogOpen: (open: boolean) => void
+  setPerPersonNetPayDraft: (personnelId: number, value: string) => void
   setPersonnelPickerQuery: (value: string) => void
   setPickerCreatePersonnelDialogOpen: (open: boolean) => void
   showOverview: () => void
@@ -189,6 +191,7 @@ function buildResetPickerState() {
   return {
     isPickerCreatePersonnelDialogOpen: false,
     pendingAddNetPayDraft: "",
+    perPersonNetPayDrafts: {},
     pendingAddPersonnelIds: [],
     pendingSelectionIds: [],
     personnelPickerQuery: "",
@@ -217,6 +220,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   isUpdatingPersonnel: false,
   notice: null,
   pendingAddNetPayDraft: "",
+  perPersonNetPayDrafts: {},
   pendingAddPersonnelIds: [],
   pendingSelectionIds: [],
   personnel: [],
@@ -398,6 +402,15 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
 
   setPendingAddNetPayDraft(value) {
     set({ pendingAddNetPayDraft: value })
+  },
+
+  setPerPersonNetPayDraft(personnelId, value) {
+    set((state) => ({
+      perPersonNetPayDrafts: {
+        ...state.perPersonNetPayDrafts,
+        [personnelId]: value,
+      },
+    }))
   },
 
   setPersonnelPickerQuery(value) {
@@ -813,6 +826,7 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
   async submitPendingPersonnelToSheet() {
     const {
       pendingAddNetPayDraft,
+      perPersonNetPayDrafts,
       pendingAddPersonnelIds,
       pickerSelection,
       selectedSheetId,
@@ -840,50 +854,13 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
       return
     }
 
-    if (trimmedDraft) {
-      const parsed = Number(trimmedDraft)
+    const unifiedWage = trimmedDraft ? Number(trimmedDraft) : null
 
-      if (Number.isNaN(parsed)) {
-        set({
-          errorMessage: "请输入有效的工资金额",
-          notice: null,
-        })
-        return
-      }
-
+    if (unifiedWage !== null && Number.isNaN(unifiedWage)) {
       set({
-        errorMessage: null,
-        isAddingPersonnel: true,
+        errorMessage: "请输入有效的工资金额",
         notice: null,
       })
-
-      try {
-        const detail = await payrollWorkspaceApi.addPersonnelToSheetWithNetPay(
-          selectedSheetId,
-          normalizedIds,
-          parsed,
-        )
-
-        set({
-          isPersonnelDialogOpen: false,
-          notice: "人员已加入当前工资表并设置统一工资",
-          exportWeightDrafts: buildExportWeightDrafts(detail.records),
-          salaryDrafts: buildSalaryDrafts(detail.records),
-          sheetDetail: detail,
-          sheets: get().sheets.map((sheet) =>
-            sheet.id === detail.sheet.id ? detail.sheet : sheet,
-          ),
-          ...buildResetPickerState(),
-        })
-      } catch (error) {
-        set({
-          errorMessage: readableError(error, "添加人员失败"),
-          notice: null,
-        })
-      } finally {
-        set({ isAddingPersonnel: false })
-      }
-
       return
     }
 
@@ -894,12 +871,70 @@ export const usePayrollWorkspaceStore = create<PayrollWorkspaceStore>((set, get)
     })
 
     try {
-      await payrollWorkspaceApi.addPersonnelToSheet(selectedSheetId, normalizedIds)
-      await get().refreshWorkspace(selectedSheetId)
+      let detail: PayrollSheetDetail
+
+      if (unifiedWage !== null) {
+        detail = await payrollWorkspaceApi.addPersonnelToSheetWithNetPay(
+          selectedSheetId,
+          normalizedIds,
+          unifiedWage,
+        )
+      } else {
+        await payrollWorkspaceApi.addPersonnelToSheet(
+          selectedSheetId,
+          normalizedIds,
+        )
+        const freshDetail = await payrollWorkspaceApi.getPayrollSheetDetail(selectedSheetId)
+        if (!freshDetail) {
+          throw new Error("获取工资表详情失败")
+        }
+        detail = freshDetail
+      }
+
+      // Apply per-person wage overrides
+      const individualOverrideIds = normalizedIds.filter(
+        (id) => perPersonNetPayDrafts[id]?.trim(),
+      )
+      if (individualOverrideIds.length > 0) {
+        const newRecords = detail.records.filter((r) =>
+          normalizedIds.includes(r.personnelId),
+        )
+        for (const record of newRecords) {
+          const draft = perPersonNetPayDrafts[record.personnelId]?.trim()
+          if (draft) {
+            const parsed = Number(draft)
+            if (!Number.isNaN(parsed) && parsed !== record.netPay) {
+              const updated = await payrollWorkspaceApi.updatePayrollRecordNetPay(
+                record.recordId,
+                parsed,
+              )
+              if (updated) {
+                detail = {
+                  ...detail,
+                  records: detail.records.map((r) =>
+                    r.recordId === record.recordId ? updated : r,
+                  ),
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const notice =
+        unifiedWage !== null || individualOverrideIds.length > 0
+          ? "人员已加入当前工资表并设置工资"
+          : "人员已加入当前工资表"
 
       set({
         isPersonnelDialogOpen: false,
-        notice: "人员已加入当前工资表",
+        notice,
+        exportWeightDrafts: buildExportWeightDrafts(detail.records),
+        salaryDrafts: buildSalaryDrafts(detail.records),
+        sheetDetail: detail,
+        sheets: get().sheets.map((sheet) =>
+          sheet.id === detail.sheet.id ? detail.sheet : sheet,
+        ),
         ...buildResetPickerState(),
       })
     } catch (error) {

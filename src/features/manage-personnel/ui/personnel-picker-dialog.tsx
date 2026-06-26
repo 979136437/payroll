@@ -16,11 +16,13 @@ type PersonnelPickerDialogProps = {
   onRemovePendingPersonnel: (personnelId: number) => void
   onRemoveSelectedPendingPersonnel: () => void
   onSetNetPayDraft: (value: string) => void
+  onSetPersonNetPayDraft: (personnelId: number, value: string) => void
   onSetQuery: (value: string) => void
   onSubmit: () => Promise<void>
   onTogglePendingSelection: (personnelId: number) => void
   open: boolean
   pendingAddNetPayDraft: string
+  perPersonNetPayDrafts: Record<number, string>
   pendingPersonnel: Personnel[]
   pendingSelectionIds: number[]
   query: string
@@ -52,11 +54,13 @@ export const PersonnelPickerDialog = memo(function PersonnelPickerDialog({
   onRemovePendingPersonnel,
   onRemoveSelectedPendingPersonnel,
   onSetNetPayDraft,
+  onSetPersonNetPayDraft,
   onSetQuery,
   onSubmit,
   onTogglePendingSelection,
   open,
   pendingAddNetPayDraft,
+  perPersonNetPayDrafts,
   pendingPersonnel,
   pendingSelectionIds,
   query,
@@ -71,7 +75,7 @@ export const PersonnelPickerDialog = memo(function PersonnelPickerDialog({
       description="先从右侧挑人加入本次添加清单，再统一加入当前工资表。"
       wide
     >
-      <div className="grid gap-6 lg:h-[min(40rem,calc(100vh-14rem))] lg:grid-cols-[0.98fr_1.02fr]">
+      <div className="grid gap-6 md:h-[min(40rem,calc(100vh-14rem))] md:grid-cols-[0.98fr_1.02fr]">
         <section className="flex min-h-0 flex-col gap-4 rounded-xl border border-border/70 bg-card p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
@@ -122,54 +126,79 @@ export const PersonnelPickerDialog = memo(function PersonnelPickerDialog({
                     <label
                       key={person.id}
                       className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-3 transition hover:border-primary/30 hover:bg-accent/30 hover:shadow-sm",
+                        "flex cursor-pointer flex-col gap-2 rounded-lg border border-border bg-background px-3 py-3 transition hover:border-primary/30 hover:bg-accent/30 hover:shadow-sm",
                         isBusy && "cursor-not-allowed",
                       )}
                     >
-                      <span className="flex shrink-0 items-center">
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          disabled={isBusy}
-                          onChange={() => onTogglePendingSelection(person.id)}
-                          className="peer sr-only"
-                        />
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            "flex size-4 items-center justify-center rounded-[4px] border bg-background text-transparent shadow-sm transition",
-                            selected
-                              ? "border-foreground bg-foreground text-background"
-                              : "border-input",
-                            isBusy
-                              ? "opacity-60"
-                              : "peer-focus-visible:border-ring peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30",
-                          )}
-                        >
-                          <Check className="size-3" strokeWidth={3} />
+                      <div className="flex items-center gap-3">
+                        <span className="flex shrink-0 items-center">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={isBusy}
+                            onChange={() => onTogglePendingSelection(person.id)}
+                            className="peer sr-only"
+                          />
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "flex size-4 items-center justify-center rounded-[4px] border bg-background text-transparent shadow-sm transition",
+                              selected
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-input",
+                              isBusy
+                                ? "opacity-60"
+                                : "peer-focus-visible:border-ring peer-focus-visible:ring-2 peer-focus-visible:ring-ring/30",
+                            )}
+                          >
+                            <Check className="size-3" strokeWidth={3} />
+                          </span>
                         </span>
-                      </span>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {person.name}
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {person.name}
+                          </p>
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={isBusy}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            onRemovePendingPersonnel(person.id)
+                          }}
+                          aria-label={`移除 ${person.name}`}
+                        >
+                          <X className="size-4" />
+                        </Button>
                       </div>
 
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        disabled={isBusy}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          onRemovePendingPersonnel(person.id)
-                        }}
-                        aria-label={`移除 ${person.name}`}
+                      <div
+                        className="flex items-center gap-2"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
                       >
-                        <X className="size-4" />
-                      </Button>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          实发工资
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="1"
+                          min="0"
+                          value={perPersonNetPayDrafts[person.id] ?? ""}
+                          onChange={(event) =>
+                            onSetPersonNetPayDraft(person.id, event.target.value)
+                          }
+                          disabled={isBusy}
+                          placeholder="可留空"
+                          className="h-7 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                        />
+                      </div>
                     </label>
                   )
                 })

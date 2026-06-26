@@ -92,11 +92,13 @@ export function PayrollWorkspaceDialogs() {
     isPersonnelEditDialogOpen,
     isPickerCreatePersonnelDialogOpen,
     pendingAddNetPayDraft,
+    perPersonNetPayDrafts,
     pendingAddPersonnelIds,
     pendingSelectionIds,
     personnel,
     personnelPickerQuery,
     selectedSheetId,
+    setPerPersonNetPayDraft,
     sheetDetail,
     sheets,
   } = usePayrollWorkspaceStore(
@@ -107,11 +109,13 @@ export function PayrollWorkspaceDialogs() {
       isPersonnelEditDialogOpen: state.isPersonnelEditDialogOpen,
       isPickerCreatePersonnelDialogOpen: state.isPickerCreatePersonnelDialogOpen,
       pendingAddNetPayDraft: state.pendingAddNetPayDraft,
+      perPersonNetPayDrafts: state.perPersonNetPayDrafts,
       pendingAddPersonnelIds: state.pendingAddPersonnelIds,
       pendingSelectionIds: state.pendingSelectionIds,
       personnel: state.personnel,
       personnelPickerQuery: state.personnelPickerQuery,
       selectedSheetId: state.selectedSheetId,
+      setPerPersonNetPayDraft: state.setPerPersonNetPayDraft,
       sheetDetail: state.sheetDetail,
       sheets: state.sheets,
     })),
@@ -208,11 +212,13 @@ export function PayrollWorkspaceDialogs() {
             onRemovePendingPersonnel={removePendingPersonnel}
             onRemoveSelectedPendingPersonnel={removeSelectedPendingPersonnel}
             onSetNetPayDraft={setPendingAddNetPayDraft}
+            onSetPersonNetPayDraft={setPerPersonNetPayDraft}
             onSetQuery={setPersonnelPickerQuery}
             onSubmit={submitPendingPersonnelToSheet}
             onTogglePendingSelection={togglePendingSelection}
             open={isPersonnelDialogOpen}
             pendingAddNetPayDraft={pendingAddNetPayDraft}
+            perPersonNetPayDrafts={perPersonNetPayDrafts}
             pendingPersonnel={pendingPersonnel}
             pendingSelectionIds={pendingSelectionIds}
             query={personnelPickerQuery}

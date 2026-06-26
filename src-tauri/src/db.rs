@@ -551,7 +551,7 @@ pub fn get_payroll_sheet_detail(
      FROM payroll_record pr
      INNER JOIN personnel p ON p.id = pr.personnel_id
      WHERE pr.payroll_sheet_id = ?1
-     ORDER BY p.sort_index ASC, p.id ASC, pr.id ASC",
+     ORDER BY pr.id ASC",
   )?;
 
   let records = stmt
@@ -630,10 +630,12 @@ pub fn add_personnel_to_sheet_with_net_pay(
   personnel_ids: &[i64],
   net_pay: f64,
 ) -> Result<Option<PayrollSheetDetail>> {
-  let unique_personnel_ids = personnel_ids
+  let mut seen = std::collections::HashSet::new();
+  let unique_personnel_ids: Vec<i64> = personnel_ids
     .iter()
     .copied()
-    .collect::<std::collections::BTreeSet<_>>();
+    .filter(|id| seen.insert(*id))
+    .collect();
   let tx = conn.transaction()?;
   let mut inserted_personnel_ids = Vec::new();
 

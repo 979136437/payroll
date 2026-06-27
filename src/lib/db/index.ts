@@ -1,0 +1,104 @@
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import * as schema from "./schema";
+import path from "path";
+import fs from "fs";
+
+let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+function getDbPath(): string {
+  const dataDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  return path.join(dataDir, "payroll.db");
+}
+
+function initializeSchema(db: Database.Database) {
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS personnel (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      sort_index INTEGER NOT NULL DEFAULT 0,
+      gender TEXT,
+      ethnicity TEXT,
+      native_place TEXT,
+      id_card_number TEXT UNIQUE,
+      payroll_card_number TEXT,
+      bank_name TEXT,
+      job_type TEXT,
+      start_date TEXT,
+      end_date TEXT,
+      phone_number TEXT,
+      remark TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS payroll_sheet (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS payroll_record (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payroll_sheet_id INTEGER NOT NULL,
+      personnel_id INTEGER NOT NULL,
+      export_weight INTEGER,
+      attendance_days REAL,
+      wage_standard REAL,
+      gross_pay REAL,
+      deduction_amount REAL,
+      net_pay REAL NOT NULL,
+      payee_signature TEXT,
+      remark TEXT,
+      updated_at TEXT NOT NULL,
+      UNIQUE(payroll_sheet_id, personnel_id),
+      FOREIGN KEY(payroll_sheet_id) REFERENCES payroll_sheet(id),
+      FOREIGN KEY(personnel_id) REFERENCES personnel(id)
+    );
+  `);
+
+  const columns = db
+    .prepare("PRAGMA table_info(personnel)")
+    .all() as { name: string }[];
+  const hasSortIndex = columns.some((c) => c.name === "sort_index");
+  if (!hasSortIndex) {
+    db.exec(
+      "ALTER TABLE personnel ADD COLUMN sort_index INTEGER NOT NULL DEFAULT 0"
+    );
+  }
+
+  const prColumns = db
+    .prepare("PRAGMA table_info(payroll_record)")
+    .all() as { name: string }[];
+  const hasExportWeight = prColumns.some((c) => c.name === "export_weight");
+  if (!hasExportWeight) {
+    db.exec("ALTER TABLE payroll_record ADD COLUMN export_weight INTEGER");
+  }
+}
+
+export function getDb() {
+  if (!dbInstance) {
+    const dbPath = getDbPath();
+    const sqlite = new Database(dbPath);
+    initializeSchema(sqlite);
+    dbInstance = drizzle(sqlite, { schema });
+  }
+  return dbInstance;
+}
+
+export function currentTimestamp(): string {
+  return Math.floor(Date.now() / 1000).toString();
+}
+
+export function normalizeOptionalString(
+  value: string | null | undefined
+): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}

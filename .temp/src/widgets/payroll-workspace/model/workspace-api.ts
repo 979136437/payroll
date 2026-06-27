@@ -1,0 +1,43 @@
+import {
+  exportPersonnelExcel,
+  pickExcelExportPath,
+  createPersonnel,
+  deletePersonnel,
+  listPersonnel,
+  pickPersonnelImportFile,
+  importPersonnelExcel,
+  updatePersonnel,
+} from "@/entities/personnel/api/personnel"
+import {
+  addPersonnelToSheet,
+  addPersonnelToSheetWithNetPay,
+  createPayrollSheet,
+  deletePayrollSheet,
+  exportPayrollSheetExcel,
+  getPayrollSheetDetail,
+  listPayrollSheets,
+  removePersonnelFromSheet,
+  updatePayrollRecordExportWeight,
+  updatePayrollRecordNetPay,
+} from "@/entities/payroll-sheet/api/payroll-sheet"
+
+export const payrollWorkspaceApi = {
+  addPersonnelToSheet,
+  addPersonnelToSheetWithNetPay,
+  createPayrollSheet,
+  createPersonnel,
+  deletePersonnel,
+  deletePayrollSheet,
+  exportPayrollSheetExcel,
+  exportPersonnelExcel,
+  getPayrollSheetDetail,
+  importPersonnelExcel,
+  listPayrollSheets,
+  listPersonnel,
+  pickExcelExportPath,
+  pickPersonnelImportFile,
+  removePersonnelFromSheet,
+  updatePayrollRecordExportWeight,
+  updatePayrollRecordNetPay,
+  updatePersonnel,
+}

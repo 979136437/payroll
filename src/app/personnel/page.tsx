@@ -293,7 +293,7 @@ export default function PersonnelPage() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="w-12"></TableHead>
-                  <TableHead className="w-12">
+                  <TableHead>
                     <Checkbox
                       checked={
                         pagedPersonnel.length > 0 &&
@@ -318,12 +318,12 @@ export default function PersonnelPage() {
                     />
                   </TableHead>
                   <TableHead>姓名</TableHead>
-                  <TableHead className="w-16">性别</TableHead>
+                  <TableHead>性别</TableHead>
                   <TableHead>民族</TableHead>
                   <TableHead>联系电话</TableHead>
                   <TableHead>身份证号码</TableHead>
                   <TableHead>工资卡号</TableHead>
-                  <TableHead className="w-24 sticky right-0 bg-muted z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">操作</TableHead>
+                  <TableHead className="sticky right-0 bg-muted z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -353,11 +353,10 @@ export default function PersonnelPage() {
                       onDrop={() =>
                         handleDrop(safePageIndex * pageSize + index)
                       }
-                      className={`group ${
-                        draggedIndex === safePageIndex * pageSize + index
+                      className={`group ${draggedIndex === safePageIndex * pageSize + index
                           ? "opacity-50"
                           : ""
-                      }`}
+                        }`}
                     >
                       <TableCell>
                         <GripVertical className="size-4 text-muted-foreground cursor-grab" />

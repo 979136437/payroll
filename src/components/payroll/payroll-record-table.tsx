@@ -153,14 +153,14 @@ export function PayrollRecordTable({
                   aria-label="全选"
                 />
               </TableHead>
-              <TableHead className="w-16">序号</TableHead>
+              <TableHead>序号</TableHead>
               <TableHead>姓名</TableHead>
               <TableHead>联系电话</TableHead>
               <TableHead>身份证号</TableHead>
               <TableHead>银行卡号</TableHead>
               <TableHead>账户银行</TableHead>
-              <TableHead className="text-right">实发金额</TableHead>
-              <TableHead className="w-20 sticky right-0 bg-muted z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">操作</TableHead>
+              <TableHead>实发金额</TableHead>
+              <TableHead className="sticky right-0 bg-muted z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -199,7 +199,7 @@ export function PayrollRecordTable({
                   <TableCell className="text-sm truncate" title={record.bankName || ""}>
                     {record.bankName || "-"}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>
                     {editingId === record.recordId && editingField === "netPay" ? (
                       <div className="flex items-center gap-1 justify-end">
                         <Input
@@ -209,7 +209,7 @@ export function PayrollRecordTable({
                           onChange={(e) => setEditValue(e.target.value)}
                           onKeyDown={handleKeyDown}
                           disabled={saving}
-                          className="w-24 text-right h-8"
+                          className="w-24 h-8"
                           autoFocus
                         />
                         <Button

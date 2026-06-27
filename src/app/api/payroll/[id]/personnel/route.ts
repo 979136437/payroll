@@ -11,18 +11,21 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { personnelIds } = body;
+    const { personnelIds, defaultNetPay, perPersonNetPay } = body;
     if (!Array.isArray(personnelIds)) {
       return NextResponse.json(
         { error: "personnelIds 必须是数组" },
         { status: 400 }
       );
     }
-    await addPersonnelToSheet(Number(id), personnelIds);
+    await addPersonnelToSheet(Number(id), personnelIds, {
+      defaultNetPay: defaultNetPay != null ? Number(defaultNetPay) : undefined,
+      perPersonNetPay: perPersonNetPay || undefined,
+    });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "添加工员失败" },
+      { error: error.message || "添加人员失败" },
       { status: 500 }
     );
   }

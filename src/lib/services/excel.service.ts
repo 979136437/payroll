@@ -1,6 +1,7 @@
 "use server";
 
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { getDb, currentTimestamp, normalizeOptionalString } from "@/lib/db";
 import { personnel, payrollSheet, payrollRecord } from "@/lib/db/schema";
 import { eq, asc, inArray } from "drizzle-orm";
@@ -20,6 +21,116 @@ const ROSTER_HEADERS = [
   "联系电话",
   "备注",
 ];
+
+const PAYROLL_HEADERS = [
+  "姓名",
+  "身份证号",
+  "银行卡号",
+  "账户银行",
+  "出勤\n天数",
+  "工资标\n准",
+  "应发工\n资",
+  "应扣减\n金额",
+  "实发\n金额",
+  "领款人\n签字",
+  "备注",
+];
+
+function getCurrentMonthLabel(): string {
+  const now = new Date();
+  return `${now.getFullYear()}年${now.getMonth() + 1}月`;
+}
+
+function valueOrEmpty(value: string | null | undefined): string {
+  return value ?? "";
+}
+
+function formatDecimal(value: number): string {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(2);
+}
+
+function createBaseCellStyles(): Partial<ExcelJS.Style> {
+  return {
+    border: {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    },
+    alignment: {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: false,
+    },
+    font: {
+      size: 11,
+    },
+  };
+}
+
+function createHeaderCellStyle(): Partial<ExcelJS.Style> {
+  const base = createBaseCellStyles();
+  return {
+    ...base,
+    font: {
+      ...base.font,
+      bold: true,
+      color: { argb: "FF000000" },
+    },
+  };
+}
+
+function createWrappedHeaderCellStyle(): Partial<ExcelJS.Style> {
+  const header = createHeaderCellStyle();
+  return {
+    ...header,
+    alignment: {
+      ...header.alignment,
+      wrapText: true,
+    },
+  };
+}
+
+function createTitleCellStyle(fontSize: number): Partial<ExcelJS.Style> {
+  const base = createBaseCellStyles();
+  return {
+    ...base,
+    font: {
+      ...base.font,
+      bold: true,
+      size: fontSize,
+    },
+  };
+}
+
+function createBodyCellStyle(): Partial<ExcelJS.Style> {
+  return createBaseCellStyles();
+}
+
+function createNativePlaceCellStyle(): Partial<ExcelJS.Style> {
+  const base = createBaseCellStyles();
+  return {
+    ...base,
+    alignment: {
+      ...base.alignment,
+      wrapText: true,
+    },
+  };
+}
+
+function createTotalLabelCellStyle(): Partial<ExcelJS.Style> {
+  const base = createBodyCellStyle();
+  return {
+    ...base,
+    font: {
+      ...base.font,
+      bold: true,
+    },
+  };
+}
 
 function detectRosterHeader(rows: any[][]): { rowIndex: number; colOffset: number } | null {
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -231,54 +342,87 @@ export async function exportPersonnelExcel(): Promise<Buffer> {
     .from(personnel)
     .orderBy(asc(personnel.sortIndex), asc(personnel.id));
 
-  const data: any[][] = [];
-  data.push(["农民工花名册"]);
-  data.push(["编制单位", "", "", "", "", "", "", "", "", "", "", "", ""]);
-  data.push([
-    "序号",
-    ...ROSTER_HEADERS,
-  ]);
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("花名册");
 
-  rows.forEach((p, idx) => {
-    data.push([
-      idx + 1,
-      p.name,
-      p.gender ?? "",
-      p.ethnicity ?? "",
-      p.nativePlace ?? "",
-      p.idCardNumber ?? "",
-      p.payrollCardNumber ?? "",
-      p.bankName ?? "",
-      p.jobType ?? "",
-      p.startDate ?? "",
-      p.endDate ?? "",
-      p.phoneNumber ?? "",
-      p.remark ?? "",
-    ]);
+  const titleFormat = createTitleCellStyle(16);
+  const infoFormat = createBaseCellStyles();
+  const cellFormat = createBodyCellStyle();
+  const nativePlaceFormat = createNativePlaceCellStyle();
+  const headerFormat = createHeaderCellStyle();
+
+  worksheet.mergeCells("A1:M1");
+  const titleCell = worksheet.getCell("A1");
+  titleCell.value = "农民工花名册";
+  Object.assign(titleCell, { style: titleFormat });
+
+  worksheet.mergeCells("A2:D2");
+  const unitLabelCell = worksheet.getCell("A2");
+  unitLabelCell.value = "编制单位";
+  Object.assign(unitLabelCell, { style: infoFormat });
+
+  worksheet.mergeCells("E2:F2");
+  const monthCell = worksheet.getCell("E2");
+  monthCell.value = getCurrentMonthLabel();
+  Object.assign(monthCell, { style: infoFormat });
+
+  worksheet.mergeCells("G2:M2");
+  const blankCell2 = worksheet.getCell("G2");
+  Object.assign(blankCell2, { style: infoFormat });
+
+  const headerRowNum = 3;
+  worksheet.getRow(headerRowNum).getCell(1).value = "序号";
+  Object.assign(
+    worksheet.getRow(headerRowNum).getCell(1),
+    { style: headerFormat }
+  );
+  ROSTER_HEADERS.forEach((header, idx) => {
+    const cell = worksheet.getRow(headerRowNum).getCell(idx + 2);
+    cell.value = header;
+    Object.assign(cell, { style: headerFormat });
   });
 
-  const worksheet = XLSX.utils.aoa_to_sheet(data);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "花名册");
+  rows.forEach((p, idx) => {
+    const rowNum = idx + 4;
+    const row = worksheet.getRow(rowNum);
 
-  const colWidths = [
-    { wch: 6 },
-    { wch: 10 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 28 },
-    { wch: 22 },
-    { wch: 22 },
-    { wch: 24 },
-    { wch: 10 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 10 },
-  ];
-  worksheet["!cols"] = colWidths;
+    row.getCell(1).value = idx + 1;
+    Object.assign(row.getCell(1), { style: cellFormat });
 
-  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const values = [
+      p.name,
+      valueOrEmpty(p.gender),
+      valueOrEmpty(p.ethnicity),
+      valueOrEmpty(p.nativePlace),
+      valueOrEmpty(p.idCardNumber),
+      valueOrEmpty(p.payrollCardNumber),
+      valueOrEmpty(p.bankName),
+      valueOrEmpty(p.jobType),
+      valueOrEmpty(p.startDate),
+      valueOrEmpty(p.endDate),
+      valueOrEmpty(p.phoneNumber),
+      valueOrEmpty(p.remark),
+    ];
+
+    values.forEach((value, colIdx) => {
+      const cell = row.getCell(colIdx + 2);
+      cell.value = value;
+      const style = colIdx === 3 ? nativePlaceFormat : cellFormat;
+      Object.assign(cell, { style });
+    });
+  });
+
+  worksheet.getRow(1).height = 28;
+  worksheet.getRow(2).height = 24;
+  worksheet.getRow(3).height = 24;
+
+  const colWidths = [6, 10, 8, 8, 28, 22, 22, 24, 10, 12, 12, 14, 10];
+  colWidths.forEach((width, idx) => {
+    worksheet.getColumn(idx + 1).width = width;
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }
 
 export async function exportPayrollSheetExcel(sheetId: number): Promise<Buffer> {
@@ -300,15 +444,22 @@ export async function exportPayrollSheetExcel(sheetId: number): Promise<Buffer> 
       idCardNumber: personnel.idCardNumber,
       payrollCardNumber: personnel.payrollCardNumber,
       bankName: personnel.bankName,
+      jobType: personnel.jobType,
+      gender: personnel.gender,
+      ethnicity: personnel.ethnicity,
+      nativePlace: personnel.nativePlace,
+      startDate: personnel.startDate,
+      endDate: personnel.endDate,
+      phoneNumber: personnel.phoneNumber,
+      remark: personnel.remark,
       exportWeight: payrollRecord.exportWeight,
       attendanceDays: payrollRecord.attendanceDays,
       wageStandard: payrollRecord.wageStandard,
       grossPay: payrollRecord.grossPay,
       deductionAmount: payrollRecord.deductionAmount,
-      phoneNumber: personnel.phoneNumber,
       netPay: payrollRecord.netPay,
       payeeSignature: payrollRecord.payeeSignature,
-      remark: payrollRecord.remark,
+      payrollRemark: payrollRecord.remark,
     })
     .from(payrollRecord)
     .innerJoin(personnel, eq(personnel.id, payrollRecord.personnelId))
@@ -328,148 +479,267 @@ export async function exportPayrollSheetExcel(sheetId: number): Promise<Buffer> 
     return a.recordId - b.recordId;
   });
 
-  const personnelIds = sortedRecords.map((r) => r.personnelId);
-  const personnelList = await db
-    .select()
-    .from(personnel)
-    .where(inArray(personnel.id, personnelIds));
+  const workbook = new ExcelJS.Workbook();
 
-  const personnelMap = new Map(personnelList.map((p) => [p.id, p]));
-  const sortedPersonnel = sortedRecords
-    .map((r) => personnelMap.get(r.personnelId))
-    .filter((p): p is any => p != null);
+  writeRosterSheet(workbook, sortedRecords);
+  writePayrollSheet(workbook, sortedRecords);
+  writeAttendanceSheet(workbook, sortedRecords);
 
-  const workbook = XLSX.utils.book_new();
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
 
-  const rosterData: any[][] = [];
-  rosterData.push(["农民工花名册"]);
-  rosterData.push(["编制单位", "", "", "", "", "", "", "", "", "", "", "", ""]);
-  rosterData.push(["序号", ...ROSTER_HEADERS]);
-  sortedPersonnel.forEach((p, idx) => {
-    rosterData.push([
-      idx + 1,
-      p.name,
-      p.gender ?? "",
-      p.ethnicity ?? "",
-      p.nativePlace ?? "",
-      p.idCardNumber ?? "",
-      p.payrollCardNumber ?? "",
-      p.bankName ?? "",
-      p.jobType ?? "",
-      p.startDate ?? "",
-      p.endDate ?? "",
-      p.phoneNumber ?? "",
-      p.remark ?? "",
-    ]);
+function writeRosterSheet(
+  workbook: ExcelJS.Workbook,
+  records: any[]
+) {
+  const worksheet = workbook.addWorksheet("花名册");
+
+  const titleFormat = createTitleCellStyle(16);
+  const infoFormat = createBaseCellStyles();
+  const cellFormat = createBodyCellStyle();
+  const nativePlaceFormat = createNativePlaceCellStyle();
+  const headerFormat = createHeaderCellStyle();
+
+  worksheet.mergeCells("A1:M1");
+  const titleCell = worksheet.getCell("A1");
+  titleCell.value = "农民工花名册";
+  Object.assign(titleCell, { style: titleFormat });
+
+  worksheet.mergeCells("A2:D2");
+  const unitLabelCell = worksheet.getCell("A2");
+  unitLabelCell.value = "编制单位";
+  Object.assign(unitLabelCell, { style: infoFormat });
+
+  worksheet.mergeCells("E2:F2");
+  const monthCell = worksheet.getCell("E2");
+  monthCell.value = getCurrentMonthLabel();
+  Object.assign(monthCell, { style: infoFormat });
+
+  worksheet.mergeCells("G2:M2");
+  const blankCell2 = worksheet.getCell("G2");
+  Object.assign(blankCell2, { style: infoFormat });
+
+  const headerRowNum = 3;
+  worksheet.getRow(headerRowNum).getCell(1).value = "序号";
+  Object.assign(
+    worksheet.getRow(headerRowNum).getCell(1),
+    { style: headerFormat }
+  );
+  ROSTER_HEADERS.forEach((header, idx) => {
+    const cell = worksheet.getRow(headerRowNum).getCell(idx + 2);
+    cell.value = header;
+    Object.assign(cell, { style: headerFormat });
   });
-  const rosterSheet = XLSX.utils.aoa_to_sheet(rosterData);
-  rosterSheet["!cols"] = [
-    { wch: 6 },
-    { wch: 10 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 28 },
-    { wch: 22 },
-    { wch: 22 },
-    { wch: 24 },
-    { wch: 10 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 10 },
-  ];
-  XLSX.utils.book_append_sheet(workbook, rosterSheet, "花名册");
 
-  const payrollHeaders = [
-    "姓名",
-    "身份证号",
-    "银行卡号",
-    "账户银行",
-    "出勤天数",
-    "工资标准",
-    "应发工资",
-    "应扣减金额",
-    "实发金额",
-    "领款人签字",
-    "备注",
-  ];
-  const payrollData: any[][] = [];
-  payrollData.push(["工资表"]);
-  payrollData.push(["单位名称", ...Array(10).fill("")]);
-  payrollData.push(["序号", ...payrollHeaders]);
+  records.forEach((r, idx) => {
+    const rowNum = idx + 4;
+    const row = worksheet.getRow(rowNum);
+
+    row.getCell(1).value = idx + 1;
+    Object.assign(row.getCell(1), { style: cellFormat });
+
+    const values = [
+      r.name,
+      valueOrEmpty(r.gender),
+      valueOrEmpty(r.ethnicity),
+      valueOrEmpty(r.nativePlace),
+      valueOrEmpty(r.idCardNumber),
+      valueOrEmpty(r.payrollCardNumber),
+      valueOrEmpty(r.bankName),
+      valueOrEmpty(r.jobType),
+      valueOrEmpty(r.startDate),
+      valueOrEmpty(r.endDate),
+      valueOrEmpty(r.phoneNumber),
+      valueOrEmpty(r.remark),
+    ];
+
+    values.forEach((value, colIdx) => {
+      const cell = row.getCell(colIdx + 2);
+      cell.value = value;
+      const style = colIdx === 3 ? nativePlaceFormat : cellFormat;
+      Object.assign(cell, { style });
+    });
+  });
+
+  worksheet.getRow(1).height = 28;
+  worksheet.getRow(2).height = 24;
+  worksheet.getRow(3).height = 24;
+
+  const colWidths = [6, 10, 8, 8, 28, 22, 22, 24, 10, 12, 12, 14, 10];
+  colWidths.forEach((width, idx) => {
+    worksheet.getColumn(idx + 1).width = width;
+  });
+}
+
+function writePayrollSheet(
+  workbook: ExcelJS.Workbook,
+  records: any[]
+) {
+  const worksheet = workbook.addWorksheet("工资表");
+
+  const titleFormat = createTitleCellStyle(18);
+  const infoFormat = createBaseCellStyles();
+  const cellFormat = createBodyCellStyle();
+  const headerFormat = createWrappedHeaderCellStyle();
+  const totalLabelFormat = createTotalLabelCellStyle();
+
+  worksheet.mergeCells("A1:L1");
+  const titleCell = worksheet.getCell("A1");
+  titleCell.value = "工资表";
+  Object.assign(titleCell, { style: titleFormat });
+
+  worksheet.mergeCells("A2:L2");
+  const unitLabelCell = worksheet.getCell("A2");
+  unitLabelCell.value = "单位名称";
+  Object.assign(unitLabelCell, { style: infoFormat });
+
+  const headerRowNum = 3;
+  worksheet.getRow(headerRowNum).getCell(1).value = "序号";
+  Object.assign(
+    worksheet.getRow(headerRowNum).getCell(1),
+    { style: headerFormat }
+  );
+  PAYROLL_HEADERS.forEach((header, idx) => {
+    const cell = worksheet.getRow(headerRowNum).getCell(idx + 2);
+    cell.value = header;
+    Object.assign(cell, { style: headerFormat });
+  });
 
   let totalNetPay = 0;
-  sortedRecords.forEach((r, idx) => {
-    payrollData.push([
-      idx + 1,
+  records.forEach((r, idx) => {
+    const rowNum = idx + 4;
+    const row = worksheet.getRow(rowNum);
+
+    row.getCell(1).value = idx + 1;
+    Object.assign(row.getCell(1), { style: cellFormat });
+
+    const values = [
       r.name,
-      r.idCardNumber ?? "",
-      r.payrollCardNumber ?? "",
-      r.bankName ?? "",
-      r.attendanceDays ?? "",
-      r.wageStandard ?? "",
-      r.grossPay ?? "",
-      r.deductionAmount ?? "",
+      valueOrEmpty(r.idCardNumber),
+      valueOrEmpty(r.payrollCardNumber),
+      valueOrEmpty(r.bankName),
+      r.attendanceDays != null ? String(r.attendanceDays) : "",
+      r.wageStandard != null ? formatDecimal(r.wageStandard) : "",
+      r.grossPay != null ? formatDecimal(r.grossPay) : "",
+      r.deductionAmount != null ? formatDecimal(r.deductionAmount) : "",
       formatDecimal(r.netPay),
-      r.payeeSignature ?? "",
-      r.remark ?? "",
-    ]);
+      valueOrEmpty(r.payeeSignature),
+      valueOrEmpty(r.payrollRemark),
+    ];
+
+    values.forEach((value, colIdx) => {
+      const cell = row.getCell(colIdx + 2);
+      cell.value = value;
+      Object.assign(cell, { style: cellFormat });
+    });
+
     totalNetPay += r.netPay;
   });
 
-  const totalRow = Array(8).fill("");
-  totalRow.push("合计");
-  totalRow.push(formatDecimal(totalNetPay));
-  totalRow.push("");
-  totalRow.push("");
-  payrollData.push(totalRow);
+  const totalRowNum = records.length + 4;
+  const totalRow = worksheet.getRow(totalRowNum);
+  for (let col = 1; col <= 9; col++) {
+    const cell = totalRow.getCell(col);
+    cell.value = "";
+    Object.assign(cell, { style: cellFormat });
+  }
 
-  const payrollSheetData = XLSX.utils.aoa_to_sheet(payrollData);
-  payrollSheetData["!cols"] = [
-    { wch: 6 },
-    { wch: 12 },
-    { wch: 24 },
-    { wch: 24 },
-    { wch: 22 },
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 8 },
-    { wch: 12 },
-    { wch: 10 },
-  ];
-  XLSX.utils.book_append_sheet(workbook, payrollSheetData, "工资表");
+  const totalLabelCell = totalRow.getCell(9);
+  totalLabelCell.value = "合计";
+  Object.assign(totalLabelCell, { style: totalLabelFormat });
 
-  const attendanceData: any[][] = [];
-  attendanceData.push(["农民工考勤表"]);
-  attendanceData.push(["编制单位", ...Array(12).fill(""), "", "", "", "", "", "", "", "", ""]);
-  const attendanceHeaders = ["序号", "姓名", "身份证号"];
-  for (let d = 1; d <= 31; d++) attendanceHeaders.push(String(d));
-  attendanceData.push(attendanceHeaders);
+  const totalValueCell = totalRow.getCell(10);
+  totalValueCell.value = formatDecimal(totalNetPay);
+  Object.assign(totalValueCell, { style: cellFormat });
 
-  sortedPersonnel.forEach((p, idx) => {
-    const row: any[] = [idx + 1, p.name, p.idCardNumber ?? ""];
-    for (let d = 0; d < 31; d++) row.push("");
-    attendanceData.push(row);
+  for (let col = 11; col <= 12; col++) {
+    const cell = totalRow.getCell(col);
+    cell.value = "";
+    Object.assign(cell, { style: cellFormat });
+  }
+
+  worksheet.getRow(1).height = 30;
+  worksheet.getRow(2).height = 24;
+  worksheet.getRow(3).height = 38;
+
+  const colWidths = [6, 12, 24, 24, 22, 10, 10, 10, 10, 8, 12, 10];
+  colWidths.forEach((width, idx) => {
+    worksheet.getColumn(idx + 1).width = width;
   });
-
-  const attendanceSheet = XLSX.utils.aoa_to_sheet(attendanceData);
-  const attendanceCols = [
-    { wch: 6 },
-    { wch: 10 },
-    { wch: 24 },
-  ];
-  for (let d = 0; d < 31; d++) attendanceCols.push({ wch: 4 });
-  attendanceSheet["!cols"] = attendanceCols;
-  XLSX.utils.book_append_sheet(workbook, attendanceSheet, "农民工考勤表");
-
-  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 }
 
-function formatDecimal(value: number): string {
-  if (Number.isInteger(value)) {
-    return String(value);
+function writeAttendanceSheet(
+  workbook: ExcelJS.Workbook,
+  records: any[]
+) {
+  const worksheet = workbook.addWorksheet("农民工考勤表");
+
+  const titleFormat = createTitleCellStyle(16);
+  const infoFormat = createBaseCellStyles();
+  const cellFormat = createBodyCellStyle();
+  const headerFormat = createHeaderCellStyle();
+
+  worksheet.mergeCells(1, 1, 1, 34);
+  const titleCell = worksheet.getCell(1, 1);
+  titleCell.value = "农民工考勤表";
+  Object.assign(titleCell, { style: titleFormat });
+
+  worksheet.mergeCells(2, 1, 2, 14);
+  const unitLabelCell = worksheet.getCell(2, 1);
+  unitLabelCell.value = "编制单位";
+  Object.assign(unitLabelCell, { style: infoFormat });
+
+  worksheet.mergeCells(2, 15, 2, 18);
+  const monthCell = worksheet.getCell(2, 15);
+  monthCell.value = getCurrentMonthLabel();
+  Object.assign(monthCell, { style: infoFormat });
+
+  worksheet.mergeCells(2, 19, 2, 34);
+  const blankCell = worksheet.getCell(2, 19);
+  Object.assign(blankCell, { style: infoFormat });
+
+  const headerRowNum = 3;
+  ["序号", "姓名", "身份证号"].forEach((header, idx) => {
+    const cell = worksheet.getRow(headerRowNum).getCell(idx + 1);
+    cell.value = header;
+    Object.assign(cell, { style: headerFormat });
+  });
+
+  for (let day = 1; day <= 31; day++) {
+    const cell = worksheet.getRow(headerRowNum).getCell(day + 3);
+    cell.value = String(day);
+    Object.assign(cell, { style: headerFormat });
   }
-  return value.toFixed(2);
+
+  records.forEach((r, idx) => {
+    const rowNum = idx + 4;
+    const row = worksheet.getRow(rowNum);
+
+    row.getCell(1).value = idx + 1;
+    Object.assign(row.getCell(1), { style: cellFormat });
+
+    row.getCell(2).value = r.name;
+    Object.assign(row.getCell(2), { style: cellFormat });
+
+    row.getCell(3).value = valueOrEmpty(r.idCardNumber);
+    Object.assign(row.getCell(3), { style: cellFormat });
+
+    for (let col = 4; col <= 34; col++) {
+      const cell = row.getCell(col);
+      cell.value = "";
+      Object.assign(cell, { style: cellFormat });
+    }
+  });
+
+  worksheet.getRow(1).height = 28;
+  worksheet.getRow(2).height = 24;
+  worksheet.getRow(3).height = 24;
+
+  worksheet.getColumn(1).width = 6;
+  worksheet.getColumn(2).width = 10;
+  worksheet.getColumn(3).width = 24;
+  for (let col = 4; col <= 34; col++) {
+    worksheet.getColumn(col).width = 4;
+  }
 }

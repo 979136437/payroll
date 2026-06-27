@@ -73,7 +73,7 @@ export async function createPersonnel(
         idCardNumber: normalizeOptionalString(input.idCardNumber),
         payrollCardNumber: normalizeOptionalString(input.payrollCardNumber),
         bankName: normalizeOptionalString(input.bankName),
-        jobType: normalizeOptionalString(input.jobType),
+        jobType: normalizeOptionalString(input.jobType) || "砌砖",
         startDate: normalizeOptionalString(input.startDate),
         endDate: normalizeOptionalString(input.endDate),
         phoneNumber: normalizeOptionalString(input.phoneNumber),

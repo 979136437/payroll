@@ -209,19 +209,24 @@ export async function deletePayrollSheet(
 
 export async function addPersonnelToSheet(
   sheetId: number,
-  personnelIds: number[]
+  personnelIds: number[],
+  options?: {
+    defaultNetPay?: number;
+    perPersonNetPay?: Record<number, number>;
+  }
 ): Promise<void> {
   const db = getDb();
   const now = currentTimestamp();
   const uniqueIds = Array.from(new Set(personnelIds));
 
   for (const pid of uniqueIds) {
+    const netPay = options?.perPersonNetPay?.[pid] ?? options?.defaultNetPay ?? 0;
     await db
       .insert(payrollRecord)
       .values({
         payrollSheetId: sheetId,
         personnelId: pid,
-        netPay: 0,
+        netPay,
         updatedAt: now,
       })
       .onConflictDoNothing();

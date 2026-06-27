@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Card,
   CardHeader,
@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PersonnelFormDialog } from "@/components/personnel/personnel-form-dialog";
+import { TablePaginationFooter } from "@/components/ui/table-pagination-footer";
 import { personnelApi } from "@/lib/api";
 import type { Personnel, CreatePersonnelInput } from "@/lib/types";
 import { toast } from "sonner";
@@ -39,7 +40,10 @@ import {
   Upload,
   Download,
   GripVertical,
+  Search,
 } from "lucide-react";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function PersonnelPage() {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
@@ -57,6 +61,9 @@ export default function PersonnelPage() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const dragOverIndex = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState("");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const loadPersonnel = async () => {
     setLoading(true);
@@ -129,14 +136,6 @@ export default function PersonnelPage() {
     setSelectedIds(newSelected);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === personnel.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(personnel.map((p) => p.id)));
-    }
-  };
-
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -158,6 +157,37 @@ export default function PersonnelPage() {
 
   const handleExport = () => {
     window.open(personnelApi.exportExcel(), "_blank");
+  };
+
+  const filteredPersonnel = useMemo(() => {
+    if (!search.trim()) return personnel;
+    const q = search.toLowerCase();
+    return personnel.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.idCardNumber?.toLowerCase().includes(q) ||
+        p.payrollCardNumber?.toLowerCase().includes(q) ||
+        p.phoneNumber?.includes(q)
+    );
+  }, [personnel, search]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredPersonnel.length / pageSize)
+  );
+  const safePageIndex = Math.min(pageIndex, totalPages - 1);
+  const pagedPersonnel = useMemo(() => {
+    const start = safePageIndex * pageSize;
+    return filteredPersonnel.slice(start, start + pageSize);
+  }, [filteredPersonnel, pageSize, safePageIndex]);
+
+  const handlePageIndexChange = (index: number) => {
+    setPageIndex(Math.max(0, index));
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageIndex(0);
+    setPageSize(size);
   };
 
   const handleDragStart = (index: number) => {
@@ -197,100 +227,137 @@ export default function PersonnelPage() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle>人员管理</CardTitle>
               <CardDescription>
                 共 {personnel.length} 名人员
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleExport}>
-                <Download className="size-4 mr-2" />
-                导出
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="size-4 mr-2" />
-                导入
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleImport}
-              />
-              {selectedIds.size > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    setDeleteTarget({ type: "batch" });
-                    setDeleteDialogOpen(true);
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPageIndex(0);
                   }}
-                >
-                  <Trash2 className="size-4 mr-2" />
-                  删除选中 ({selectedIds.size})
+                  placeholder="搜索姓名、身份证号、工资卡号、电话"
+                  className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-72"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleExport}>
+                  <Download className="size-4 mr-2" />
+                  导出
                 </Button>
-              )}
-              <Button onClick={handleAdd}>
-                <Plus className="size-4 mr-2" />
-                新增人员
-              </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="size-4 mr-2" />
+                  导入
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleImport}
+                />
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setDeleteTarget({ type: "batch" });
+                      setDeleteDialogOpen(true);
+                    }}
+                  >
+                    <Trash2 className="size-4 mr-2" />
+                    删除选中 ({selectedIds.size})
+                  </Button>
+                )}
+                <Button onClick={handleAdd}>
+                  <Plus className="size-4 mr-2" />
+                  新增人员
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-hidden">
+            <Table className="table-fixed">
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-muted/50">
                   <TableHead className="w-12"></TableHead>
                   <TableHead className="w-12">
                     <Checkbox
                       checked={
-                        personnel.length > 0 &&
-                        selectedIds.size === personnel.length
+                        pagedPersonnel.length > 0 &&
+                        pagedPersonnel.every((p) => selectedIds.has(p.id))
                       }
-                      onCheckedChange={toggleSelectAll}
-                      aria-label="全选"
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          const newSelected = new Set(selectedIds);
+                          pagedPersonnel.forEach((p) =>
+                            newSelected.add(p.id)
+                          );
+                          setSelectedIds(newSelected);
+                        } else {
+                          const newSelected = new Set(selectedIds);
+                          pagedPersonnel.forEach((p) =>
+                            newSelected.delete(p.id)
+                          );
+                          setSelectedIds(newSelected);
+                        }
+                      }}
+                      aria-label="全选当前页"
                     />
                   </TableHead>
                   <TableHead>姓名</TableHead>
-                  <TableHead>性别</TableHead>
-                  <TableHead>工种</TableHead>
+                  <TableHead className="w-16">性别</TableHead>
+                  <TableHead>民族</TableHead>
+                  <TableHead>联系电话</TableHead>
                   <TableHead>身份证号码</TableHead>
                   <TableHead>工资卡号</TableHead>
-                  <TableHead>联系电话</TableHead>
-                  <TableHead className="w-24">操作</TableHead>
+                  <TableHead className="w-24 sticky right-0 bg-muted z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       加载中...
                     </TableCell>
                   </TableRow>
-                ) : personnel.length === 0 ? (
+                ) : filteredPersonnel.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      暂无人员数据
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      {search ? "没有匹配的人员" : "暂无人员数据"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  personnel.map((p, index) => (
+                  pagedPersonnel.map((p, index) => (
                     <TableRow
                       key={p.id}
                       draggable
-                      onDragStart={() => handleDragStart(index)}
-                      onDragOver={(e) => handleDragOver(e, index)}
-                      onDrop={() => handleDrop(index)}
-                      className={
-                        draggedIndex === index ? "opacity-50" : ""
+                      onDragStart={() =>
+                        handleDragStart(safePageIndex * pageSize + index)
                       }
+                      onDragOver={(e) =>
+                        handleDragOver(e, safePageIndex * pageSize + index)
+                      }
+                      onDrop={() =>
+                        handleDrop(safePageIndex * pageSize + index)
+                      }
+                      className={`group ${
+                        draggedIndex === safePageIndex * pageSize + index
+                          ? "opacity-50"
+                          : ""
+                      }`}
                     >
                       <TableCell>
                         <GripVertical className="size-4 text-muted-foreground cursor-grab" />
@@ -302,19 +369,19 @@ export default function PersonnelPage() {
                           aria-label="选择"
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell className="font-medium truncate" title={p.name}>{p.name}</TableCell>
                       <TableCell>{p.gender || "-"}</TableCell>
-                      <TableCell>{p.jobType || "-"}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {p.idCardNumber || "-"}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {p.payrollCardNumber || "-"}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="truncate" title={p.ethnicity || ""}>{p.ethnicity || "-"}</TableCell>
+                      <TableCell className="font-mono text-sm truncate" title={p.phoneNumber || ""}>
                         {p.phoneNumber || "-"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono text-sm truncate" title={p.idCardNumber || ""}>
+                        {p.idCardNumber || "-"}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm truncate" title={p.payrollCardNumber || ""}>
+                        {p.payrollCardNumber || "-"}
+                      </TableCell>
+                      <TableCell className="sticky right-0 bg-background group-hover:bg-muted/50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                         <div className="flex gap-1">
                           <Button
                             variant="ghost"
@@ -340,6 +407,16 @@ export default function PersonnelPage() {
                 )}
               </TableBody>
             </Table>
+            {filteredPersonnel.length > 0 && (
+              <TablePaginationFooter
+                onPageIndexChange={handlePageIndexChange}
+                onPageSizeChange={handlePageSizeChange}
+                pageIndex={safePageIndex}
+                pageSize={pageSize}
+                totalCount={filteredPersonnel.length}
+                totalPages={totalPages}
+              />
+            )}
           </div>
         </CardContent>
       </Card>

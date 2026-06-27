@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Table,
   TableHeader,
@@ -12,11 +12,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { TablePaginationFooter } from "@/components/ui/table-pagination-footer";
 import type { PayrollSheetRecordRow } from "@/lib/types";
 import { payrollApi } from "@/lib/api";
 import { toast } from "sonner";
 import { Trash2, Edit3, Check, X } from "lucide-react";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 type Props = {
   records: PayrollSheetRecordRow[];
@@ -36,22 +38,38 @@ export function PayrollRecordTable({
   onRefresh,
 }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingField, setEditingField] = useState<"netPay" | "exportWeight" | null>(
-    null
-  );
+  const [editingField, setEditingField] = useState<"netPay" | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const totalNetPay = records.reduce((sum, r) => sum + r.netPay, 0);
 
+  const totalPages = Math.max(1, Math.ceil(records.length / pageSize));
+  const safePageIndex = Math.min(pageIndex, totalPages - 1);
+
+  const pagedRecords = useMemo(() => {
+    const start = safePageIndex * pageSize;
+    return records.slice(start, start + pageSize);
+  }, [records, pageSize, safePageIndex]);
+
+  const handlePageIndexChange = (index: number) => {
+    setPageIndex(Math.max(0, index));
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageIndex(0);
+    setPageSize(size);
+  };
+
   const startEdit = (
     record: PayrollSheetRecordRow,
-    field: "netPay" | "exportWeight"
+    field: "netPay"
   ) => {
     setEditingId(record.recordId);
     setEditingField(field);
-    const value = field === "netPay" ? record.netPay : record.exportWeight;
-    setEditValue(value != null ? String(value) : "");
+    setEditValue(String(record.netPay));
   };
 
   const cancelEdit = () => {
@@ -71,13 +89,6 @@ export function PayrollRecordTable({
           return;
         }
         await payrollApi.updateNetPay(editingId, value);
-      } else if (editingField === "exportWeight") {
-        const value = editValue.trim() === "" ? null : parseInt(editValue);
-        if (editValue.trim() !== "" && isNaN(value as number)) {
-          toast.error("请输入有效的序号");
-          return;
-        }
-        await payrollApi.updateExportWeight(editingId, value as number | null);
       }
       toast.success("保存成功");
       onRefresh();
@@ -128,10 +139,10 @@ export function PayrollRecordTable({
           </Button>
         )}
       </div>
-      <div className="rounded-md border overflow-x-auto">
-        <Table>
+      <div className="rounded-md border overflow-hidden">
+        <Table className="table-fixed">
           <TableHeader>
-            <TableRow>
+            <TableRow className="bg-muted/50">
               <TableHead className="w-12">
                 <Checkbox
                   checked={
@@ -144,28 +155,27 @@ export function PayrollRecordTable({
               </TableHead>
               <TableHead className="w-16">序号</TableHead>
               <TableHead>姓名</TableHead>
+              <TableHead>联系电话</TableHead>
               <TableHead>身份证号</TableHead>
               <TableHead>银行卡号</TableHead>
               <TableHead>账户银行</TableHead>
-              <TableHead className="w-28 text-right">实发金额</TableHead>
-              <TableHead className="w-24 text-center">导出序号</TableHead>
-              <TableHead>联系电话</TableHead>
-              <TableHead className="w-20">操作</TableHead>
+              <TableHead className="text-right">实发金额</TableHead>
+              <TableHead className="w-20 sticky right-0 bg-muted z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {records.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={10}
+                  colSpan={9}
                   className="text-center py-8 text-muted-foreground"
                 >
-                  暂无记录，请先添加工员
+                  暂无记录，请先添加人员
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((record, index) => (
-                <TableRow key={record.recordId}>
+              pagedRecords.map((record, index) => (
+                <TableRow key={record.recordId} className="group">
                   <TableCell>
                     <Checkbox
                       checked={selectedRecordIds.has(record.recordId)}
@@ -174,16 +184,19 @@ export function PayrollRecordTable({
                     />
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {index + 1}
+                    {safePageIndex * pageSize + index + 1}
                   </TableCell>
-                  <TableCell className="font-medium">{record.name}</TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-medium truncate" title={record.name}>{record.name}</TableCell>
+                  <TableCell className="font-mono text-xs truncate" title={record.phoneNumber || ""}>
+                    {record.phoneNumber || "-"}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs truncate" title={record.idCardNumber || ""}>
                     {record.idCardNumber || "-"}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono text-xs truncate" title={record.payrollCardNumber || ""}>
                     {record.payrollCardNumber || "-"}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm truncate" title={record.bankName || ""}>
                     {record.bankName || "-"}
                   </TableCell>
                   <TableCell className="text-right">
@@ -220,7 +233,7 @@ export function PayrollRecordTable({
                       </div>
                     ) : (
                       <div
-                        className="cursor-pointer hover:text-primary font-mono"
+                        className="cursor-pointer hover:text-primary font-mono group"
                         onClick={() => startEdit(record, "netPay")}
                       >
                         ¥{record.netPay.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -228,55 +241,7 @@ export function PayrollRecordTable({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-center">
-                    {editingId === record.recordId && editingField === "exportWeight" ? (
-                      <div className="flex items-center gap-1 justify-center">
-                        <Input
-                          type="number"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                          disabled={saving}
-                          className="w-16 text-center h-8"
-                          placeholder="-"
-                          autoFocus
-                        />
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8"
-                          onClick={saveEdit}
-                          disabled={saving}
-                        >
-                          <Check className="size-4 text-green-600" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8"
-                          onClick={cancelEdit}
-                          disabled={saving}
-                        >
-                          <X className="size-4 text-destructive" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div
-                        className="cursor-pointer"
-                        onClick={() => startEdit(record, "exportWeight")}
-                      >
-                        {record.exportWeight != null ? (
-                          <Badge variant="secondary">{record.exportWeight}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {record.phoneNumber || "-"}
-                  </TableCell>
-                  <TableCell>
+                  <TableCell className="sticky right-0 bg-background group-hover:bg-muted/50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -300,6 +265,16 @@ export function PayrollRecordTable({
             )}
           </TableBody>
         </Table>
+        {records.length > 0 && (
+          <TablePaginationFooter
+            onPageIndexChange={handlePageIndexChange}
+            onPageSizeChange={handlePageSizeChange}
+            pageIndex={safePageIndex}
+            pageSize={pageSize}
+            totalCount={records.length}
+            totalPages={totalPages}
+          />
+        )}
       </div>
     </div>
   );

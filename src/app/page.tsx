@@ -124,11 +124,22 @@ export default function HomePage() {
     }
   };
 
-  const handleAddPersonnel = async (personnelIds: number[]) => {
+  const handleAddPersonnel = async (params: {
+    personnelIds: number[];
+    defaultNetPay?: number;
+    perPersonNetPay?: Record<number, number>;
+  }) => {
     if (!selectedSheetId) return;
     try {
-      await payrollApi.addPersonnel(selectedSheetId, personnelIds);
-      toast.success(`已添加 ${personnelIds.length} 人`);
+      await payrollApi.addPersonnel(
+        selectedSheetId,
+        params.personnelIds,
+        {
+          defaultNetPay: params.defaultNetPay,
+          perPersonNetPay: params.perPersonNetPay,
+        }
+      );
+      toast.success(`已添加 ${params.personnelIds.length} 人`);
       loadSheetDetail(selectedSheetId);
     } catch (error: any) {
       toast.error(error.message || "添加失败");
@@ -176,23 +187,27 @@ export default function HomePage() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <FileText className="size-6 text-primary" />
+              <FileText className="size-6 text-primary shrink-0" />
               <div>
                 <CardTitle>工资工作台</CardTitle>
                 <CardDescription>管理工资表和工员工资</CardDescription>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-64">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-72">
                 <Select
                   value={selectedSheetId ? String(selectedSheetId) : ""}
-                  onValueChange={(v) => setSelectedSheetId(Number(v))}
+                  onValueChange={(v) => v && setSelectedSheetId(Number(v))}
                   disabled={sheets.length === 0}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="请选择工资表" />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="请选择工资表">
+                      {selectedSheetId
+                        ? sheets.find((s) => s.id === selectedSheetId)?.name
+                        : null}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {sheets.map((sheet) => (
@@ -253,7 +268,7 @@ export default function HomePage() {
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
                     <UserPlus className="size-4 mr-2" />
-                    添加工员
+                    添加人员
                   </Button>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleExport}>
@@ -293,7 +308,7 @@ export default function HomePage() {
         onOpenChange={setPickerOpen}
         existingPersonnelIds={existingPersonnelIds}
         onConfirm={handleAddPersonnel}
-        title="添加工员到工资表"
+        title="从人员库添加"
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

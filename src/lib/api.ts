@@ -85,10 +85,13 @@ export const payrollApi = {
     request<DeletePayrollSheetResult>(`/payroll/${id}`, {
       method: "DELETE",
     }),
-  addPersonnel: (sheetId: number, personnelIds: number[]) =>
+  addPersonnel: (sheetId: number, personnelIds: number[], options?: {
+    defaultNetPay?: number;
+    perPersonNetPay?: Record<number, number>;
+  }) =>
     request<{ success: boolean }>(`/payroll/${sheetId}/personnel`, {
       method: "POST",
-      body: JSON.stringify({ personnelIds }),
+      body: JSON.stringify({ personnelIds, ...options }),
     }),
   removePersonnel: (sheetId: number, personnelIds: number[]) =>
     request<{ success: boolean }>(`/payroll/${sheetId}/personnel`, {

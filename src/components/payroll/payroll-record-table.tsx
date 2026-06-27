@@ -201,7 +201,7 @@ export function PayrollRecordTable({
                   </TableCell>
                   <TableCell>
                     {editingId === record.recordId && editingField === "netPay" ? (
-                      <div className="flex items-center gap-1 justify-end">
+                      <div className="flex items-center gap-1">
                         <Input
                           type="number"
                           step="0.01"

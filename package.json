@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "docker:compose": "docker compose -p salary-workbench up -d --build"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -44,12 +44,4 @@ export default defineNuxtConfig({
   // 2. 确保全局 CSS 被加载
   css: ['~/assets/css/main.css'],
 
-  nitro: {
-    externals: {
-      inline: ['drizzle-orm'],
-    },
-    rollupConfig: {
-      external: ['better-sqlite3'],
-    },
-  },
 })

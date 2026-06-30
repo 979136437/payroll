@@ -1,20 +1,25 @@
 services:
   nextjs-app:
     build:
-      context: .           
+      context: .
       dockerfile: Dockerfile
     ports:
-      - "7788:3000"        # 👈 核心修改：把左边的宿主机端口改为 5566（右边容器内的3000保持不动）
+      - "7788:3000"
     restart: always
+    volumes:
+      - type: volume
+        source: payroll-data
+        target: /app/data
 
   tunnel:
     image: cloudflare/cloudflared:latest
-    # 注意：这里依然写 nextjs-app:3000！
-    # 因为穿透容器是在 Docker 内部直接找网页容器，网页容器自己监听的始终是 3000
     command: tunnel --url http://nextjs-app:3000 --protocol http2
     dns:
       - 1.1.1.1
-      - 8.8.8.8            
+      - 8.8.8.8
     depends_on:
-      - nextjs-app         
+      - nextjs-app
     restart: always
+
+volumes:
+  payroll-data:

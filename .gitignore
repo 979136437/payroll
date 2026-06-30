@@ -38,5 +38,10 @@ next-env.d.ts
 # database & logs
 *.db*
 *.log
+.vscode/
+.agents/
+.claude/
+.codegraph/
+docs/
 
 .temp/

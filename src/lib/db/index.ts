@@ -5,16 +5,32 @@ import path from "path";
 import fs from "fs";
 
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let sqliteInstance: Database.Database | null = null;
+let testDbPath: string | null = null;
 
-function getDbPath(): string {
-  const dataDir = path.join(process.cwd(), "data");
+export function getDbPath(options?: { cwd?: string; dbPath?: string }): string {
+  const explicitPath = options?.dbPath ?? testDbPath;
+  if (explicitPath) {
+    ensureParentDirectory(explicitPath);
+    return explicitPath;
+  }
+
+  const cwd = options?.cwd ?? process.cwd();
+  const dataDir = path.join(cwd, "data");
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
   return path.join(dataDir, "payroll.db");
 }
 
-function initializeSchema(db: Database.Database) {
+function ensureParentDirectory(filePath: string) {
+  const directory = path.dirname(filePath);
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+}
+
+export function initializeSchema(db: Database.Database) {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
@@ -81,14 +97,31 @@ function initializeSchema(db: Database.Database) {
   }
 }
 
-export function getDb() {
+export function getDb(options?: { dbPath?: string }) {
   if (!dbInstance) {
-    const dbPath = getDbPath();
+    const dbPath = getDbPath({ dbPath: options?.dbPath });
     const sqlite = new Database(dbPath);
     initializeSchema(sqlite);
+    sqliteInstance = sqlite;
     dbInstance = drizzle(sqlite, { schema });
   }
   return dbInstance;
+}
+
+export function __resetDb() {
+  sqliteInstance?.close();
+  sqliteInstance = null;
+  dbInstance = null;
+}
+
+export function __setTestDbPath(dbPath: string | null) {
+  __resetDb();
+  testDbPath = dbPath;
+}
+
+export function __clearTestDbPath() {
+  __resetDb();
+  testDbPath = null;
 }
 
 export function currentTimestamp(): string {

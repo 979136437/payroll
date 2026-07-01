@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, desc, asc, and, inArray } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 import { getDb, currentTimestamp, normalizeOptionalString } from "@/lib/db";
 import { personnel, payrollRecord } from "@/lib/db/schema";
 import type {

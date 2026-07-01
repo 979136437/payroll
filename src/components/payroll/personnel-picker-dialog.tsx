@@ -56,17 +56,6 @@ export function PersonnelPickerDialog({
   );
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      loadPersonnel();
-      setPendingIds([]);
-      setPendingSelectionIds(new Set());
-      setSearch("");
-      setUnifiedNetPay("");
-      setPerPersonNetPay({});
-    }
-  }, [open]);
-
   const loadPersonnel = async () => {
     setLoading(true);
     try {
@@ -78,6 +67,17 @@ export function PersonnelPickerDialog({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (open) {
+      loadPersonnel();
+      setPendingIds([]);
+      setPendingSelectionIds(new Set());
+      setSearch("");
+      setUnifiedNetPay("");
+      setPerPersonNetPay({});
+    }
+  }, [open]);
 
   const availablePersonnel = useMemo(() => {
     const pendingSet = new Set(pendingIds);

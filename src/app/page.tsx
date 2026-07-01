@@ -85,7 +85,19 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    loadSheets();
+    const initSheets = async () => {
+      try {
+        const data = await payrollApi.list();
+        setSheets(data);
+        if (data.length > 0) {
+          setSelectedSheetId((currentId) => currentId ?? data[0].id);
+        }
+      } catch (error: any) {
+        toast.error(error.message || "加载工资表列表失败");
+      }
+    };
+
+    initSheets();
   }, []);
 
   useEffect(() => {

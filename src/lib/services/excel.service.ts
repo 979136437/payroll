@@ -4,8 +4,8 @@ import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
 import { getDb, currentTimestamp, normalizeOptionalString } from "@/lib/db";
 import { personnel, payrollSheet, payrollRecord } from "@/lib/db/schema";
-import { eq, asc, inArray } from "drizzle-orm";
-import type { PersonnelImportResult, Personnel } from "@/lib/types";
+import { eq, asc } from "drizzle-orm";
+import type { PersonnelImportResult } from "@/lib/types";
 
 const ROSTER_HEADERS = [
   "姓名",

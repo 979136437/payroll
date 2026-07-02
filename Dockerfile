@@ -8,7 +8,8 @@ RUN corepack enable pnpm
 
 # 复制根目录的配置、锁文件以及 .npmrc
 # 这样容器内执行 pnpm install 也会直接读取你配置好的淘宝二进制镜像源
-COPY package.json pnpm-workspace.yaml* ./
+COPY package.json pnpm-workspace.yaml* .npmrc ./
+COPY scripts/check-node-version.mjs ./scripts/check-node-version.mjs
 
 # 💡 如果是 Monorepo 架构，请取消下方注释并根据实际情况复制子包的 package.json，以最大化利用 Docker 缓存：
 # COPY packages/ui/package.json ./packages/ui/

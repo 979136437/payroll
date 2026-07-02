@@ -23,6 +23,7 @@ function getLocalIPv4s(): string[] {
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   output: "standalone",
   experimental: {
     optimizeCss: true,

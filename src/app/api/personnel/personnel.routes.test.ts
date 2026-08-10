@@ -9,12 +9,14 @@ import {
   PUT as updatePersonnelById,
 } from "@/app/api/personnel/[id]/route";
 import { exportPersonnelExcel, importPersonnelFromExcel } from "@/lib/services/excel.service";
+import { MAX_EXCEL_IMPORT_REQUEST_BYTES } from "@/lib/api-route";
 import {
   createPersonnel,
   deletePersonnel,
   deletePersonnelBatch,
   getPersonnelById,
   listPersonnel,
+  PERSONNEL_REORDER_INPUT_ERROR,
   reorderPersonnel,
   updatePersonnel,
 } from "@/lib/services/personnel.service";
@@ -25,6 +27,7 @@ vi.mock("@/lib/services/personnel.service", () => ({
   deletePersonnelBatch: vi.fn(),
   getPersonnelById: vi.fn(),
   listPersonnel: vi.fn(),
+  PERSONNEL_REORDER_INPUT_ERROR: "排序人员列表必须完整且不重复",
   reorderPersonnel: vi.fn(),
   updatePersonnel: vi.fn(),
 }));
@@ -62,7 +65,7 @@ describe("personnel routes", () => {
     const response = await listPersonnelGet();
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "boom" });
+    expect(await response.json()).toEqual({ error: "获取人员列表失败" });
   });
 
   test("GET /api/personnel falls back to default error message", async () => {
@@ -103,8 +106,36 @@ describe("personnel routes", () => {
       createJsonRequest("http://localhost/api/personnel", { name: "" })
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "创建人员失败" });
+  });
+
+  test("POST and PUT /api/personnel reject invalid optional field types", async () => {
+    const createResponse = await createPersonnelPost(
+      createJsonRequest("http://localhost/api/personnel", {
+        name: "张三",
+        gender: 1,
+      })
+    );
+    const updateResponse = await updatePersonnelById(
+      createJsonRequest(
+        "http://localhost/api/personnel/1",
+        { name: "张三", phoneNumber: false },
+        "PUT"
+      ),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+
+    expect(createResponse.status).toBe(400);
+    expect(updateResponse.status).toBe(400);
+    expect(await createResponse.json()).toEqual({
+      error: "人员字段必须是字符串或 null",
+    });
+    expect(await updateResponse.json()).toEqual({
+      error: "人员字段必须是字符串或 null",
+    });
+    expect(createPersonnel).not.toHaveBeenCalled();
+    expect(updatePersonnel).not.toHaveBeenCalled();
   });
 
   test("GET /api/personnel/[id] returns 404 when missing", async () => {
@@ -175,11 +206,11 @@ describe("personnel routes", () => {
     });
 
     expect(getResponse.status).toBe(500);
-    expect(await getResponse.json()).toEqual({ error: "查询失败" });
-    expect(putResponse.status).toBe(400);
-    expect(await putResponse.json()).toEqual({ error: "更新失败" });
+    expect(await getResponse.json()).toEqual({ error: "获取人员信息失败" });
+    expect(putResponse.status).toBe(500);
+    expect(await putResponse.json()).toEqual({ error: "更新人员失败" });
     expect(deleteResponse.status).toBe(500);
-    expect(await deleteResponse.json()).toEqual({ error: "删除失败" });
+    expect(await deleteResponse.json()).toEqual({ error: "删除人员失败" });
   });
 
   test("GET, PUT and DELETE /api/personnel/[id] use fallback messages without error.message", async () => {
@@ -218,9 +249,16 @@ describe("personnel routes", () => {
     );
 
     expect(invalid.status).toBe(400);
-    expect(await invalid.json()).toEqual({ error: "ids 必须是数组" });
+    expect(await invalid.json()).toEqual({ error: "ids 必须是正整数数组" });
     expect(valid.status).toBe(200);
     expect(await valid.json()).toEqual({ deletedCount: 2 });
+
+    const invalidItems = await batchDeletePersonnelPost(
+      createJsonRequest("http://localhost/api/personnel/batch-delete", {
+        ids: [1, -2],
+      })
+    );
+    expect(invalidItems.status).toBe(400);
   });
 
   test("POST /api/personnel/batch-delete handles service exception", async () => {
@@ -262,9 +300,31 @@ describe("personnel routes", () => {
     );
 
     expect(invalid.status).toBe(400);
-    expect(await invalid.json()).toEqual({ error: "orderedIds 必须是数组" });
+    expect(await invalid.json()).toEqual({
+      error: "orderedIds 必须是正整数数组",
+    });
     expect(valid.status).toBe(200);
     expect(reorderPersonnel).toHaveBeenCalledWith([3, 2, 1]);
+
+    const invalidItems = await reorderPersonnelPost(
+      createJsonRequest("http://localhost/api/personnel/reorder", {
+        orderedIds: [3, 0, 1],
+      })
+    );
+    expect(invalidItems.status).toBe(400);
+
+    vi.mocked(reorderPersonnel).mockRejectedValueOnce(
+      new Error(PERSONNEL_REORDER_INPUT_ERROR)
+    );
+    const incomplete = await reorderPersonnelPost(
+      createJsonRequest("http://localhost/api/personnel/reorder", {
+        orderedIds: [1],
+      })
+    );
+    expect(incomplete.status).toBe(400);
+    expect(await incomplete.json()).toEqual({
+      error: PERSONNEL_REORDER_INPUT_ERROR,
+    });
   });
 
   test("POST /api/personnel/reorder handles service exception", async () => {
@@ -354,6 +414,42 @@ describe("personnel routes", () => {
 
     expect(response.status).toBe(200);
     expect(importPersonnelFromExcel).toHaveBeenCalledWith(expect.any(Buffer));
+  });
+
+  test("POST /api/personnel/import rejects oversized requests before parsing", async () => {
+    const response = await importPersonnelPost(
+      new Request("http://localhost/api/personnel/import", {
+        method: "POST",
+        body: new FormData(),
+        headers: {
+          "Content-Length": String(MAX_EXCEL_IMPORT_REQUEST_BYTES + 1),
+        },
+      })
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "导入请求体过大" });
+    expect(importPersonnelFromExcel).not.toHaveBeenCalled();
+
+    const oversizedChunk = new Uint8Array(6 * 1024 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(oversizedChunk);
+        controller.enqueue(oversizedChunk);
+        controller.close();
+      },
+    });
+    const streamedResponse = await importPersonnelPost(
+      new Request("http://localhost/api/personnel/import", {
+        method: "POST",
+        body,
+        headers: { "Content-Type": "multipart/form-data; boundary=test" },
+        duplex: "half",
+      } as RequestInit & { duplex: "half" })
+    );
+
+    expect(streamedResponse.status).toBe(413);
+    expect(await streamedResponse.json()).toEqual({ error: "导入请求体过大" });
   });
 
   test("POST /api/personnel/import handles import error", async () => {

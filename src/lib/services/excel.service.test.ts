@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
+import { sql } from "drizzle-orm";
 
 import { getDb } from "@/lib/db";
 import { payrollRecord } from "@/lib/db/schema";
@@ -21,7 +22,7 @@ function buildRosterWorkbook(rows: Array<Array<string | number | null>>) {
 
 async function readWorkbook(buffer: Buffer) {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  await workbook.xlsx.load(Uint8Array.from(buffer).buffer);
   return workbook;
 }
 
@@ -115,6 +116,46 @@ describe("excel.service", () => {
     expect(personnel.map((item) => item.name)).toEqual(["张三", "李四", "王五"]);
     expect(personnel[0]?.id).toBe(existing.id);
     expect(personnel[2]?.id).toBe(untouched.id);
+  });
+
+  test("importPersonnelFromExcel hides database details in row errors", async () => {
+    const db = getDb();
+    db.run(sql.raw(`
+      CREATE TRIGGER reject_import_row
+      BEFORE INSERT ON personnel
+      WHEN NEW.name = '触发失败'
+      BEGIN
+        SELECT RAISE(ABORT, 'internal-db-detail');
+      END;
+    `));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const buffer = buildRosterWorkbook([
+      [
+        "姓名",
+        "性别",
+        "民族",
+        "籍贯",
+        "身份证号码",
+        "工资卡号",
+        "开户行",
+        "工种",
+        "上场时间",
+        "撤场时间",
+        "联系电话",
+        "备注",
+      ],
+      ["触发失败", "", "", "", "ID-FAIL", "", "", "", "", "", "", ""],
+    ]);
+
+    try {
+      const result = await importPersonnelFromExcel(buffer);
+
+      expect(result.errors).toEqual(["第 1 条记录：导入失败"]);
+      expect(result.errors.join(" ")).not.toContain("internal-db-detail");
+      expect(errorSpy).toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   test("exportPersonnelExcel writes roster worksheet", async () => {

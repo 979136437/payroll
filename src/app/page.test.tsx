@@ -79,7 +79,7 @@ describe("HomePage", () => {
         { id: 2, name: "新工资表", personnelCount: 0, totalNetPay: 0, updatedAt: "2" },
       ] as any)
       .mockResolvedValue([
-        { id: 2, name: "新工资表", personnelCount: 0, totalNetPay: 0, updatedAt: "2" },
+        { id: 1, name: "六月工资", personnelCount: 1, totalNetPay: 100, updatedAt: "1" },
       ] as any);
 
     vi.mocked(payrollApi.get).mockResolvedValue({
@@ -128,6 +128,7 @@ describe("HomePage", () => {
     await waitFor(() => {
       expect(payrollApi.delete).toHaveBeenCalledWith(2);
       expect(toast.success).toHaveBeenCalledWith("工资表已删除");
+      expect(payrollApi.get).toHaveBeenCalledWith(1);
     });
   });
 

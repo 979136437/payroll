@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  apiErrorResponse,
+  isFiniteNumber,
+  parsePositiveInteger,
+} from "@/lib/api-route";
 import { updatePayrollRecordNetPay } from "@/lib/services/payroll.service";
 
 export async function PUT(
@@ -7,15 +12,19 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    const recordId = parsePositiveInteger(id);
+    if (recordId == null) {
+      return NextResponse.json({ error: "工资记录 ID 无效" }, { status: 400 });
+    }
     const body = await request.json();
     const { netPay } = body;
-    if (netPay == null) {
+    if (!isFiniteNumber(netPay)) {
       return NextResponse.json(
-        { error: "netPay 不能为空" },
+        { error: "netPay 必须是有效数字" },
         { status: 400 }
       );
     }
-    const result = await updatePayrollRecordNetPay(Number(id), netPay);
+    const result = await updatePayrollRecordNetPay(recordId, netPay);
     if (!result) {
       return NextResponse.json(
         { error: "工资记录不存在" },
@@ -23,10 +32,7 @@ export async function PUT(
       );
     }
     return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "更新净工资失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "更新净工资失败");
   }
 }

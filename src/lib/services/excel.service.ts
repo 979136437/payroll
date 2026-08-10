@@ -245,7 +245,7 @@ export async function importPersonnelFromExcel(
   const importedIds: number[] = [];
   const now = currentTimestamp();
 
-  for (const row of importRows) {
+  for (const [rowIndex, row] of importRows.entries()) {
     if (!row.name.trim()) {
       result.skippedCount++;
       continue;
@@ -283,8 +283,10 @@ export async function importPersonnelFromExcel(
         currentPersonnel[existingIdx] = updated[0];
         importedIds.push(existing.id);
         result.updatedCount++;
-      } catch (e: any) {
-        result.errors.push(`${row.name}: ${e.message}`);
+      } catch (error: unknown) {
+        // 客户端只接收稳定文案，原始数据库异常仅保留在服务端日志中。
+        console.error(`[Excel Import] 第 ${rowIndex + 1} 条记录更新失败`, error);
+        result.errors.push(`第 ${rowIndex + 1} 条记录：导入失败`);
       }
     } else {
       try {
@@ -314,8 +316,9 @@ export async function importPersonnelFromExcel(
         currentPersonnel.push(created[0]);
         importedIds.push(created[0].id);
         result.createdCount++;
-      } catch (e: any) {
-        result.errors.push(`${row.name}: ${e.message}`);
+      } catch (error: unknown) {
+        console.error(`[Excel Import] 第 ${rowIndex + 1} 条记录创建失败`, error);
+        result.errors.push(`第 ${rowIndex + 1} 条记录：导入失败`);
       }
     }
   }

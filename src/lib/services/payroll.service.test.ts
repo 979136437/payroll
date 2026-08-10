@@ -85,6 +85,18 @@ describe("payroll.service", () => {
     });
   });
 
+  test("addPersonnelToSheet rolls back all inserts when one record fails", async () => {
+    const sheet = await createPayrollSheet({ name: "工资表A" });
+    const person = await createPersonnel({ name: "张三" });
+
+    await expect(
+      addPersonnelToSheet(sheet.id, [person.id, 999], { defaultNetPay: 100 })
+    ).rejects.toThrow();
+
+    const detail = await getPayrollSheetDetail(sheet.id);
+    expect(detail?.records).toHaveLength(0);
+  });
+
   test("removePersonnelFromSheet removes selected records and touches sheet", async () => {
     const sheet = await createPayrollSheet({ name: "工资表A" });
     const first = await createPersonnel({ name: "张三" });

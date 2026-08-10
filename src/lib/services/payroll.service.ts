@@ -76,35 +76,41 @@ export async function createPayrollSheet(
   const now = currentTimestamp();
 
   try {
-    const result = await db
-      .insert(payrollSheet)
-      .values({
-        name: trimmedName,
-        updatedAt: now,
-      })
-      .returning();
+    const sheetId = db.transaction((tx) => {
+      const result = tx
+        .insert(payrollSheet)
+        .values({
+          name: trimmedName,
+          updatedAt: now,
+        })
+        .returning()
+        .all();
+      const createdSheetId = result[0].id;
 
-    const sheetId = result[0].id;
+      if (input.sourceSheetId) {
+        const sourceRecords = tx
+          .select({ personnelId: payrollRecord.personnelId })
+          .from(payrollRecord)
+          .where(eq(payrollRecord.payrollSheetId, input.sourceSheetId))
+          .orderBy(asc(payrollRecord.id))
+          .all();
 
-    if (input.sourceSheetId) {
-      const sourceRecords = await db
-        .select({ personnelId: payrollRecord.personnelId })
-        .from(payrollRecord)
-        .where(eq(payrollRecord.payrollSheetId, input.sourceSheetId))
-        .orderBy(asc(payrollRecord.id));
-
-      for (const record of sourceRecords) {
-        await db
-          .insert(payrollRecord)
-          .values({
-            payrollSheetId: sheetId,
-            personnelId: record.personnelId,
-            netPay: 0,
-            updatedAt: now,
-          })
-          .onConflictDoNothing();
+        for (const record of sourceRecords) {
+          tx
+            .insert(payrollRecord)
+            .values({
+              payrollSheetId: createdSheetId,
+              personnelId: record.personnelId,
+              netPay: 0,
+              updatedAt: now,
+            })
+            .onConflictDoNothing()
+            .run();
+        }
       }
-    }
+
+      return createdSheetId;
+    });
 
     return getPayrollSheetSummary(sheetId);
   } catch (error: any) {
@@ -193,18 +199,24 @@ export async function deletePayrollSheet(
 ): Promise<DeletePayrollSheetResult> {
   const db = getDb();
 
-  const existing = await db
-    .select()
-    .from(payrollSheet)
-    .where(eq(payrollSheet.id, sheetId));
-  if (existing.length === 0) {
-    return { deleted: false };
-  }
+  return db.transaction((tx) => {
+    const existing = tx
+      .select({ id: payrollSheet.id })
+      .from(payrollSheet)
+      .where(eq(payrollSheet.id, sheetId))
+      .all();
+    if (existing.length === 0) {
+      return { deleted: false };
+    }
 
-  await db.delete(payrollRecord).where(eq(payrollRecord.payrollSheetId, sheetId));
-  await db.delete(payrollSheet).where(eq(payrollSheet.id, sheetId));
+    tx
+      .delete(payrollRecord)
+      .where(eq(payrollRecord.payrollSheetId, sheetId))
+      .run();
+    tx.delete(payrollSheet).where(eq(payrollSheet.id, sheetId)).run();
 
-  return { deleted: true };
+    return { deleted: true };
+  });
 }
 
 export async function addPersonnelToSheet(
@@ -219,20 +231,27 @@ export async function addPersonnelToSheet(
   const now = currentTimestamp();
   const uniqueIds = Array.from(new Set(personnelIds));
 
-  for (const pid of uniqueIds) {
-    const netPay = options?.perPersonNetPay?.[pid] ?? options?.defaultNetPay ?? 0;
-    await db
-      .insert(payrollRecord)
-      .values({
-        payrollSheetId: sheetId,
-        personnelId: pid,
-        netPay,
-        updatedAt: now,
-      })
-      .onConflictDoNothing();
-  }
+  db.transaction((tx) => {
+    for (const pid of uniqueIds) {
+      const netPay = options?.perPersonNetPay?.[pid] ?? options?.defaultNetPay ?? 0;
+      tx
+        .insert(payrollRecord)
+        .values({
+          payrollSheetId: sheetId,
+          personnelId: pid,
+          netPay,
+          updatedAt: now,
+        })
+        .onConflictDoNothing()
+        .run();
+    }
 
-  await touchPayrollSheet(sheetId);
+    tx
+      .update(payrollSheet)
+      .set({ updatedAt: now })
+      .where(eq(payrollSheet.id, sheetId))
+      .run();
+  });
 }
 
 export async function removePersonnelFromSheet(
@@ -242,16 +261,26 @@ export async function removePersonnelFromSheet(
   const db = getDb();
   const uniqueIds = Array.from(new Set(personnelIds));
 
-  await db
-    .delete(payrollRecord)
-    .where(
-      and(
-        eq(payrollRecord.payrollSheetId, sheetId),
-        inArray(payrollRecord.personnelId, uniqueIds)
-      )
-    );
+  if (uniqueIds.length === 0) return;
 
-  await touchPayrollSheet(sheetId);
+  const now = currentTimestamp();
+  db.transaction((tx) => {
+    tx
+      .delete(payrollRecord)
+      .where(
+        and(
+          eq(payrollRecord.payrollSheetId, sheetId),
+          inArray(payrollRecord.personnelId, uniqueIds)
+        )
+      )
+      .run();
+
+    tx
+      .update(payrollSheet)
+      .set({ updatedAt: now })
+      .where(eq(payrollSheet.id, sheetId))
+      .run();
+  });
 }
 
 export async function updatePayrollRecordNetPay(
@@ -261,16 +290,26 @@ export async function updatePayrollRecordNetPay(
   const db = getDb();
   const now = currentTimestamp();
 
-  const result = await db
-    .update(payrollRecord)
-    .set({ netPay, updatedAt: now })
-    .where(eq(payrollRecord.id, recordId))
-    .returning();
+  const result = db.transaction((tx) => {
+    const updated = tx
+      .update(payrollRecord)
+      .set({ netPay, updatedAt: now })
+      .where(eq(payrollRecord.id, recordId))
+      .returning()
+      .all();
+
+    if (updated.length > 0) {
+      tx
+        .update(payrollSheet)
+        .set({ updatedAt: now })
+        .where(eq(payrollSheet.id, updated[0].payrollSheetId))
+        .run();
+    }
+
+    return updated;
+  });
 
   if (result.length === 0) return null;
-
-  const sheetId = result[0].payrollSheetId;
-  await touchPayrollSheet(sheetId);
 
   return getPayrollRecordRow(recordId);
 }
@@ -282,16 +321,26 @@ export async function updatePayrollRecordExportWeight(
   const db = getDb();
   const now = currentTimestamp();
 
-  const result = await db
-    .update(payrollRecord)
-    .set({ exportWeight, updatedAt: now })
-    .where(eq(payrollRecord.id, recordId))
-    .returning();
+  const result = db.transaction((tx) => {
+    const updated = tx
+      .update(payrollRecord)
+      .set({ exportWeight, updatedAt: now })
+      .where(eq(payrollRecord.id, recordId))
+      .returning()
+      .all();
+
+    if (updated.length > 0) {
+      tx
+        .update(payrollSheet)
+        .set({ updatedAt: now })
+        .where(eq(payrollSheet.id, updated[0].payrollSheetId))
+        .run();
+    }
+
+    return updated;
+  });
 
   if (result.length === 0) return null;
-
-  const sheetId = result[0].payrollSheetId;
-  await touchPayrollSheet(sheetId);
 
   return getPayrollRecordRow(recordId);
 }
@@ -324,13 +373,4 @@ async function getPayrollRecordRow(
     .where(eq(payrollRecord.id, recordId));
 
   return result.length > 0 ? mapToRecordRow(result[0]) : null;
-}
-
-async function touchPayrollSheet(sheetId: number): Promise<void> {
-  const db = getDb();
-  const now = currentTimestamp();
-  await db
-    .update(payrollSheet)
-    .set({ updatedAt: now })
-    .where(eq(payrollSheet.id, sheetId));
 }

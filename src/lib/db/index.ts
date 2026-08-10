@@ -16,11 +16,23 @@ export function getDbPath(options?: { cwd?: string; dbPath?: string }): string {
   }
 
   const cwd = options?.cwd ?? process.cwd();
-  const dataDir = path.join(cwd, "data");
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+  const configuredPath = process.env.SQLITE_DATABASE_PATH;
+  if (configuredPath !== undefined) {
+    const trimmedPath = configuredPath.trim();
+    if (!trimmedPath) {
+      throw new Error("SQLITE_DATABASE_PATH 不能为空");
+    }
+
+    const resolvedPath = path.isAbsolute(trimmedPath)
+      ? trimmedPath
+      : path.join(cwd, trimmedPath);
+    ensureParentDirectory(resolvedPath);
+    return resolvedPath;
   }
-  return path.join(dataDir, "payroll.db");
+
+  const defaultPath = path.join(cwd, "data", "payroll.db");
+  ensureParentDirectory(defaultPath);
+  return defaultPath;
 }
 
 function ensureParentDirectory(filePath: string) {

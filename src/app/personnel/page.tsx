@@ -58,8 +58,10 @@ export default function PersonnelPage() {
     type: "single" | "batch";
     id?: number;
   } | null>(null);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const dragOverIndex = useRef<number | null>(null);
+  const [draggedPersonnelId, setDraggedPersonnelId] = useState<number | null>(
+    null
+  );
+  const dragOverPersonnelId = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
@@ -190,19 +192,34 @@ export default function PersonnelPage() {
     setPageSize(size);
   };
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
+  const handleDragStart = (personnelId: number) => {
+    setDraggedPersonnelId(personnelId);
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = (e: React.DragEvent, personnelId: number) => {
     e.preventDefault();
-    dragOverIndex.current = index;
+    dragOverPersonnelId.current = personnelId;
   };
 
-  const handleDrop = async (targetIndex: number) => {
-    if (draggedIndex == null || draggedIndex === targetIndex) {
-      setDraggedIndex(null);
-      dragOverIndex.current = null;
+  const handleDrop = async (targetPersonnelId: number) => {
+    if (
+      draggedPersonnelId == null ||
+      draggedPersonnelId === targetPersonnelId
+    ) {
+      setDraggedPersonnelId(null);
+      dragOverPersonnelId.current = null;
+      return;
+    }
+
+    const draggedIndex = personnel.findIndex(
+      (item) => item.id === draggedPersonnelId
+    );
+    const targetIndex = personnel.findIndex(
+      (item) => item.id === targetPersonnelId
+    );
+    if (draggedIndex < 0 || targetIndex < 0) {
+      setDraggedPersonnelId(null);
+      dragOverPersonnelId.current = null;
       return;
     }
 
@@ -211,8 +228,8 @@ export default function PersonnelPage() {
     newList.splice(targetIndex, 0, removed);
 
     setPersonnel(newList);
-    setDraggedIndex(null);
-    dragOverIndex.current = null;
+    setDraggedPersonnelId(null);
+    dragOverPersonnelId.current = null;
 
     try {
       await personnelApi.reorder(newList.map((p) => p.id));
@@ -340,20 +357,14 @@ export default function PersonnelPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pagedPersonnel.map((p, index) => (
+                  pagedPersonnel.map((p) => (
                     <TableRow
                       key={p.id}
                       draggable
-                      onDragStart={() =>
-                        handleDragStart(safePageIndex * pageSize + index)
-                      }
-                      onDragOver={(e) =>
-                        handleDragOver(e, safePageIndex * pageSize + index)
-                      }
-                      onDrop={() =>
-                        handleDrop(safePageIndex * pageSize + index)
-                      }
-                      className={`group ${draggedIndex === safePageIndex * pageSize + index
+                      onDragStart={() => handleDragStart(p.id)}
+                      onDragOver={(e) => handleDragOver(e, p.id)}
+                      onDrop={() => handleDrop(p.id)}
+                      className={`group ${draggedPersonnelId === p.id
                           ? "opacity-50"
                           : ""
                         }`}

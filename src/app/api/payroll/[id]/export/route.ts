@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiErrorResponse, parsePositiveInteger } from "@/lib/api-route";
 import { exportPayrollSheetExcel } from "@/lib/services/excel.service";
 
 export async function GET(
@@ -7,7 +8,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const buffer = await exportPayrollSheetExcel(Number(id));
+    const sheetId = parsePositiveInteger(id);
+    if (sheetId == null) {
+      return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
+    }
+    const buffer = await exportPayrollSheetExcel(sheetId);
     const filename = `工资表_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
     return new NextResponse(new Uint8Array(buffer), {
@@ -17,10 +22,9 @@ export async function GET(
         "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
       },
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "导出失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "导出失败", {
+      "未找到当前工资表": 404,
+    });
   }
 }

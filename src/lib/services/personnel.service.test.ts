@@ -8,6 +8,7 @@ import {
   deletePersonnelBatch,
   getPersonnelById,
   listPersonnel,
+  PERSONNEL_REORDER_INPUT_ERROR,
   reorderPersonnel,
   updatePersonnel,
 } from "@/lib/services/personnel.service";
@@ -68,6 +69,23 @@ describe("personnel.service", () => {
     const result = await listPersonnel();
 
     expect(result.map((item) => item.id)).toEqual([2, 1]);
+  });
+
+  test("reorderPersonnel rejects incomplete or duplicate personnel ids", async () => {
+    await createPersonnel({ name: "张三" });
+    await createPersonnel({ name: "李四" });
+
+    await expect(reorderPersonnel([2, 2])).rejects.toThrow(
+      PERSONNEL_REORDER_INPUT_ERROR
+    );
+    await expect(reorderPersonnel([2])).rejects.toThrow(
+      PERSONNEL_REORDER_INPUT_ERROR
+    );
+    await expect(reorderPersonnel([2, 1, 999])).rejects.toThrow(
+      PERSONNEL_REORDER_INPUT_ERROR
+    );
+
+    expect((await listPersonnel()).map((item) => item.id)).toEqual([1, 2]);
   });
 
   test("updatePersonnel returns null for missing record and trims fields", async () => {

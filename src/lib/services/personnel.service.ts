@@ -2,13 +2,15 @@
 
 import { eq, desc, asc } from "drizzle-orm";
 import { getDb, currentTimestamp, normalizeOptionalString } from "@/lib/db";
-import { personnel, payrollRecord } from "@/lib/db/schema";
+import { personnel, payrollRecord, payrollSheet } from "@/lib/db/schema";
 import type {
   Personnel,
   CreatePersonnelInput,
   UpdatePersonnelInput,
   DeletePersonnelBatchResult,
 } from "@/lib/types";
+
+export const PERSONNEL_REORDER_INPUT_ERROR = "排序人员列表必须完整且不重复";
 
 function mapToPersonnel(row: any): Personnel {
   return {
@@ -139,31 +141,35 @@ export async function updatePersonnel(
 export async function deletePersonnel(id: number): Promise<boolean> {
   const db = getDb();
 
-  const existing = await db
-    .select()
-    .from(personnel)
-    .where(eq(personnel.id, id));
-  if (existing.length === 0) return false;
+  return db.transaction((tx) => {
+    const existing = tx
+      .select({ id: personnel.id })
+      .from(personnel)
+      .where(eq(personnel.id, id))
+      .all();
+    if (existing.length === 0) return false;
 
-  const sheetIdsResult = await db
-    .selectDistinct({ sheetId: payrollRecord.payrollSheetId })
-    .from(payrollRecord)
-    .where(eq(payrollRecord.personnelId, id));
-  const sheetIds = sheetIdsResult.map((r) => r.sheetId);
+    const sheetIds = tx
+      .selectDistinct({ sheetId: payrollRecord.payrollSheetId })
+      .from(payrollRecord)
+      .where(eq(payrollRecord.personnelId, id))
+      .all()
+      .map((row) => row.sheetId);
 
-  await db.delete(payrollRecord).where(eq(payrollRecord.personnelId, id));
-  await db.delete(personnel).where(eq(personnel.id, id));
+    tx.delete(payrollRecord).where(eq(payrollRecord.personnelId, id)).run();
+    tx.delete(personnel).where(eq(personnel.id, id)).run();
 
-  const now = currentTimestamp();
-  for (const sheetId of sheetIds) {
-    const { payrollSheet } = await import("@/lib/db/schema");
-    await db
-      .update(payrollSheet)
-      .set({ updatedAt: now })
-      .where(eq(payrollSheet.id, sheetId));
-  }
+    const now = currentTimestamp();
+    for (const sheetId of sheetIds) {
+      tx
+        .update(payrollSheet)
+        .set({ updatedAt: now })
+        .where(eq(payrollSheet.id, sheetId))
+        .run();
+    }
 
-  return true;
+    return true;
+  });
 }
 
 export async function deletePersonnelBatch(
@@ -176,45 +182,68 @@ export async function deletePersonnelBatch(
     return { deletedCount: 0 };
   }
 
-  let deletedCount = 0;
-  const now = currentTimestamp();
+  return db.transaction((tx) => {
+    let deletedCount = 0;
+    const affectedSheetIds = new Set<number>();
 
-  for (const id of uniqueIds) {
-    const existing = await db
-      .select()
-      .from(personnel)
-      .where(eq(personnel.id, id));
-    if (existing.length === 0) continue;
+    for (const id of uniqueIds) {
+      const existing = tx
+        .select({ id: personnel.id })
+        .from(personnel)
+        .where(eq(personnel.id, id))
+        .all();
+      if (existing.length === 0) continue;
 
-    const sheetIdsResult = await db
-      .selectDistinct({ sheetId: payrollRecord.payrollSheetId })
-      .from(payrollRecord)
-      .where(eq(payrollRecord.personnelId, id));
-    const sheetIds = sheetIdsResult.map((r) => r.sheetId);
+      const sheetIds = tx
+        .selectDistinct({ sheetId: payrollRecord.payrollSheetId })
+        .from(payrollRecord)
+        .where(eq(payrollRecord.personnelId, id))
+        .all();
+      sheetIds.forEach(({ sheetId }) => affectedSheetIds.add(sheetId));
 
-    await db.delete(payrollRecord).where(eq(payrollRecord.personnelId, id));
-    await db.delete(personnel).where(eq(personnel.id, id));
-
-    const { payrollSheet } = await import("@/lib/db/schema");
-    for (const sheetId of sheetIds) {
-      await db
-        .update(payrollSheet)
-        .set({ updatedAt: now })
-        .where(eq(payrollSheet.id, sheetId));
+      tx.delete(payrollRecord).where(eq(payrollRecord.personnelId, id)).run();
+      tx.delete(personnel).where(eq(personnel.id, id)).run();
+      deletedCount++;
     }
 
-    deletedCount++;
-  }
+    const now = currentTimestamp();
+    for (const sheetId of affectedSheetIds) {
+      tx
+        .update(payrollSheet)
+        .set({ updatedAt: now })
+        .where(eq(payrollSheet.id, sheetId))
+        .run();
+    }
 
-  return { deletedCount };
+    return { deletedCount };
+  });
 }
 
 export async function reorderPersonnel(orderedIds: number[]): Promise<void> {
   const db = getDb();
-  for (let i = 0; i < orderedIds.length; i++) {
-    await db
-      .update(personnel)
-      .set({ sortIndex: i })
-      .where(eq(personnel.id, orderedIds[i]));
-  }
+  db.transaction((tx) => {
+    const currentIds = tx
+      .select({ id: personnel.id })
+      .from(personnel)
+      .all()
+      .map((row) => row.id);
+    const uniqueIds = new Set(orderedIds);
+    const currentIdSet = new Set(currentIds);
+    const isCompletePermutation =
+      orderedIds.length === currentIds.length &&
+      uniqueIds.size === orderedIds.length &&
+      orderedIds.every((id) => currentIdSet.has(id));
+
+    if (!isCompletePermutation) {
+      throw new Error(PERSONNEL_REORDER_INPUT_ERROR);
+    }
+
+    for (let i = 0; i < orderedIds.length; i++) {
+      tx
+        .update(personnel)
+        .set({ sortIndex: i })
+        .where(eq(personnel.id, orderedIds[i]))
+        .run();
+    }
+  });
 }

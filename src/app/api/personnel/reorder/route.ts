@@ -1,22 +1,25 @@
 import { NextResponse } from "next/server";
-import { reorderPersonnel } from "@/lib/services/personnel.service";
+import { apiErrorResponse, isPositiveIntegerArray } from "@/lib/api-route";
+import {
+  PERSONNEL_REORDER_INPUT_ERROR,
+  reorderPersonnel,
+} from "@/lib/services/personnel.service";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { orderedIds } = body;
-    if (!Array.isArray(orderedIds)) {
+    if (!isPositiveIntegerArray(orderedIds)) {
       return NextResponse.json(
-        { error: "orderedIds 必须是数组" },
+        { error: "orderedIds 必须是正整数数组" },
         { status: 400 }
       );
     }
     await reorderPersonnel(orderedIds);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "排序失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "排序失败", {
+      [PERSONNEL_REORDER_INPUT_ERROR]: 400,
+    });
   }
 }

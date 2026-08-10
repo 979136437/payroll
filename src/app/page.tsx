@@ -64,9 +64,12 @@ export default function HomePage() {
     try {
       const data = await payrollApi.list();
       setSheets(data);
-      if (data.length > 0 && !selectedSheetId) {
-        setSelectedSheetId(data[0].id);
-      }
+      setSelectedSheetId((currentId) => {
+        if (data.length === 0) return null;
+        return data.some((sheet) => sheet.id === currentId)
+          ? currentId
+          : data[0].id;
+      });
     } catch (error: any) {
       toast.error(error.message || "加载工资表列表失败");
     }
@@ -126,7 +129,6 @@ export default function HomePage() {
     try {
       await payrollApi.delete(selectedSheetId);
       toast.success("工资表已删除");
-      setSelectedSheetId(null);
       setSheetDetail(null);
       await loadSheets();
     } catch (error: any) {

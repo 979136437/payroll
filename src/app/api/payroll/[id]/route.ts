@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiErrorResponse, parsePositiveInteger } from "@/lib/api-route";
 import {
   getPayrollSheetDetail,
   deletePayrollSheet,
@@ -10,16 +11,17 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const detail = await getPayrollSheetDetail(Number(id));
+    const sheetId = parsePositiveInteger(id);
+    if (sheetId == null) {
+      return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
+    }
+    const detail = await getPayrollSheetDetail(sheetId);
     if (!detail) {
       return NextResponse.json({ error: "工资表不存在" }, { status: 404 });
     }
     return NextResponse.json(detail);
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "获取工资表详情失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "获取工资表详情失败");
   }
 }
 
@@ -29,15 +31,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const result = await deletePayrollSheet(Number(id));
+    const sheetId = parsePositiveInteger(id);
+    if (sheetId == null) {
+      return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
+    }
+    const result = await deletePayrollSheet(sheetId);
     if (!result.deleted) {
       return NextResponse.json({ error: "工资表不存在" }, { status: 404 });
     }
     return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "删除工资表失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "删除工资表失败");
   }
 }

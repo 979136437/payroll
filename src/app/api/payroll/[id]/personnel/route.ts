@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import {
+  apiErrorResponse,
+  isFiniteNumber,
+  isPersonnelNetPayMap,
+  isPositiveIntegerArray,
+  parsePositiveInteger,
+} from "@/lib/api-route";
+import {
   addPersonnelToSheet,
   removePersonnelFromSheet,
 } from "@/lib/services/payroll.service";
@@ -10,24 +17,41 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const sheetId = parsePositiveInteger(id);
+    if (sheetId == null) {
+      return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
+    }
     const body = await request.json();
     const { personnelIds, defaultNetPay, perPersonNetPay } = body;
-    if (!Array.isArray(personnelIds)) {
+    if (!isPositiveIntegerArray(personnelIds)) {
       return NextResponse.json(
-        { error: "personnelIds 必须是数组" },
+        { error: "personnelIds 必须是正整数数组" },
         { status: 400 }
       );
     }
-    await addPersonnelToSheet(Number(id), personnelIds, {
-      defaultNetPay: defaultNetPay != null ? Number(defaultNetPay) : undefined,
-      perPersonNetPay: perPersonNetPay || undefined,
+    if (defaultNetPay != null && !isFiniteNumber(defaultNetPay)) {
+      return NextResponse.json(
+        { error: "defaultNetPay 必须是有效数字" },
+        { status: 400 }
+      );
+    }
+    if (
+      perPersonNetPay != null &&
+      !isPersonnelNetPayMap(perPersonNetPay)
+    ) {
+      return NextResponse.json(
+        { error: "perPersonNetPay 格式无效" },
+        { status: 400 }
+      );
+    }
+    await addPersonnelToSheet(sheetId, personnelIds, {
+      defaultNetPay: defaultNetPay ?? undefined,
+      perPersonNetPay:
+        perPersonNetPay == null ? undefined : perPersonNetPay,
     });
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "添加人员失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "添加人员失败");
   }
 }
 
@@ -37,20 +61,21 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const sheetId = parsePositiveInteger(id);
+    if (sheetId == null) {
+      return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
+    }
     const body = await request.json();
     const { personnelIds } = body;
-    if (!Array.isArray(personnelIds)) {
+    if (!isPositiveIntegerArray(personnelIds)) {
       return NextResponse.json(
-        { error: "personnelIds 必须是数组" },
+        { error: "personnelIds 必须是正整数数组" },
         { status: 400 }
       );
     }
-    await removePersonnelFromSheet(Number(id), personnelIds);
+    await removePersonnelFromSheet(sheetId, personnelIds);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "移除工员失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "移除工员失败");
   }
 }

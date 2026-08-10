@@ -151,4 +151,31 @@ describe("PersonnelPage", () => {
       expect(personnelApi.list).toHaveBeenCalledTimes(2);
     });
   });
+
+  test("reorders the correct personnel while the list is filtered", async () => {
+    vi.mocked(personnelApi.list).mockResolvedValue([
+      { id: 1, name: "一组张三" },
+      { id: 2, name: "李四" },
+      { id: 3, name: "一组王五" },
+    ] as any);
+    vi.mocked(personnelApi.reorder).mockResolvedValue({ success: true } as any);
+    const user = userEvent.setup();
+
+    render(<PersonnelPage />);
+
+    await screen.findByText("一组张三");
+    await user.type(
+      screen.getByPlaceholderText("搜索姓名、身份证号、工资卡号、电话"),
+      "一组"
+    );
+
+    const filteredRows = screen.getAllByRole("row");
+    fireEvent.dragStart(filteredRows[2]);
+    fireEvent.dragOver(filteredRows[1]);
+    fireEvent.drop(filteredRows[1]);
+
+    await waitFor(() => {
+      expect(personnelApi.reorder).toHaveBeenCalledWith([3, 1, 2]);
+    });
+  });
 });

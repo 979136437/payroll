@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import path from "path";
 
 import {
   __clearTestDbPath,
@@ -14,6 +15,7 @@ import { createTempDbPath, cleanupTempDb } from "@/test/db-test-utils";
 
 describe("lib/db", () => {
   afterEach(() => {
+    vi.unstubAllEnvs();
     __resetDb();
     __clearTestDbPath();
   });
@@ -37,6 +39,21 @@ describe("lib/db", () => {
     expect(getDbPath()).toBe(dbPath);
 
     cleanupTempDb(dbPath);
+  });
+
+  test("getDbPath respects configured runtime database path", () => {
+    const cwd = path.join(process.cwd(), ".temp", "runtime-db-root");
+    vi.stubEnv("SQLITE_DATABASE_PATH", path.join("storage", "runtime.db"));
+
+    expect(getDbPath({ cwd })).toBe(
+      path.join(cwd, "storage", "runtime.db")
+    );
+  });
+
+  test("getDbPath rejects a blank configured database path", () => {
+    vi.stubEnv("SQLITE_DATABASE_PATH", "   ");
+
+    expect(() => getDbPath()).toThrow("SQLITE_DATABASE_PATH 不能为空");
   });
 
   test("getDb reuses connection until reset and initializes schema", () => {

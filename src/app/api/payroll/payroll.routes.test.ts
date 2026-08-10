@@ -69,7 +69,7 @@ describe("payroll routes", () => {
     const response = await listPayrollSheetsGet();
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "列表失败" });
+    expect(await response.json()).toEqual({ error: "获取工资表列表失败" });
   });
 
   test("GET /api/payroll falls back to default error message", async () => {
@@ -88,7 +88,10 @@ describe("payroll routes", () => {
     );
 
     expect(success.status).toBe(200);
-    expect(createPayrollSheet).toHaveBeenCalledWith({ name: "六月" });
+    expect(createPayrollSheet).toHaveBeenCalledWith({
+      name: "六月",
+      sourceSheetId: null,
+    });
 
     vi.mocked(createPayrollSheet).mockRejectedValueOnce(new Error("工资表名称不能为空"));
     const failure = await createPayrollSheetPost(
@@ -134,7 +137,7 @@ describe("payroll routes", () => {
     });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "详情失败" });
+    expect(await response.json()).toEqual({ error: "获取工资表详情失败" });
   });
 
   test("GET /api/payroll/[id] uses fallback detail error", async () => {
@@ -173,7 +176,7 @@ describe("payroll routes", () => {
     });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "删除失败" });
+    expect(await response.json()).toEqual({ error: "删除工资表失败" });
   });
 
   test("DELETE /api/payroll/[id] uses fallback delete error", async () => {
@@ -195,12 +198,26 @@ describe("payroll routes", () => {
     );
 
     expect(invalid.status).toBe(400);
-    expect(await invalid.json()).toEqual({ error: "personnelIds 必须是数组" });
+    expect(await invalid.json()).toEqual({
+      error: "personnelIds 必须是正整数数组",
+    });
+
+    const invalidPay = await addPayrollPersonnelRoute(
+      createJsonRequest("http://localhost/api/payroll/1/personnel", {
+        personnelIds: [1],
+        defaultNetPay: "99",
+      }),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+    expect(invalidPay.status).toBe(400);
+    expect(await invalidPay.json()).toEqual({
+      error: "defaultNetPay 必须是有效数字",
+    });
 
     const success = await addPayrollPersonnelRoute(
       createJsonRequest("http://localhost/api/payroll/1/personnel", {
         personnelIds: [1, 2],
-        defaultNetPay: "99",
+        defaultNetPay: 99,
         perPersonNetPay: { 2: 101 },
       }),
       { params: Promise.resolve({ id: "1" }) }
@@ -293,7 +310,17 @@ describe("payroll routes", () => {
     );
 
     expect(invalid.status).toBe(400);
-    expect(await invalid.json()).toEqual({ error: "netPay 不能为空" });
+    expect(await invalid.json()).toEqual({ error: "netPay 必须是有效数字" });
+
+    const wrongType = await updateNetPayRoute(
+      createJsonRequest(
+        "http://localhost/api/payroll/record/1/net-pay",
+        { netPay: "100" },
+        "PUT"
+      ),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+    expect(wrongType.status).toBe(400);
 
     vi.mocked(updatePayrollRecordNetPay).mockResolvedValueOnce(null);
     const missing = await updateNetPayRoute(
@@ -334,7 +361,7 @@ describe("payroll routes", () => {
     const success = await updateExportWeightRoute(
       createJsonRequest(
         "http://localhost/api/payroll/record/1/export-weight",
-        { exportWeight: "3" },
+        { exportWeight: 3 },
         "PUT"
       ),
       { params: Promise.resolve({ id: "1" }) }
@@ -342,6 +369,22 @@ describe("payroll routes", () => {
 
     expect(success.status).toBe(200);
     expect(updatePayrollRecordExportWeight).toHaveBeenCalledWith(1, 3);
+  });
+
+  test("PUT /api/payroll/record/[id]/export-weight rejects invalid input", async () => {
+    const response = await updateExportWeightRoute(
+      createJsonRequest(
+        "http://localhost/api/payroll/record/1/export-weight",
+        { exportWeight: "3" },
+        "PUT"
+      ),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "exportWeight 必须是非负整数或 null",
+    });
   });
 
   test("PUT /api/payroll/record/[id]/export-weight returns 404 and 500", async () => {

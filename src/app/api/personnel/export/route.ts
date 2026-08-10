@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiErrorResponse } from "@/lib/api-route";
 import { exportPersonnelExcel } from "@/lib/services/excel.service";
 
 export async function GET() {
@@ -13,10 +14,7 @@ export async function GET() {
         "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
       },
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "导出失败" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse(error, "导出失败");
   }
 }

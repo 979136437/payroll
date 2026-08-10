@@ -12,7 +12,8 @@
     "test:coverage": "vitest run --coverage",
     "docker:compose": "docker compose -p salary-workbench up -d --build",
     "preinstall": "node ./scripts/check-node-version.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

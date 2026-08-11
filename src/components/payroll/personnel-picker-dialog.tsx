@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useId } from "react";
+import { useState, useEffect, useMemo, useRef, useId, useReducer } from "react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,102 @@ type Props = {
   description?: string;
 };
 
+type PickerDraftState = {
+  pendingIds: number[];
+  pendingSelectionIds: Set<number>;
+  search: string;
+  unifiedNetPay: string;
+  perPersonNetPay: Record<number, string>;
+};
+
+type PickerDraftAction =
+  | { type: "reset" }
+  | { type: "addPersonnel"; personnelId: number }
+  | { type: "removePersonnel"; personnelId: number }
+  | { type: "removeSelected" }
+  | { type: "toggleSelection"; personnelId: number }
+  | { type: "setSelection"; personnelIds: number[] }
+  | { type: "setSearch"; value: string }
+  | { type: "setUnifiedNetPay"; value: string }
+  | { type: "setPersonnelNetPay"; personnelId: number; value: string };
+
+const createPickerDraftState = (): PickerDraftState => ({
+  pendingIds: [],
+  pendingSelectionIds: new Set(),
+  search: "",
+  unifiedNetPay: "",
+  perPersonNetPay: {},
+});
+
+function pickerDraftReducer(
+  state: PickerDraftState,
+  action: PickerDraftAction
+): PickerDraftState {
+  switch (action.type) {
+    case "reset":
+      return createPickerDraftState();
+    case "addPersonnel":
+      return {
+        ...state,
+        pendingIds: [...state.pendingIds, action.personnelId],
+      };
+    case "removePersonnel": {
+      const pendingSelectionIds = new Set(state.pendingSelectionIds);
+      pendingSelectionIds.delete(action.personnelId);
+      return {
+        ...state,
+        pendingIds: state.pendingIds.filter((id) => id !== action.personnelId),
+        pendingSelectionIds,
+      };
+    }
+    case "removeSelected":
+      return {
+        ...state,
+        pendingIds: state.pendingIds.filter(
+          (id) => !state.pendingSelectionIds.has(id)
+        ),
+        pendingSelectionIds: new Set(),
+      };
+    case "toggleSelection": {
+      const pendingSelectionIds = new Set(state.pendingSelectionIds);
+      if (pendingSelectionIds.has(action.personnelId)) {
+        pendingSelectionIds.delete(action.personnelId);
+      } else {
+        pendingSelectionIds.add(action.personnelId);
+      }
+      return { ...state, pendingSelectionIds };
+    }
+    case "setSelection":
+      return {
+        ...state,
+        pendingSelectionIds: new Set(action.personnelIds),
+      };
+    case "setSearch":
+      return { ...state, search: action.value };
+    case "setUnifiedNetPay": {
+      const perPersonNetPay = { ...state.perPersonNetPay };
+      if (action.value !== "") {
+        state.pendingIds.forEach((id) => {
+          perPersonNetPay[id] = action.value;
+        });
+      }
+      return {
+        ...state,
+        unifiedNetPay: action.value,
+        perPersonNetPay,
+      };
+    }
+    case "setPersonnelNetPay":
+      return {
+        ...state,
+        perPersonNetPay: {
+          ...state.perPersonNetPay,
+          [action.personnelId]: action.value,
+        },
+      };
+  }
+}
+
 export function PersonnelPickerDialog({
   open,
   onOpenChange,
@@ -45,15 +141,19 @@ export function PersonnelPickerDialog({
 }: Props) {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pendingIds, setPendingIds] = useState<number[]>([]);
-  const [pendingSelectionIds, setPendingSelectionIds] = useState<Set<number>>(
-    new Set()
+  // 将一次用户操作涉及的字段合并为原子转换，避免会话重置不完整。
+  const [draft, dispatchDraft] = useReducer(
+    pickerDraftReducer,
+    undefined,
+    createPickerDraftState
   );
-  const [search, setSearch] = useState("");
-  const [unifiedNetPay, setUnifiedNetPay] = useState("");
-  const [perPersonNetPay, setPerPersonNetPay] = useState<Record<number, string>>(
-    {}
-  );
+  const {
+    pendingIds,
+    pendingSelectionIds,
+    search,
+    unifiedNetPay,
+    perPersonNetPay,
+  } = draft;
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const personnelRequestId = useRef(0);
@@ -93,11 +193,7 @@ export function PersonnelPickerDialog({
           setLoading(false);
         }
       });
-    setPendingIds([]);
-    setPendingSelectionIds(new Set());
-    setSearch("");
-    setUnifiedNetPay("");
-    setPerPersonNetPay({});
+    dispatchDraft({ type: "reset" });
 
     return () => {
       // 关闭或卸载后使人员列表响应失效，防止旧结果污染下一次打开。
@@ -131,61 +227,38 @@ export function PersonnelPickerDialog({
   }, [pendingIds, personnelById]);
 
   const addToPending = (personnelId: number) => {
-    setPendingIds((prev) => [...prev, personnelId]);
+    dispatchDraft({ type: "addPersonnel", personnelId });
   };
 
   const removeFromPending = (personnelId: number) => {
-    setPendingIds((prev) => prev.filter((id) => id !== personnelId));
-    setPendingSelectionIds((prev) => {
-      const next = new Set(prev);
-      next.delete(personnelId);
-      return next;
-    });
+    dispatchDraft({ type: "removePersonnel", personnelId });
   };
 
   const removeSelectedPending = () => {
-    setPendingIds((prev) =>
-      prev.filter((id) => !pendingSelectionIds.has(id))
-    );
-    setPendingSelectionIds(new Set());
+    dispatchDraft({ type: "removeSelected" });
   };
 
   const togglePendingSelection = (personnelId: number) => {
-    setPendingSelectionIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(personnelId)) {
-        next.delete(personnelId);
-      } else {
-        next.add(personnelId);
-      }
-      return next;
-    });
+    dispatchDraft({ type: "toggleSelection", personnelId });
   };
 
   const toggleSelectAllPending = () => {
     if (pendingSelectionIds.size === pendingPersonnel.length) {
-      setPendingSelectionIds(new Set());
+      dispatchDraft({ type: "setSelection", personnelIds: [] });
     } else {
-      setPendingSelectionIds(new Set(pendingPersonnel.map((p) => p.id)));
+      dispatchDraft({
+        type: "setSelection",
+        personnelIds: pendingPersonnel.map((person) => person.id),
+      });
     }
   };
 
   const handleUnifiedNetPayChange = (value: string) => {
-    setUnifiedNetPay(value);
-    if (value !== "") {
-      const newPerPerson: Record<number, string> = {};
-      pendingIds.forEach((id) => {
-        newPerPerson[id] = value;
-      });
-      setPerPersonNetPay((prev) => ({ ...prev, ...newPerPerson }));
-    }
+    dispatchDraft({ type: "setUnifiedNetPay", value });
   };
 
   const handlePerPersonNetPayChange = (personnelId: number, value: string) => {
-    setPerPersonNetPay((prev) => ({
-      ...prev,
-      [personnelId]: value,
-    }));
+    dispatchDraft({ type: "setPersonnelNetPay", personnelId, value });
   };
 
   const handleSubmit = async () => {
@@ -398,7 +471,9 @@ export function PersonnelPickerDialog({
                   id={searchInputId}
                   type="search"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) =>
+                    dispatchDraft({ type: "setSearch", value: e.target.value })
+                  }
                   placeholder="搜索姓名、手机号、身份证号、工资卡号"
                   disabled={submitting}
                   className="pl-9"

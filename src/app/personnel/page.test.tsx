@@ -120,7 +120,7 @@ describe("PersonnelPage", () => {
     });
 
     const rows = screen.getAllByRole("row");
-    await user.click(within(rows[1]).getAllByRole("button")[0]);
+    await user.click(within(rows[1]).getByRole("button", { name: "编辑 张三" }));
     await user.click(screen.getByText("mock-edit-submit"));
     await waitFor(() => {
       expect(personnelApi.update).toHaveBeenCalledWith(1, { name: "李四" });
@@ -135,7 +135,7 @@ describe("PersonnelPage", () => {
       expect(toast.success).toHaveBeenCalledWith("已删除 1 条记录");
     });
 
-    await user.click(within(rows[1]).getAllByRole("button")[1]);
+    await user.click(within(rows[1]).getByRole("button", { name: "删除 张三" }));
     await user.click(screen.getAllByRole("button", { name: "删除" })[0]);
     await waitFor(() => {
       expect(personnelApi.delete).toHaveBeenCalledWith(1);

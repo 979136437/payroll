@@ -408,6 +408,7 @@ export default function PersonnelPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`编辑 ${p.name}`}
                             onClick={() => handleEdit(p)}
                           >
                             <Pencil className="size-4" />
@@ -415,6 +416,7 @@ export default function PersonnelPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`删除 ${p.name}`}
                             onClick={() => {
                               setDeleteTarget({ type: "single", id: p.id });
                               setDeleteDialogOpen(true);

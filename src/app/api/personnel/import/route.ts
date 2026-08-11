@@ -70,7 +70,15 @@ export async function POST(request: Request) {
       headers: request.headers,
       body: requestBody,
     });
-    const formData = await boundedRequest.formData();
+    let formData: FormData;
+    try {
+      formData = await boundedRequest.formData();
+    } catch {
+      return NextResponse.json(
+        { error: "导入请求格式无效" },
+        { status: 400 }
+      );
+    }
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
@@ -90,6 +98,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     return apiErrorResponse(error, "导入失败", {
       "导入模板不匹配，请使用固定花名册表头": 400,
+      "导入文件无法解析": 400,
     });
   }
 }

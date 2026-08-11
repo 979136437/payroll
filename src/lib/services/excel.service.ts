@@ -202,7 +202,12 @@ export async function importPersonnelFromExcel(
   fileBuffer: Buffer
 ): Promise<PersonnelImportResult> {
   const db = getDb();
-  const workbook = XLSX.read(fileBuffer, { type: "buffer" });
+  let workbook: XLSX.WorkBook;
+  try {
+    workbook = XLSX.read(fileBuffer, { type: "buffer" });
+  } catch {
+    throw new Error("导入文件无法解析");
+  }
 
   let importRows: any[] = [];
   for (const sheetName of workbook.SheetNames) {

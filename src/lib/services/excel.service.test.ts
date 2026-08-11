@@ -45,6 +45,14 @@ describe("excel.service", () => {
     );
   });
 
+  test("importPersonnelFromExcel rejects an unreadable workbook", async () => {
+    const truncatedZip = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+
+    await expect(importPersonnelFromExcel(truncatedZip)).rejects.toThrow(
+      "导入文件无法解析"
+    );
+  });
+
   test("importPersonnelFromExcel supports direct roster header without index column", async () => {
     const buffer = buildRosterWorkbook([
       [

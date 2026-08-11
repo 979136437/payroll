@@ -453,6 +453,22 @@ describe("personnel routes", () => {
     expect(importPersonnelFromExcel).toHaveBeenCalledWith(expect.any(Buffer));
   });
 
+  test("POST /api/personnel/import rejects malformed multipart data", async () => {
+    const response = await importPersonnelPost(
+      new Request("http://localhost/api/personnel/import", {
+        method: "POST",
+        body: "not-a-multipart-body",
+        headers: {
+          "Content-Type": "multipart/form-data; boundary=missing-boundary",
+        },
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "导入请求格式无效" });
+    expect(importPersonnelFromExcel).not.toHaveBeenCalled();
+  });
+
   test("POST /api/personnel/import rejects oversized requests before parsing", async () => {
     const response = await importPersonnelPost(
       new Request("http://localhost/api/personnel/import", {

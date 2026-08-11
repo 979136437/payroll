@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import PersonnelPage from "@/app/personnel/page";
 import { personnelApi } from "@/lib/api";
@@ -45,18 +45,49 @@ describe("PersonnelPage", () => {
 
     expect(await screen.findByText("张三")).toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText("搜索姓名、身份证号、工资卡号、电话"), "李四");
+    const searchInput = screen.getByRole("searchbox", { name: "搜索人员" });
+    await user.type(searchInput, "李四");
     expect(screen.getByText("没有匹配的人员")).toBeInTheDocument();
 
-    await user.clear(screen.getByPlaceholderText("搜索姓名、身份证号、工资卡号、电话"));
+    await user.clear(searchInput);
     await user.click(screen.getByRole("button", { name: "导出" }));
-    expect(window.open).toHaveBeenCalledWith("/api/personnel/export", "_blank");
+    expect(window.open).toHaveBeenCalledWith(
+      "/api/personnel/export",
+      "_blank",
+      "noopener,noreferrer"
+    );
 
     unmount();
     render(<PersonnelPage />);
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("加载失败");
     });
+  });
+
+  test("ignores an older list response after creation refreshes the list", async () => {
+    const user = userEvent.setup();
+    let resolveInitialList!: (value: any[]) => void;
+    vi.mocked(personnelApi.list)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => {
+          resolveInitialList = resolve;
+        })
+      )
+      .mockResolvedValueOnce([{ id: 3, name: "王五" }] as any);
+    vi.mocked(personnelApi.create).mockResolvedValue({ id: 3, name: "王五" } as any);
+
+    render(<PersonnelPage />);
+    await user.click(screen.getByRole("button", { name: "新增人员" }));
+    await user.click(screen.getByText("mock-create-submit"));
+
+    expect(await screen.findByText("王五")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveInitialList([{ id: 1, name: "张三" }]);
+    });
+
+    expect(screen.getByText("王五")).toBeInTheDocument();
+    expect(screen.queryByText("张三")).not.toBeInTheDocument();
   });
 
   test("creates, updates, deletes, batch deletes, imports and reorders", async () => {
@@ -178,4 +209,5 @@ describe("PersonnelPage", () => {
       expect(personnelApi.reorder).toHaveBeenCalledWith([3, 1, 2]);
     });
   });
+
 });

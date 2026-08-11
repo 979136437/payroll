@@ -1,5 +1,3 @@
-"use server";
-
 import { eq, desc, asc, and, inArray, sql } from "drizzle-orm";
 import { getDb, currentTimestamp } from "@/lib/db";
 import { payrollSheet, payrollRecord, personnel } from "@/lib/db/schema";
@@ -112,7 +110,11 @@ export async function createPayrollSheet(
       return createdSheetId;
     });
 
-    return getPayrollSheetSummary(sheetId);
+    const summary = await getPayrollSheetSummary(sheetId);
+    if (!summary) {
+      throw new Error("工资表创建结果不存在");
+    }
+    return summary;
   } catch (error: any) {
     if (
       error?.message?.includes("UNIQUE constraint failed: payroll_sheet.name")
@@ -125,7 +127,7 @@ export async function createPayrollSheet(
 
 async function getPayrollSheetSummary(
   sheetId: number
-): Promise<PayrollSheetSummary> {
+): Promise<PayrollSheetSummary | null> {
   const db = getDb();
 
   const result = await db
@@ -144,11 +146,7 @@ async function getPayrollSheetSummary(
     .where(eq(payrollSheet.id, sheetId))
     .groupBy(payrollSheet.id, payrollSheet.name, payrollSheet.updatedAt);
 
-  if (result.length === 0) {
-    throw new Error("工资表不存在");
-  }
-
-  return mapToSheetSummary(result[0]);
+  return result.length > 0 ? mapToSheetSummary(result[0]) : null;
 }
 
 export async function getPayrollSheetDetail(
@@ -156,37 +154,33 @@ export async function getPayrollSheetDetail(
 ): Promise<PayrollSheetDetail | null> {
   const db = getDb();
 
-  const sheetSummary = await db
-    .select()
-    .from(payrollSheet)
-    .where(eq(payrollSheet.id, sheetId));
+  const [sheet, records] = await Promise.all([
+    getPayrollSheetSummary(sheetId),
+    db
+      .select({
+        recordId: payrollRecord.id,
+        personnelId: payrollRecord.personnelId,
+        name: personnel.name,
+        idCardNumber: personnel.idCardNumber,
+        payrollCardNumber: personnel.payrollCardNumber,
+        bankName: personnel.bankName,
+        exportWeight: payrollRecord.exportWeight,
+        attendanceDays: payrollRecord.attendanceDays,
+        wageStandard: payrollRecord.wageStandard,
+        grossPay: payrollRecord.grossPay,
+        deductionAmount: payrollRecord.deductionAmount,
+        phoneNumber: personnel.phoneNumber,
+        netPay: payrollRecord.netPay,
+        payeeSignature: payrollRecord.payeeSignature,
+        remark: payrollRecord.remark,
+      })
+      .from(payrollRecord)
+      .innerJoin(personnel, eq(personnel.id, payrollRecord.personnelId))
+      .where(eq(payrollRecord.payrollSheetId, sheetId))
+      .orderBy(asc(payrollRecord.id)),
+  ]);
 
-  if (sheetSummary.length === 0) return null;
-
-  const sheet = await getPayrollSheetSummary(sheetId);
-
-  const records = await db
-    .select({
-      recordId: payrollRecord.id,
-      personnelId: payrollRecord.personnelId,
-      name: personnel.name,
-      idCardNumber: personnel.idCardNumber,
-      payrollCardNumber: personnel.payrollCardNumber,
-      bankName: personnel.bankName,
-      exportWeight: payrollRecord.exportWeight,
-      attendanceDays: payrollRecord.attendanceDays,
-      wageStandard: payrollRecord.wageStandard,
-      grossPay: payrollRecord.grossPay,
-      deductionAmount: payrollRecord.deductionAmount,
-      phoneNumber: personnel.phoneNumber,
-      netPay: payrollRecord.netPay,
-      payeeSignature: payrollRecord.payeeSignature,
-      remark: payrollRecord.remark,
-    })
-    .from(payrollRecord)
-    .innerJoin(personnel, eq(personnel.id, payrollRecord.personnelId))
-    .where(eq(payrollRecord.payrollSheetId, sheetId))
-    .orderBy(asc(payrollRecord.id));
+  if (!sheet) return null;
 
   return {
     sheet,
@@ -232,6 +226,16 @@ export async function addPersonnelToSheet(
   const uniqueIds = Array.from(new Set(personnelIds));
 
   db.transaction((tx) => {
+    const existingSheet = tx
+      .select({ id: payrollSheet.id })
+      .from(payrollSheet)
+      .where(eq(payrollSheet.id, sheetId))
+      .all();
+    if (existingSheet.length === 0) {
+      throw new Error("工资表不存在");
+    }
+    if (uniqueIds.length === 0) return;
+
     for (const pid of uniqueIds) {
       const netPay = options?.perPersonNetPay?.[pid] ?? options?.defaultNetPay ?? 0;
       tx
@@ -260,11 +264,18 @@ export async function removePersonnelFromSheet(
 ): Promise<void> {
   const db = getDb();
   const uniqueIds = Array.from(new Set(personnelIds));
-
-  if (uniqueIds.length === 0) return;
-
   const now = currentTimestamp();
   db.transaction((tx) => {
+    const existingSheet = tx
+      .select({ id: payrollSheet.id })
+      .from(payrollSheet)
+      .where(eq(payrollSheet.id, sheetId))
+      .all();
+    if (existingSheet.length === 0) {
+      throw new Error("工资表不存在");
+    }
+    if (uniqueIds.length === 0) return;
+
     tx
       .delete(payrollRecord)
       .where(

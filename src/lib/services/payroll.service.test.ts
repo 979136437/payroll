@@ -97,6 +97,13 @@ describe("payroll.service", () => {
     expect(detail?.records).toHaveLength(0);
   });
 
+  test("personnel mutations reject missing sheets even with empty input", async () => {
+    await expect(addPersonnelToSheet(999, [])).rejects.toThrow("工资表不存在");
+    await expect(removePersonnelFromSheet(999, [])).rejects.toThrow(
+      "工资表不存在"
+    );
+  });
+
   test("removePersonnelFromSheet removes selected records and touches sheet", async () => {
     const sheet = await createPayrollSheet({ name: "工资表A" });
     const first = await createPersonnel({ name: "张三" });

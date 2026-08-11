@@ -29,6 +29,12 @@ export async function POST(
         { status: 400 }
       );
     }
+    if (personnelIds.length === 0) {
+      return NextResponse.json(
+        { error: "personnelIds 不能为空" },
+        { status: 400 }
+      );
+    }
     if (defaultNetPay != null && !isFiniteNumber(defaultNetPay)) {
       return NextResponse.json(
         { error: "defaultNetPay 必须是有效数字" },
@@ -51,7 +57,9 @@ export async function POST(
     });
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    return apiErrorResponse(error, "添加人员失败");
+    return apiErrorResponse(error, "添加人员失败", {
+      "工资表不存在": 404,
+    });
   }
 }
 
@@ -73,9 +81,17 @@ export async function DELETE(
         { status: 400 }
       );
     }
+    if (personnelIds.length === 0) {
+      return NextResponse.json(
+        { error: "personnelIds 不能为空" },
+        { status: 400 }
+      );
+    }
     await removePersonnelFromSheet(sheetId, personnelIds);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    return apiErrorResponse(error, "移除工员失败");
+    return apiErrorResponse(error, "移除工员失败", {
+      "工资表不存在": 404,
+    });
   }
 }

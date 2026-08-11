@@ -218,6 +218,7 @@ export function PayrollRecordTable({
                           className="size-8"
                           onClick={saveEdit}
                           disabled={saving}
+                          aria-label="保存实发工资"
                         >
                           <Check className="size-4 text-green-600" />
                         </Button>
@@ -227,24 +228,28 @@ export function PayrollRecordTable({
                           className="size-8"
                           onClick={cancelEdit}
                           disabled={saving}
+                          aria-label="取消编辑实发工资"
                         >
                           <X className="size-4 text-destructive" />
                         </Button>
                       </div>
                     ) : (
-                      <div
-                        className="cursor-pointer hover:text-primary font-mono group"
+                      <button
+                        type="button"
+                        className="group w-full cursor-pointer text-left font-mono hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={() => startEdit(record, "netPay")}
+                        aria-label={`编辑${record.name}的实发工资`}
                       >
                         ¥{record.netPay.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         <Edit3 className="size-3 inline ml-1 opacity-0 group-hover:opacity-100" />
-                      </div>
+                      </button>
                     )}
                   </TableCell>
                   <TableCell className="sticky right-0 bg-background group-hover:bg-muted/50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label={`移除${record.name}`}
                       onClick={async () => {
                         try {
                           await payrollApi.removePersonnel(sheetId, [

@@ -82,6 +82,31 @@ describe("PayrollRecordTable", () => {
     });
   });
 
+  test("opens net pay editing from the keyboard", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PayrollRecordTable
+        records={records}
+        sheetId={1}
+        selectedRecordIds={new Set()}
+        onToggleSelect={vi.fn()}
+        onToggleSelectAll={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const editButton = screen.getByRole("button", {
+      name: "编辑张三的实发工资",
+    });
+    editButton.focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByDisplayValue("100")).toHaveFocus();
+    expect(screen.getByRole("button", { name: "保存实发工资" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消编辑实发工资" })).toBeInTheDocument();
+  });
+
   test("shows validation and remove selected flow", async () => {
     const user = userEvent.setup();
     const onRefresh = vi.fn();

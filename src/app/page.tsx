@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardHeader,
@@ -59,56 +59,109 @@ export default function HomePage() {
     new Set()
   );
   const [refreshing, setRefreshing] = useState(false);
+  const sheetDetailRequestId = useRef(0);
+  const sheetListRequestId = useRef(0);
+  const selectedSheetIdRef = useRef<number | null>(null);
+  const sheetsRef = useRef<PayrollSheetSummary[]>([]);
 
-  const loadSheets = async () => {
+  const updateSheets = (nextSheets: PayrollSheetSummary[]) => {
+    sheetsRef.current = nextSheets;
+    setSheets(nextSheets);
+  };
+
+  const updateSelectedSheetId = (sheetId: number | null) => {
+    selectedSheetIdRef.current = sheetId;
+    setSelectedSheetId(sheetId);
+  };
+
+  const loadSheets = async (
+    preferredSheetId: number | null = selectedSheetIdRef.current
+  ) => {
+    const requestId = ++sheetListRequestId.current;
     try {
       const data = await payrollApi.list();
-      setSheets(data);
-      setSelectedSheetId((currentId) => {
-        if (data.length === 0) return null;
-        return data.some((sheet) => sheet.id === currentId)
-          ? currentId
-          : data[0].id;
-      });
+      if (requestId !== sheetListRequestId.current) {
+        return false;
+      }
+
+      updateSheets(data);
+      const nextSheetId = data.some((sheet) => sheet.id === preferredSheetId)
+        ? preferredSheetId
+        : data[0]?.id ?? null;
+      updateSelectedSheetId(nextSheetId);
+      setSelectedRecordIds(new Set());
+      if (nextSheetId != null) {
+        void loadSheetDetail(nextSheetId);
+      } else {
+        sheetDetailRequestId.current++;
+        setSheetDetail(null);
+        setLoading(false);
+      }
+      return true;
     } catch (error: any) {
-      toast.error(error.message || "加载工资表列表失败");
+      if (requestId === sheetListRequestId.current) {
+        toast.error(error.message || "加载工资表列表失败");
+      }
+      return false;
     }
   };
 
   const loadSheetDetail = async (id: number) => {
+    if (id !== selectedSheetIdRef.current) {
+      return false;
+    }
+
+    const requestId = ++sheetDetailRequestId.current;
+    // 请求新工资表时立即移除旧详情，避免失败后在新标题下误操作旧记录。
+    setSheetDetail(null);
     setLoading(true);
     try {
       const detail = await payrollApi.get(id);
+      if (
+        requestId !== sheetDetailRequestId.current ||
+        id !== selectedSheetIdRef.current
+      ) {
+        return false;
+      }
+
       setSheetDetail(detail);
+      return true;
     } catch (error: any) {
-      toast.error(error.message || "加载工资表失败");
+      if (requestId === sheetDetailRequestId.current) {
+        toast.error(error.message || "加载工资表失败");
+      }
+      return false;
     } finally {
-      setLoading(false);
+      setLoading((currentLoading) =>
+        requestId === sheetDetailRequestId.current ? false : currentLoading
+      );
     }
   };
 
   useEffect(() => {
     const initSheets = async () => {
+      const requestId = ++sheetListRequestId.current;
       try {
         const data = await payrollApi.list();
-        setSheets(data);
+        if (requestId !== sheetListRequestId.current) {
+          return;
+        }
+
+        updateSheets(data);
         if (data.length > 0) {
-          setSelectedSheetId((currentId) => currentId ?? data[0].id);
+          updateSelectedSheetId(data[0].id);
+          setSelectedRecordIds(new Set());
+          void loadSheetDetail(data[0].id);
         }
       } catch (error: any) {
-        toast.error(error.message || "加载工资表列表失败");
+        if (requestId === sheetListRequestId.current) {
+          toast.error(error.message || "加载工资表列表失败");
+        }
       }
     };
 
     initSheets();
   }, []);
-
-  useEffect(() => {
-    if (selectedSheetId != null) {
-      loadSheetDetail(selectedSheetId);
-      setSelectedRecordIds(new Set());
-    }
-  }, [selectedSheetId]);
 
   const handleCreateSheet = async (name: string, sourceSheetId: number | null) => {
     try {
@@ -117,8 +170,17 @@ export default function HomePage() {
         sourceSheetId,
       });
       toast.success("工资表创建成功");
-      await loadSheets();
-      setSelectedSheetId(newSheet.id);
+      const reconciled = await loadSheets(newSheet.id);
+      if (!reconciled) {
+        // 创建已经落库时采用接口返回结果，避免列表对账失败后界面仍停留在旧工资表。
+        updateSheets([
+          newSheet,
+          ...sheetsRef.current.filter((sheet) => sheet.id !== newSheet.id),
+        ]);
+        updateSelectedSheetId(newSheet.id);
+        setSelectedRecordIds(new Set());
+        void loadSheetDetail(newSheet.id);
+      }
     } catch (error: any) {
       throw error;
     }
@@ -126,10 +188,28 @@ export default function HomePage() {
 
   const handleDeleteSheet = async () => {
     if (!selectedSheetId) return;
+    const sheetIdToDelete = selectedSheetId;
     try {
-      await payrollApi.delete(selectedSheetId);
+      await payrollApi.delete(sheetIdToDelete);
       toast.success("工资表已删除");
-      setSheetDetail(null);
+      const remainingSheets = sheetsRef.current.filter(
+        (sheet) => sheet.id !== sheetIdToDelete
+      );
+      updateSheets(remainingSheets);
+
+      // 删除期间若已切换工资表，保留后来选择的详情。
+      if (selectedSheetIdRef.current === sheetIdToDelete) {
+        const nextSheetId = remainingSheets[0]?.id ?? null;
+        updateSelectedSheetId(nextSheetId);
+        setSelectedRecordIds(new Set());
+        if (nextSheetId != null) {
+          void loadSheetDetail(nextSheetId);
+        } else {
+          sheetDetailRequestId.current++;
+          setSheetDetail(null);
+          setLoading(false);
+        }
+      }
       await loadSheets();
     } catch (error: any) {
       toast.error(error.message || "删除失败");
@@ -154,23 +234,31 @@ export default function HomePage() {
         }
       );
       toast.success(`已添加 ${params.personnelIds.length} 人`);
-      loadSheetDetail(selectedSheetId);
+      void loadSheetDetail(selectedSheetId);
     } catch (error: any) {
       toast.error(error.message || "添加失败");
+      // 弹窗以 Promise 拒绝判断是否保留当前选择，提示后仍需继续抛出。
+      throw error;
     }
   };
 
   const handleExport = () => {
     if (!selectedSheetId) return;
-    window.open(payrollApi.exportExcel(selectedSheetId), "_blank");
+    window.open(
+      payrollApi.exportExcel(selectedSheetId),
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const handleRefresh = async () => {
     if (!selectedSheetId) return;
     setRefreshing(true);
     try {
-      await loadSheetDetail(selectedSheetId);
-      toast.success("已刷新");
+      const refreshed = await loadSheetDetail(selectedSheetId);
+      if (refreshed) {
+        toast.success("已刷新");
+      }
     } finally {
       setRefreshing(false);
     }
@@ -213,7 +301,13 @@ export default function HomePage() {
               <div className="w-72">
                 <Select
                   value={selectedSheetId ? String(selectedSheetId) : ""}
-                  onValueChange={(v) => v && setSelectedSheetId(Number(v))}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    const sheetId = Number(value);
+                    updateSelectedSheetId(sheetId);
+                    setSelectedRecordIds(new Set());
+                    void loadSheetDetail(sheetId);
+                  }}
                   disabled={sheets.length === 0}
                 >
                   <SelectTrigger className="w-full">
@@ -237,6 +331,7 @@ export default function HomePage() {
                 size="icon"
                 onClick={handleRefresh}
                 disabled={!selectedSheetId || refreshing}
+                aria-label="刷新工资表"
               >
                 <RefreshCw
                   className={`size-4 ${refreshing ? "animate-spin" : ""}`}

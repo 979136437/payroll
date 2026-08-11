@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useId } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +38,7 @@ type Props = {
 export function PersonnelPickerDialog({
   open,
   onOpenChange,
-  existingPersonnelIds = [],
+  existingPersonnelIds,
   onConfirm,
   title = "从人员库添加",
   description = "先从右侧挑人加入本次添加清单，再统一加入当前工资表。",
@@ -55,35 +55,67 @@ export function PersonnelPickerDialog({
     {}
   );
   const [submitting, setSubmitting] = useState(false);
-
-  const loadPersonnel = async () => {
-    setLoading(true);
-    try {
-      const data = await personnelApi.list();
-      setPersonnel(data);
-    } catch (error: any) {
-      console.error("加载人员列表失败", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const personnelRequestId = useRef(0);
+  const submissionRequestId = useRef(0);
+  const searchInputId = useId();
 
   useEffect(() => {
-    if (open) {
-      loadPersonnel();
-      setPendingIds([]);
-      setPendingSelectionIds(new Set());
-      setSearch("");
-      setUnifiedNetPay("");
-      setPerPersonNetPay({});
+    if (!open) {
+      personnelRequestId.current++;
+      submissionRequestId.current++;
+      setLoading(false);
+      setSubmitting(false);
+      return;
     }
+
+    let active = true;
+    const requestId = ++personnelRequestId.current;
+    // 每次打开先清空缓存，避免加载失败时旧人员再次变得可操作。
+    setPersonnel([]);
+    setLoadError(null);
+    setLoading(true);
+    void personnelApi.list()
+      .then((data) => {
+        if (active && requestId === personnelRequestId.current) {
+          setPersonnel(data);
+          setLoadError(null);
+        }
+      })
+      .catch(() => {
+        if (active && requestId === personnelRequestId.current) {
+          setPersonnel([]);
+          setLoadError("人员列表加载失败，请稍后重试");
+        }
+      })
+      .finally(() => {
+        if (active && requestId === personnelRequestId.current) {
+          setLoading(false);
+        }
+      });
+    setPendingIds([]);
+    setPendingSelectionIds(new Set());
+    setSearch("");
+    setUnifiedNetPay("");
+    setPerPersonNetPay({});
+
+    return () => {
+      // 关闭或卸载后使人员列表响应失效，防止旧结果污染下一次打开。
+      active = false;
+    };
   }, [open]);
 
+  const personnelById = useMemo(
+    () => new Map(personnel.map((item) => [item.id, item])),
+    [personnel]
+  );
+
   const availablePersonnel = useMemo(() => {
+    const existingSet = new Set(existingPersonnelIds);
     const pendingSet = new Set(pendingIds);
     return personnel.filter(
       (p) =>
-        !existingPersonnelIds.includes(p.id) &&
+        !existingSet.has(p.id) &&
         !pendingSet.has(p.id) &&
         (p.name.toLowerCase().includes(search.toLowerCase()) ||
           p.idCardNumber?.includes(search) ||
@@ -94,9 +126,9 @@ export function PersonnelPickerDialog({
 
   const pendingPersonnel = useMemo(() => {
     return pendingIds
-      .map((id) => personnel.find((p) => p.id === id))
+      .map((id) => personnelById.get(id))
       .filter((p): p is Personnel => p != null);
-  }, [pendingIds, personnel]);
+  }, [pendingIds, personnelById]);
 
   const addToPending = (personnelId: number) => {
     setPendingIds((prev) => [...prev, personnelId]);
@@ -158,6 +190,7 @@ export function PersonnelPickerDialog({
 
   const handleSubmit = async () => {
     if (pendingIds.length === 0) return;
+    const requestId = ++submissionRequestId.current;
     setSubmitting(true);
     try {
       const perPersonNetPayNum: Record<number, number> = {};
@@ -179,20 +212,32 @@ export function PersonnelPickerDialog({
         defaultNetPay,
         perPersonNetPay: hasPerPerson ? perPersonNetPayNum : undefined,
       });
-      onOpenChange(false);
+      if (requestId === submissionRequestId.current) {
+        onOpenChange(false);
+      }
     } catch (error: any) {
-      console.error("添加失败", error);
+      if (requestId === submissionRequestId.current) {
+        console.error("添加失败", error);
+      }
     } finally {
-      setSubmitting(false);
+      setSubmitting((current) =>
+        requestId === submissionRequestId.current ? false : current
+      );
     }
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    // 提交期间统一阻止关闭，避免旧请求完成后影响后来重新打开的弹窗。
+    if (!nextOpen && submitting) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="!max-w-5xl !w-[90vw] !p-0 gap-0 overflow-hidden"
         style={{ maxHeight: "90vh" }}
-        showCloseButton
+        showCloseButton={!submitting}
       >
         <div className="flex flex-col h-[90vh]">
           <DialogHeader className="px-6 py-5 border-b shrink-0">
@@ -314,6 +359,7 @@ export function PersonnelPickerDialog({
                                   }
                                   disabled={submitting}
                                   placeholder="可留空"
+                                  aria-label={`${person.name}的实发工资`}
                                   className="h-7 w-full text-xs"
                                 />
                               </div>
@@ -344,8 +390,12 @@ export function PersonnelPickerDialog({
               </div>
 
               <div className="relative shrink-0">
+                <label htmlFor={searchInputId} className="sr-only">
+                  搜索待添加人员
+                </label>
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  id={searchInputId}
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -360,6 +410,13 @@ export function PersonnelPickerDialog({
                   {loading ? (
                     <div className="m-auto text-center py-8 text-sm text-muted-foreground">
                       加载中...
+                    </div>
+                  ) : loadError ? (
+                    <div
+                      role="alert"
+                      className="m-auto rounded-md border border-destructive/40 px-4 py-10 text-center text-sm text-destructive"
+                    >
+                      {loadError}
                     </div>
                   ) : availablePersonnel.length > 0 ? (
                     <div className="flex flex-col gap-2">
@@ -384,6 +441,7 @@ export function PersonnelPickerDialog({
                             variant="outline"
                             disabled={submitting}
                             onClick={() => addToPending(person.id)}
+                            aria-label={`添加 ${person.name}`}
                           >
                             <Plus className="size-4" />
                             添加

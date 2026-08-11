@@ -1,9 +1,9 @@
 import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
-import { sql } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
 
 import { getDb } from "@/lib/db";
-import { payrollRecord } from "@/lib/db/schema";
+import { payrollRecord, personnel as personnelTable } from "@/lib/db/schema";
 import {
   exportPayrollSheetExcel,
   exportPersonnelExcel,
@@ -116,6 +116,31 @@ describe("excel.service", () => {
     expect(personnel.map((item) => item.name)).toEqual(["张三", "李四", "王五"]);
     expect(personnel[0]?.id).toBe(existing.id);
     expect(personnel[2]?.id).toBe(untouched.id);
+  });
+
+  test("importPersonnelFromExcel keeps sort indexes contiguous for duplicate rows", async () => {
+    const existing = await createPersonnel({ name: "旧张三", idCardNumber: "ID-1" });
+    const untouched = await createPersonnel({ name: "李四", idCardNumber: "ID-2" });
+    const buffer = buildRosterWorkbook([
+      [
+        "姓名", "性别", "民族", "籍贯", "身份证号码", "工资卡号",
+        "开户行", "工种", "上场时间", "撤场时间", "联系电话", "备注",
+      ],
+      ["张三", "", "", "", "ID-1", "", "", "", "", "", "", ""],
+      ["张三更新", "", "", "", "ID-1", "", "", "", "", "", "", ""],
+    ]);
+
+    const result = await importPersonnelFromExcel(buffer);
+    const rows = await getDb()
+      .select({ id: personnelTable.id, sortIndex: personnelTable.sortIndex })
+      .from(personnelTable)
+      .orderBy(asc(personnelTable.sortIndex));
+
+    expect(result.updatedCount).toBe(2);
+    expect(rows).toEqual([
+      { id: existing.id, sortIndex: 0 },
+      { id: untouched.id, sortIndex: 1 },
+    ]);
   });
 
   test("importPersonnelFromExcel hides database details in row errors", async () => {

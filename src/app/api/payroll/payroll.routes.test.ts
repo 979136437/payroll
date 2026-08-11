@@ -202,6 +202,15 @@ describe("payroll routes", () => {
       error: "personnelIds 必须是正整数数组",
     });
 
+    const empty = await addPayrollPersonnelRoute(
+      createJsonRequest("http://localhost/api/payroll/1/personnel", {
+        personnelIds: [],
+      }),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+    expect(empty.status).toBe(400);
+    expect(await empty.json()).toEqual({ error: "personnelIds 不能为空" });
+
     const invalidPay = await addPayrollPersonnelRoute(
       createJsonRequest("http://localhost/api/payroll/1/personnel", {
         personnelIds: [1],
@@ -257,10 +266,30 @@ describe("payroll routes", () => {
     expect(await response.json()).toEqual({ error: "添加人员失败" });
   });
 
+  test("POST /api/payroll/[id]/personnel maps missing sheets to 404", async () => {
+    vi.mocked(addPersonnelToSheet).mockRejectedValue(new Error("工资表不存在"));
+
+    const response = await addPayrollPersonnelRoute(
+      createJsonRequest("http://localhost/api/payroll/1/personnel", {
+        personnelIds: [1],
+      }),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "工资表不存在" });
+  });
+
   test("DELETE /api/payroll/[id]/personnel validates array", async () => {
     const invalid = await removePayrollPersonnelRoute(
       createJsonRequest("http://localhost/api/payroll/1/personnel", {
         personnelIds: "bad",
+      }, "DELETE"),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+    const empty = await removePayrollPersonnelRoute(
+      createJsonRequest("http://localhost/api/payroll/1/personnel", {
+        personnelIds: [],
       }, "DELETE"),
       { params: Promise.resolve({ id: "1" }) }
     );
@@ -272,6 +301,8 @@ describe("payroll routes", () => {
     );
 
     expect(invalid.status).toBe(400);
+    expect(empty.status).toBe(400);
+    expect(await empty.json()).toEqual({ error: "personnelIds 不能为空" });
     expect(success.status).toBe(200);
     expect(removePersonnelFromSheet).toHaveBeenCalledWith(1, [1, 2]);
   });
@@ -301,6 +332,22 @@ describe("payroll routes", () => {
     );
 
     expect(await response.json()).toEqual({ error: "移除工员失败" });
+  });
+
+  test("DELETE /api/payroll/[id]/personnel maps missing sheets to 404", async () => {
+    vi.mocked(removePersonnelFromSheet).mockRejectedValue(
+      new Error("工资表不存在")
+    );
+
+    const response = await removePayrollPersonnelRoute(
+      createJsonRequest("http://localhost/api/payroll/1/personnel", {
+        personnelIds: [1],
+      }, "DELETE"),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "工资表不存在" });
   });
 
   test("PUT /api/payroll/record/[id]/net-pay validates netPay and handles 404", async () => {

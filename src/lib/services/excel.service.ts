@@ -1,5 +1,3 @@
-"use server";
-
 import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
 import { getDb, currentTimestamp, normalizeOptionalString } from "@/lib/db";
@@ -242,7 +240,16 @@ export async function importPersonnelFromExcel(
     .orderBy(asc(personnel.sortIndex), asc(personnel.id));
 
   const currentPersonnel = [...allPersonnel];
-  const importedIds: number[] = [];
+  const personnelIndexByIdCard = new Map<string, number>();
+  let nextSortIndex = -1;
+  for (const [index, item] of currentPersonnel.entries()) {
+    if (item.idCardNumber) {
+      personnelIndexByIdCard.set(item.idCardNumber, index);
+    }
+    nextSortIndex = Math.max(nextSortIndex, item.sortIndex);
+  }
+  nextSortIndex++;
+  const importedIds = new Set<number>();
   const now = currentTimestamp();
 
   for (const [rowIndex, row] of importRows.entries()) {
@@ -252,9 +259,7 @@ export async function importPersonnelFromExcel(
     }
 
     const existingIdx = row.idCardNumber
-      ? currentPersonnel.findIndex(
-          (p) => p.idCardNumber === row.idCardNumber
-        )
+      ? personnelIndexByIdCard.get(row.idCardNumber) ?? -1
       : -1;
 
     if (existingIdx >= 0) {
@@ -281,7 +286,7 @@ export async function importPersonnelFromExcel(
           .returning();
 
         currentPersonnel[existingIdx] = updated[0];
-        importedIds.push(existing.id);
+        importedIds.add(existing.id);
         result.updatedCount++;
       } catch (error: unknown) {
         // 客户端只接收稳定文案，原始数据库异常仅保留在服务端日志中。
@@ -290,14 +295,11 @@ export async function importPersonnelFromExcel(
       }
     } else {
       try {
-        const maxSort = currentPersonnel.length > 0
-          ? Math.max(...currentPersonnel.map((p) => p.sortIndex))
-          : -1;
         const created = await db
           .insert(personnel)
           .values({
             name: row.name.trim(),
-            sortIndex: maxSort + 1,
+            sortIndex: nextSortIndex,
             gender: normalizeOptionalString(row.gender),
             ethnicity: normalizeOptionalString(row.ethnicity),
             nativePlace: normalizeOptionalString(row.nativePlace),
@@ -313,8 +315,13 @@ export async function importPersonnelFromExcel(
           })
           .returning();
 
+        const createdIndex = currentPersonnel.length;
         currentPersonnel.push(created[0]);
-        importedIds.push(created[0].id);
+        if (created[0].idCardNumber) {
+          personnelIndexByIdCard.set(created[0].idCardNumber, createdIndex);
+        }
+        nextSortIndex++;
+        importedIds.add(created[0].id);
         result.createdCount++;
       } catch (error: unknown) {
         console.error(`[Excel Import] 第 ${rowIndex + 1} 条记录创建失败`, error);
@@ -323,17 +330,24 @@ export async function importPersonnelFromExcel(
     }
   }
 
-  const existingIdsToKeep = allPersonnel
-    .map((p) => p.id)
-    .filter((id) => !importedIds.includes(id));
+  const existingIdsToKeep: number[] = [];
+  for (const item of allPersonnel) {
+    if (!importedIds.has(item.id)) {
+      existingIdsToKeep.push(item.id);
+    }
+  }
 
   const reorderedIds = [...importedIds, ...existingIdsToKeep];
-  for (let i = 0; i < reorderedIds.length; i++) {
-    await db
-      .update(personnel)
-      .set({ sortIndex: i })
-      .where(eq(personnel.id, reorderedIds[i]));
-  }
+  // 排序写入必须整体成功，避免导入中断后留下部分更新的顺序。
+  db.transaction((tx) => {
+    for (let i = 0; i < reorderedIds.length; i++) {
+      tx
+        .update(personnel)
+        .set({ sortIndex: i })
+        .where(eq(personnel.id, reorderedIds[i]))
+        .run();
+    }
+  });
 
   return result;
 }

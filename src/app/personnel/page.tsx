@@ -45,6 +45,10 @@ import {
 
 const DEFAULT_PAGE_SIZE = 10;
 
+function openPersonnelExport() {
+  window.open(personnelApi.exportExcel(), "_blank", "noopener,noreferrer");
+}
+
 export default function PersonnelPage() {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,37 +67,45 @@ export default function PersonnelPage() {
   );
   const dragOverPersonnelId = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const personnelRequestId = useRef(0);
   const [search, setSearch] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const loadPersonnel = async () => {
+    const requestId = ++personnelRequestId.current;
     setLoading(true);
     try {
       const data = await personnelApi.list();
-      setPersonnel(data);
+      if (requestId === personnelRequestId.current) {
+        setPersonnel(data);
+      }
     } catch (error: any) {
-      toast.error(error.message || "加载失败");
+      if (requestId === personnelRequestId.current) {
+        toast.error(error.message || "加载失败");
+      }
     } finally {
-      setLoading(false);
+      setLoading((currentLoading) =>
+        requestId === personnelRequestId.current ? false : currentLoading
+      );
     }
   };
 
   useEffect(() => {
-    loadPersonnel();
+    void loadPersonnel();
   }, []);
 
   const handleCreate = async (data: CreatePersonnelInput) => {
     await personnelApi.create(data);
     toast.success("创建成功");
-    loadPersonnel();
+    void loadPersonnel();
   };
 
   const handleUpdate = async (data: CreatePersonnelInput) => {
     if (!editingPersonnel) return;
     await personnelApi.update(editingPersonnel.id, data);
     toast.success("更新成功");
-    loadPersonnel();
+    void loadPersonnel();
   };
 
   const handleDelete = async () => {
@@ -109,7 +121,7 @@ export default function PersonnelPage() {
         toast.success(`已删除 ${ids.length} 条记录`);
         setSelectedIds(new Set());
       }
-      loadPersonnel();
+      void loadPersonnel();
     } catch (error: any) {
       toast.error(error.message || "删除失败");
     } finally {
@@ -149,16 +161,12 @@ export default function PersonnelPage() {
       if (result.errors.length > 0) {
         toast.error(`有 ${result.errors.length} 条错误`);
       }
-      loadPersonnel();
+      void loadPersonnel();
     } catch (error: any) {
       toast.error(error.message || "导入失败");
     } finally {
       e.target.value = "";
     }
-  };
-
-  const handleExport = () => {
-    window.open(personnelApi.exportExcel(), "_blank");
   };
 
   const filteredPersonnel = useMemo(() => {
@@ -236,7 +244,7 @@ export default function PersonnelPage() {
       toast.success("排序已保存");
     } catch (error: any) {
       toast.error(error.message || "排序失败");
-      loadPersonnel();
+      void loadPersonnel();
     }
   };
 
@@ -253,8 +261,12 @@ export default function PersonnelPage() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="relative">
+                <label htmlFor="personnel-search" className="sr-only">
+                  搜索人员
+                </label>
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <input
+                  id="personnel-search"
                   type="search"
                   value={search}
                   onChange={(e) => {
@@ -266,7 +278,7 @@ export default function PersonnelPage() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={handleExport}>
+                <Button variant="outline" onClick={openPersonnelExport}>
                   <Download className="size-4 mr-2" />
                   导出
                 </Button>

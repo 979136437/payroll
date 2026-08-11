@@ -1,5 +1,3 @@
-"use server";
-
 import { eq, desc, asc } from "drizzle-orm";
 import { getDb, currentTimestamp, normalizeOptionalString } from "@/lib/db";
 import { personnel, payrollRecord, payrollSheet } from "@/lib/db/schema";

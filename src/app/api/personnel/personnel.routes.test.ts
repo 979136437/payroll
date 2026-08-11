@@ -391,12 +391,16 @@ describe("personnel routes", () => {
 
   test("GET /api/personnel/export returns excel attachment", async () => {
     vi.mocked(exportPersonnelExcel).mockResolvedValue(Buffer.from("excel"));
+    const date = new Date().toISOString().slice(0, 10);
 
     const response = await exportPersonnelGet();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain(
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    expect(response.headers.get("Content-Disposition")).toBe(
+      `attachment; filename="personnel_${date}.xlsx"; filename*=UTF-8''${encodeURIComponent(`花名册_${date}.xlsx`)}`
     );
   });
 

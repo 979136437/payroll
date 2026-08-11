@@ -566,6 +566,7 @@ describe("payroll routes", () => {
 
   test("GET /api/payroll/[id]/export returns excel attachment", async () => {
     vi.mocked(exportPayrollSheetExcel).mockResolvedValue(Buffer.from("excel"));
+    const date = new Date().toISOString().slice(0, 10);
 
     const response = await exportPayrollSheetGet(new Request("http://localhost"), {
       params: Promise.resolve({ id: "1" }),
@@ -574,6 +575,9 @@ describe("payroll routes", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain(
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    expect(response.headers.get("Content-Disposition")).toBe(
+      `attachment; filename="payroll_${date}.xlsx"; filename*=UTF-8''${encodeURIComponent(`工资表_${date}.xlsx`)}`
     );
   });
 

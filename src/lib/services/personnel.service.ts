@@ -53,34 +53,40 @@ export async function createPersonnel(
     throw new Error("姓名不能为空");
   }
 
-  const maxResult = await db
-    .select({ max: personnel.sortIndex })
-    .from(personnel)
-    .orderBy(desc(personnel.sortIndex))
-    .limit(1);
-  const nextSortIndex = (maxResult[0]?.max ?? -1) + 1;
   const updatedAt = currentTimestamp();
 
   try {
-    const result = await db
-      .insert(personnel)
-      .values({
-        name: trimmedName,
-        sortIndex: nextSortIndex,
-        gender: normalizeOptionalString(input.gender),
-        ethnicity: normalizeOptionalString(input.ethnicity),
-        nativePlace: normalizeOptionalString(input.nativePlace),
-        idCardNumber: normalizeOptionalString(input.idCardNumber),
-        payrollCardNumber: normalizeOptionalString(input.payrollCardNumber),
-        bankName: normalizeOptionalString(input.bankName),
-        jobType: normalizeOptionalString(input.jobType) || "砌砖",
-        startDate: normalizeOptionalString(input.startDate),
-        endDate: normalizeOptionalString(input.endDate),
-        phoneNumber: normalizeOptionalString(input.phoneNumber),
-        remark: normalizeOptionalString(input.remark),
-        updatedAt,
-      })
-      .returning();
+    const result = db.transaction((tx) => {
+      // 排序值的读取与写入必须原子执行，避免并发新增得到相同序号。
+      const maxResult = tx
+        .select({ max: personnel.sortIndex })
+        .from(personnel)
+        .orderBy(desc(personnel.sortIndex))
+        .limit(1)
+        .all();
+      const nextSortIndex = (maxResult[0]?.max ?? -1) + 1;
+
+      return tx
+        .insert(personnel)
+        .values({
+          name: trimmedName,
+          sortIndex: nextSortIndex,
+          gender: normalizeOptionalString(input.gender),
+          ethnicity: normalizeOptionalString(input.ethnicity),
+          nativePlace: normalizeOptionalString(input.nativePlace),
+          idCardNumber: normalizeOptionalString(input.idCardNumber),
+          payrollCardNumber: normalizeOptionalString(input.payrollCardNumber),
+          bankName: normalizeOptionalString(input.bankName),
+          jobType: normalizeOptionalString(input.jobType) || "砌砖",
+          startDate: normalizeOptionalString(input.startDate),
+          endDate: normalizeOptionalString(input.endDate),
+          phoneNumber: normalizeOptionalString(input.phoneNumber),
+          remark: normalizeOptionalString(input.remark),
+          updatedAt,
+        })
+        .returning()
+        .all();
+    });
     return mapToPersonnel(result[0]);
   } catch (error: any) {
     if (

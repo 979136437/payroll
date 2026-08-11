@@ -61,6 +61,20 @@ describe("personnel.service", () => {
     await expect(createPersonnel({ name: "   " })).rejects.toThrow("姓名不能为空");
   });
 
+  test("createPersonnel assigns distinct sort indexes to concurrent requests", async () => {
+    await Promise.all([
+      createPersonnel({ name: "张三" }),
+      createPersonnel({ name: "李四" }),
+    ]);
+
+    const rows = await getDb()
+      .select({ sortIndex: personnel.sortIndex })
+      .from(personnel)
+      .orderBy(personnel.sortIndex);
+
+    expect(rows.map((row) => row.sortIndex)).toEqual([0, 1]);
+  });
+
   test("listPersonnel returns records ordered by sort index then id", async () => {
     await createPersonnel({ name: "张三" });
     await createPersonnel({ name: "李四" });

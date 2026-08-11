@@ -99,7 +99,7 @@ describe("payroll.service", () => {
 
     await expect(
       addPersonnelToSheet(sheet.id, [person.id, 999], { defaultNetPay: 100 })
-    ).rejects.toThrow();
+    ).rejects.toThrow("部分人员不存在");
 
     const detail = await getPayrollSheetDetail(sheet.id);
     expect(detail?.records).toHaveLength(0);

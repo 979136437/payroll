@@ -310,6 +310,22 @@ describe("payroll routes", () => {
     expect(await response.json()).toEqual({ error: "工资表不存在" });
   });
 
+  test("POST /api/payroll/[id]/personnel maps missing personnel to 404", async () => {
+    vi.mocked(addPersonnelToSheet).mockRejectedValue(
+      new Error("部分人员不存在")
+    );
+
+    const response = await addPayrollPersonnelRoute(
+      createJsonRequest("http://localhost/api/payroll/1/personnel", {
+        personnelIds: [999],
+      }),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "部分人员不存在" });
+  });
+
   test("DELETE /api/payroll/[id]/personnel validates array", async () => {
     const invalid = await removePayrollPersonnelRoute(
       createJsonRequest("http://localhost/api/payroll/1/personnel", {

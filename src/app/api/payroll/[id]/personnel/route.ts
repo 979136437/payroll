@@ -63,6 +63,7 @@ export async function POST(
   } catch (error: unknown) {
     return apiErrorResponse(error, "添加人员失败", {
       "工资表不存在": 404,
+      "部分人员不存在": 404,
     });
   }
 }

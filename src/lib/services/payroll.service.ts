@@ -246,6 +246,16 @@ export async function addPersonnelToSheet(
     }
     if (uniqueIds.length === 0) return;
 
+    const existingPersonnel = tx
+      .select({ id: personnel.id })
+      .from(personnel)
+      .where(inArray(personnel.id, uniqueIds))
+      .all();
+    if (existingPersonnel.length !== uniqueIds.length) {
+      // 先验证整批人员，避免用数据库外键异常表示正常的资源失效。
+      throw new Error("部分人员不存在");
+    }
+
     for (const pid of uniqueIds) {
       const netPay = options?.perPersonNetPay?.[pid] ?? options?.defaultNetPay ?? 0;
       tx

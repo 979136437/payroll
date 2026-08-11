@@ -79,6 +79,13 @@ export default function PersonnelPage() {
       const data = await personnelApi.list();
       if (requestId === personnelRequestId.current) {
         setPersonnel(data);
+        setSelectedIds((currentIds) => {
+          const existingIds = new Set(data.map((item) => item.id));
+          // 列表对账时移除已删除人员，避免批量操作继续携带陈旧标识。
+          return new Set(
+            Array.from(currentIds).filter((id) => existingIds.has(id))
+          );
+        });
       }
     } catch (error: any) {
       if (requestId === personnelRequestId.current) {

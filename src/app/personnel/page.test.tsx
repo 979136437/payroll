@@ -183,6 +183,31 @@ describe("PersonnelPage", () => {
     });
   });
 
+  test("drops selected ids after a selected person is deleted", async () => {
+    const user = userEvent.setup();
+    vi.mocked(personnelApi.list)
+      .mockResolvedValueOnce([
+        { id: 1, name: "张三" },
+        { id: 2, name: "李四" },
+      ] as any)
+      .mockResolvedValueOnce([{ id: 2, name: "李四" }] as any);
+    vi.mocked(personnelApi.delete).mockResolvedValue({ success: true } as any);
+
+    render(<PersonnelPage />);
+    const firstRow = (await screen.findByText("张三")).closest("tr");
+    if (!firstRow) throw new Error("未找到张三所在行");
+
+    await user.click(within(firstRow).getByRole("checkbox", { name: "选择" }));
+    expect(screen.getByRole("button", { name: /删除选中 \(1\)/ })).toBeInTheDocument();
+    await user.click(within(firstRow).getByRole("button", { name: "删除 张三" }));
+    await user.click(screen.getAllByRole("button", { name: "删除" })[0]);
+
+    await waitFor(() => {
+      expect(personnelApi.delete).toHaveBeenCalledWith(1);
+      expect(screen.queryByRole("button", { name: /删除选中/ })).not.toBeInTheDocument();
+    });
+  });
+
   test("reorders the correct personnel while the list is filtered", async () => {
     vi.mocked(personnelApi.list).mockResolvedValue([
       { id: 1, name: "一组张三" },

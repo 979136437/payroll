@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     return apiErrorResponse(error, "创建工资表失败", {
       "工资表名称不能为空": 400,
       "工资表名称已存在": 400,
+      "来源工资表不存在": 404,
     });
   }
 }

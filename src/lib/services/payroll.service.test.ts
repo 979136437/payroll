@@ -64,6 +64,14 @@ describe("payroll.service", () => {
     expect(detail?.records.every((record) => record.netPay === 0)).toBe(true);
   });
 
+  test("createPayrollSheet rolls back when the source sheet is missing", async () => {
+    await expect(
+      createPayrollSheet({ name: "目标表", sourceSheetId: 999 })
+    ).rejects.toThrow("来源工资表不存在");
+
+    await expect(listPayrollSheets()).resolves.toEqual([]);
+  });
+
   test("listPayrollSheets includes counts and total net pay", async () => {
     const sheet = await createPayrollSheet({ name: "工资表A" });
     const first = await createPersonnel({ name: "张三" });

@@ -116,6 +116,22 @@ describe("payroll routes", () => {
     expect(createPayrollSheet).not.toHaveBeenCalled();
   });
 
+  test("POST /api/payroll maps a missing source sheet to 404", async () => {
+    vi.mocked(createPayrollSheet).mockRejectedValue(
+      new Error("来源工资表不存在")
+    );
+
+    const response = await createPayrollSheetPost(
+      createJsonRequest("http://localhost/api/payroll", {
+        name: "目标表",
+        sourceSheetId: 999,
+      })
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "来源工资表不存在" });
+  });
+
   test("POST /api/payroll falls back to default create error message", async () => {
     vi.mocked(createPayrollSheet).mockRejectedValue({});
 

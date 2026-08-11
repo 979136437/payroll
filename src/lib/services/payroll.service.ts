@@ -86,6 +86,16 @@ export async function createPayrollSheet(
       const createdSheetId = result[0].id;
 
       if (input.sourceSheetId) {
+        const sourceSheet = tx
+          .select({ id: payrollSheet.id })
+          .from(payrollSheet)
+          .where(eq(payrollSheet.id, input.sourceSheetId))
+          .all();
+        if (sourceSheet.length === 0) {
+          // 在事务内拒绝失效来源，避免留下看似复制成功的空工资表。
+          throw new Error("来源工资表不存在");
+        }
+
         const sourceRecords = tx
           .select({ personnelId: payrollRecord.personnelId })
           .from(payrollRecord)

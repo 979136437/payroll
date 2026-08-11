@@ -67,4 +67,22 @@ describe("CreatePayrollSheetDialog", () => {
       expect(toast.error).toHaveBeenCalledWith("创建失败");
     });
   });
+
+  test("resets draft when the dialog is reopened", async () => {
+    const user = userEvent.setup();
+    const props = {
+      onOpenChange: vi.fn(),
+      existingSheets: [],
+      onCreate: vi.fn(),
+    };
+    const { rerender } = render(
+      <CreatePayrollSheetDialog open {...props} />
+    );
+
+    await user.type(screen.getByLabelText(/工资表名称/), "未保存草稿");
+    rerender(<CreatePayrollSheetDialog open={false} {...props} />);
+    rerender(<CreatePayrollSheetDialog open {...props} />);
+
+    expect(screen.getByLabelText(/工资表名称/)).toHaveValue("");
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,16 +34,26 @@ export function CreatePayrollSheetDialog({
   existingSheets,
   onCreate,
 }: Props) {
+  return (
+    <CreatePayrollSheetDialogState
+      key={open ? "open" : "closed"}
+      open={open}
+      onOpenChange={onOpenChange}
+      existingSheets={existingSheets}
+      onCreate={onCreate}
+    />
+  );
+}
+
+function CreatePayrollSheetDialogState({
+  open,
+  onOpenChange,
+  existingSheets,
+  onCreate,
+}: Props) {
   const [name, setName] = useState("");
   const [sourceSheetId, setSourceSheetId] = useState<string>("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setName("");
-      setSourceSheetId("");
-    }
-  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

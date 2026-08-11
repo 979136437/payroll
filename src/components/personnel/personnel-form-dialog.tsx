@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,61 +22,50 @@ type Props = {
   onSubmit: (data: CreatePersonnelInput) => Promise<void>;
 };
 
+const createInitialForm = (
+  personnel?: Personnel | null
+): CreatePersonnelInput => ({
+  name: personnel?.name ?? "",
+  gender: personnel?.gender ?? "",
+  ethnicity: personnel?.ethnicity ?? "",
+  nativePlace: personnel?.nativePlace ?? "",
+  idCardNumber: personnel?.idCardNumber ?? "",
+  payrollCardNumber: personnel?.payrollCardNumber ?? "",
+  bankName: personnel?.bankName ?? "",
+  jobType: personnel ? personnel.jobType ?? "" : "砌砖",
+  startDate: personnel?.startDate ?? "",
+  endDate: personnel?.endDate ?? "",
+  phoneNumber: personnel?.phoneNumber ?? "",
+  remark: personnel?.remark ?? "",
+});
+
 export function PersonnelFormDialog({
   open,
   onOpenChange,
   personnel,
   onSubmit,
 }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState<CreatePersonnelInput>({
-    name: "",
-    gender: "",
-    ethnicity: "",
-    nativePlace: "",
-    idCardNumber: "",
-    payrollCardNumber: "",
-    bankName: "",
-    jobType: "砌砖",
-    startDate: "",
-    endDate: "",
-    phoneNumber: "",
-    remark: "",
-  });
+  return (
+    <PersonnelFormDialogState
+      key={`${open ? "open" : "closed"}-${personnel?.id ?? "new"}`}
+      open={open}
+      onOpenChange={onOpenChange}
+      personnel={personnel}
+      onSubmit={onSubmit}
+    />
+  );
+}
 
-  useEffect(() => {
-    if (personnel) {
-      setForm({
-        name: personnel.name,
-        gender: personnel.gender ?? "",
-        ethnicity: personnel.ethnicity ?? "",
-        nativePlace: personnel.nativePlace ?? "",
-        idCardNumber: personnel.idCardNumber ?? "",
-        payrollCardNumber: personnel.payrollCardNumber ?? "",
-        bankName: personnel.bankName ?? "",
-        jobType: personnel.jobType ?? "",
-        startDate: personnel.startDate ?? "",
-        endDate: personnel.endDate ?? "",
-        phoneNumber: personnel.phoneNumber ?? "",
-        remark: personnel.remark ?? "",
-      });
-    } else {
-      setForm({
-        name: "",
-        gender: "",
-        ethnicity: "",
-        nativePlace: "",
-        idCardNumber: "",
-        payrollCardNumber: "",
-        bankName: "",
-        jobType: "砌砖",
-        startDate: "",
-        endDate: "",
-        phoneNumber: "",
-        remark: "",
-      });
-    }
-  }, [personnel, open]);
+function PersonnelFormDialogState({
+  open,
+  onOpenChange,
+  personnel,
+  onSubmit,
+}: Props) {
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState<CreatePersonnelInput>(() =>
+    createInitialForm(personnel)
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -65,4 +65,32 @@ describe("PersonnelFormDialog", () => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
+
+  test("replaces draft immediately when editing another person", async () => {
+    const user = userEvent.setup();
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      onSubmit: vi.fn(),
+    };
+    const first = {
+      id: 1,
+      name: "张三",
+      jobType: "砌砖",
+    } as any;
+    const second = {
+      id: 2,
+      name: "李四",
+      jobType: "木工",
+    } as any;
+    const { rerender } = render(
+      <PersonnelFormDialog {...props} personnel={first} />
+    );
+
+    await user.clear(screen.getByLabelText(/姓名/));
+    await user.type(screen.getByLabelText(/姓名/), "未保存草稿");
+    rerender(<PersonnelFormDialog {...props} personnel={second} />);
+
+    expect(screen.getByLabelText(/姓名/)).toHaveValue("李四");
+  });
 });

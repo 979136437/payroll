@@ -3,3 +3,8 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
+
+# 延迟采用新发布依赖，并拒绝供应链信任等级下降。
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+blockExoticSubdeps: true

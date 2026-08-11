@@ -65,6 +65,14 @@ describe("runtime config", () => {
     expect(packageJson.scripts?.preinstall).toBe("node ./scripts/check-node-version.mjs");
   });
 
+  test("hardens pnpm dependency resolution", () => {
+    const workspaceConfig = readWorkspaceFile("pnpm-workspace.yaml");
+
+    expect(workspaceConfig).toMatch(/minimumReleaseAge:\s*10080/);
+    expect(workspaceConfig).toMatch(/trustPolicy:\s*no-downgrade/);
+    expect(workspaceConfig).toMatch(/blockExoticSubdeps:\s*true/);
+  });
+
   test("allows supported Node.js release lines while keeping Volta pinned", () => {
     const packageJson = JSON.parse(
       readWorkspaceFile("package.json")

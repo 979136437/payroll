@@ -83,8 +83,9 @@ export function PayrollRecordTable({
     setSaving(true);
     try {
       if (editingField === "netPay") {
-        const value = parseFloat(editValue);
-        if (isNaN(value)) {
+        const normalizedValue = editValue.trim();
+        const value = Number(normalizedValue);
+        if (!normalizedValue || !Number.isFinite(value)) {
           toast.error("请输入有效的金额");
           return;
         }

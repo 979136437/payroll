@@ -130,6 +130,12 @@ describe("PayrollRecordTable", () => {
     await user.keyboard("{Enter}");
 
     expect(toast.error).toHaveBeenCalledWith("请输入有效的金额");
+    expect(payrollApi.updateNetPay).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "1e309" } });
+    await user.keyboard("{Enter}");
+
+    expect(payrollApi.updateNetPay).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: /移除选中/ }));
 

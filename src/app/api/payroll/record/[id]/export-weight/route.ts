@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { apiErrorResponse, parsePositiveInteger } from "@/lib/api-route";
+import {
+  apiErrorResponse,
+  isObjectRecord,
+  parsePositiveInteger,
+} from "@/lib/api-route";
 import { updatePayrollRecordExportWeight } from "@/lib/services/payroll.service";
 
 export async function PUT(
@@ -13,10 +17,17 @@ export async function PUT(
       return NextResponse.json({ error: "工资记录 ID 无效" }, { status: 400 });
     }
     const body = await request.json();
-    const { exportWeight } = body;
+    const hasExportWeight =
+      isObjectRecord(body) && Object.hasOwn(body, "exportWeight");
+    const exportWeight = hasExportWeight ? body.exportWeight : undefined;
     if (
-      exportWeight != null &&
-      (!Number.isSafeInteger(exportWeight) || exportWeight < 0)
+      !hasExportWeight ||
+      !(
+        exportWeight === null ||
+        (typeof exportWeight === "number" &&
+          Number.isSafeInteger(exportWeight) &&
+          exportWeight >= 0)
+      )
     ) {
       return NextResponse.json(
         { error: "exportWeight 必须是非负整数或 null" },

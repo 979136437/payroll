@@ -327,6 +327,29 @@ describe("personnel routes", () => {
     });
   });
 
+  test("batch personnel routes reject null JSON bodies", async () => {
+    const batchDeleteResponse = await batchDeletePersonnelPost(
+      createJsonRequest(
+        "http://localhost/api/personnel/batch-delete",
+        null
+      )
+    );
+    const reorderResponse = await reorderPersonnelPost(
+      createJsonRequest("http://localhost/api/personnel/reorder", null)
+    );
+
+    expect(batchDeleteResponse.status).toBe(400);
+    expect(await batchDeleteResponse.json()).toEqual({
+      error: "ids 必须是正整数数组",
+    });
+    expect(reorderResponse.status).toBe(400);
+    expect(await reorderResponse.json()).toEqual({
+      error: "orderedIds 必须是正整数数组",
+    });
+    expect(deletePersonnelBatch).not.toHaveBeenCalled();
+    expect(reorderPersonnel).not.toHaveBeenCalled();
+  });
+
   test("POST /api/personnel/reorder handles service exception", async () => {
     vi.mocked(reorderPersonnel).mockRejectedValue(new Error("排序失败"));
 

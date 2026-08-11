@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   apiErrorResponse,
   isFiniteNumber,
+  isObjectRecord,
   parsePositiveInteger,
 } from "@/lib/api-route";
 import { updatePayrollRecordNetPay } from "@/lib/services/payroll.service";
@@ -17,7 +18,7 @@ export async function PUT(
       return NextResponse.json({ error: "工资记录 ID 无效" }, { status: 400 });
     }
     const body = await request.json();
-    const { netPay } = body;
+    const netPay = isObjectRecord(body) ? body.netPay : undefined;
     if (!isFiniteNumber(netPay)) {
       return NextResponse.json(
         { error: "netPay 必须是有效数字" },

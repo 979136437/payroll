@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   apiErrorResponse,
   isFiniteNumber,
+  isObjectRecord,
   isPersonnelNetPayMap,
   isPositiveIntegerArray,
   parsePositiveInteger,
@@ -22,7 +23,9 @@ export async function POST(
       return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
     }
     const body = await request.json();
-    const { personnelIds, defaultNetPay, perPersonNetPay } = body;
+    const { personnelIds, defaultNetPay, perPersonNetPay } = isObjectRecord(body)
+      ? body
+      : {};
     if (!isPositiveIntegerArray(personnelIds)) {
       return NextResponse.json(
         { error: "personnelIds 必须是正整数数组" },
@@ -74,7 +77,7 @@ export async function DELETE(
       return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
     }
     const body = await request.json();
-    const { personnelIds } = body;
+    const personnelIds = isObjectRecord(body) ? body.personnelIds : undefined;
     if (!isPositiveIntegerArray(personnelIds)) {
       return NextResponse.json(
         { error: "personnelIds 必须是正整数数组" },

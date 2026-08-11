@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { apiErrorResponse, isPositiveIntegerArray } from "@/lib/api-route";
+import {
+  apiErrorResponse,
+  isObjectRecord,
+  isPositiveIntegerArray,
+} from "@/lib/api-route";
 import {
   PERSONNEL_REORDER_INPUT_ERROR,
   reorderPersonnel,
@@ -8,7 +12,7 @@ import {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { orderedIds } = body;
+    const orderedIds = isObjectRecord(body) ? body.orderedIds : undefined;
     if (!isPositiveIntegerArray(orderedIds)) {
       return NextResponse.json(
         { error: "orderedIds 必须是正整数数组" },

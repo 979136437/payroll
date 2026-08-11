@@ -40,6 +40,12 @@ export function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+export function isObjectRecord(
+  value: unknown
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function isPersonnelInput(
   value: unknown
 ): value is CreatePersonnelInput {

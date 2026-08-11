@@ -350,6 +350,47 @@ describe("payroll routes", () => {
     expect(await response.json()).toEqual({ error: "工资表不存在" });
   });
 
+  test("payroll mutation routes reject null JSON bodies", async () => {
+    const context = { params: Promise.resolve({ id: "1" }) };
+    const addResponse = await addPayrollPersonnelRoute(
+      createJsonRequest("http://localhost/api/payroll/1/personnel", null),
+      context
+    );
+    const removeResponse = await removePayrollPersonnelRoute(
+      createJsonRequest(
+        "http://localhost/api/payroll/1/personnel",
+        null,
+        "DELETE"
+      ),
+      context
+    );
+    const netPayResponse = await updateNetPayRoute(
+      createJsonRequest(
+        "http://localhost/api/payroll/record/1/net-pay",
+        null,
+        "PUT"
+      ),
+      context
+    );
+    const exportWeightResponse = await updateExportWeightRoute(
+      createJsonRequest(
+        "http://localhost/api/payroll/record/1/export-weight",
+        null,
+        "PUT"
+      ),
+      context
+    );
+
+    expect(addResponse.status).toBe(400);
+    expect(removeResponse.status).toBe(400);
+    expect(netPayResponse.status).toBe(400);
+    expect(exportWeightResponse.status).toBe(400);
+    expect(addPersonnelToSheet).not.toHaveBeenCalled();
+    expect(removePersonnelFromSheet).not.toHaveBeenCalled();
+    expect(updatePayrollRecordNetPay).not.toHaveBeenCalled();
+    expect(updatePayrollRecordExportWeight).not.toHaveBeenCalled();
+  });
+
   test("PUT /api/payroll/record/[id]/net-pay validates netPay and handles 404", async () => {
     const invalid = await updateNetPayRoute(
       createJsonRequest("http://localhost/api/payroll/record/1/net-pay", {}, "PUT"),

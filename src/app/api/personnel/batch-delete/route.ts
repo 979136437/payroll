@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { apiErrorResponse, isPositiveIntegerArray } from "@/lib/api-route";
+import {
+  apiErrorResponse,
+  isObjectRecord,
+  isPositiveIntegerArray,
+} from "@/lib/api-route";
 import { deletePersonnelBatch } from "@/lib/services/personnel.service";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { ids } = body;
+    const ids = isObjectRecord(body) ? body.ids : undefined;
     if (!isPositiveIntegerArray(ids)) {
       return NextResponse.json(
         { error: "ids 必须是正整数数组" },

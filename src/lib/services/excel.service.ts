@@ -43,13 +43,6 @@ function valueOrEmpty(value: string | null | undefined): string {
   return value ?? "";
 }
 
-function formatDecimal(value: number): string {
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-  return value.toFixed(2);
-}
-
 function createBaseCellStyles(): Partial<ExcelJS.Style> {
   return {
     border: {
@@ -641,11 +634,11 @@ function writePayrollSheet(
       valueOrEmpty(r.idCardNumber),
       valueOrEmpty(r.payrollCardNumber),
       valueOrEmpty(r.bankName),
-      r.attendanceDays != null ? String(r.attendanceDays) : "",
-      r.wageStandard != null ? formatDecimal(r.wageStandard) : "",
-      r.grossPay != null ? formatDecimal(r.grossPay) : "",
-      r.deductionAmount != null ? formatDecimal(r.deductionAmount) : "",
-      formatDecimal(r.netPay),
+      r.attendanceDays ?? "",
+      r.wageStandard ?? "",
+      r.grossPay ?? "",
+      r.deductionAmount ?? "",
+      r.netPay,
       valueOrEmpty(r.payeeSignature),
       valueOrEmpty(r.payrollRemark),
     ];
@@ -654,6 +647,9 @@ function writePayrollSheet(
       const cell = row.getCell(colIdx + 2);
       cell.value = value;
       Object.assign(cell, { style: cellFormat });
+      if (colIdx >= 4 && colIdx <= 8 && typeof value === "number") {
+        cell.numFmt = "0.##";
+      }
     });
 
     totalNetPay += r.netPay;
@@ -672,8 +668,9 @@ function writePayrollSheet(
   Object.assign(totalLabelCell, { style: totalLabelFormat });
 
   const totalValueCell = totalRow.getCell(10);
-  totalValueCell.value = formatDecimal(totalNetPay);
+  totalValueCell.value = totalNetPay;
   Object.assign(totalValueCell, { style: cellFormat });
+  totalValueCell.numFmt = "0.##";
 
   for (let col = 11; col <= 12; col++) {
     const cell = totalRow.getCell(col);

@@ -228,6 +228,10 @@ describe("excel.service", () => {
         payrollSheetId: sheet.id,
         personnelId: second.id,
         netPay: 200,
+        attendanceDays: 1.5,
+        wageStandard: 88.25,
+        grossPay: 210.5,
+        deductionAmount: 10.5,
         exportWeight: 1,
         updatedAt: "1",
       },
@@ -252,6 +256,11 @@ describe("excel.service", () => {
     expect(payrollWorksheet?.getCell("B4").value).toBe("李四");
     expect(payrollWorksheet?.getCell("B5").value).toBe("王五");
     expect(payrollWorksheet?.getCell("B6").value).toBe("张三");
+    expect(payrollWorksheet?.getCell("F4").value).toBe(1.5);
+    expect(payrollWorksheet?.getCell("G4").value).toBe(88.25);
+    expect(payrollWorksheet?.getCell("J4").value).toBe(200);
+    expect(payrollWorksheet?.getCell("J7").value).toBe(600);
+    expect(payrollWorksheet?.getCell("J7").numFmt).toBe("0.##");
   });
 
   test("exportPayrollSheetExcel falls back to record order when weights are all null", async () => {

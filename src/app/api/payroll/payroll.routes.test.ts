@@ -102,6 +102,20 @@ describe("payroll routes", () => {
     expect(await failure.json()).toEqual({ error: "工资表名称不能为空" });
   });
 
+  test("POST /api/payroll rejects malformed JSON", async () => {
+    const response = await createPayrollSheetPost(
+      new Request("http://localhost/api/payroll", {
+        method: "POST",
+        body: "{",
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "请求体 JSON 无效" });
+    expect(createPayrollSheet).not.toHaveBeenCalled();
+  });
+
   test("POST /api/payroll falls back to default create error message", async () => {
     vi.mocked(createPayrollSheet).mockRejectedValue({});
 

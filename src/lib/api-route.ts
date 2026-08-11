@@ -3,6 +3,8 @@ import type { CreatePersonnelInput } from "@/lib/types";
 
 type KnownErrorStatus = Readonly<Record<string, number>>;
 
+class InvalidJsonBodyError extends Error {}
+
 export const MAX_EXCEL_IMPORT_BYTES = 10 * 1024 * 1024;
 export const MAX_EXCEL_IMPORT_REQUEST_BYTES = 11 * 1024 * 1024;
 export const PERSONNEL_INPUT_ERROR = "人员字段必须是字符串或 null";
@@ -46,6 +48,17 @@ export function isObjectRecord(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export async function readJsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch (error: unknown) {
+    if (error instanceof SyntaxError) {
+      throw new InvalidJsonBodyError("请求体 JSON 无效");
+    }
+    throw error;
+  }
+}
+
 export function isPersonnelInput(
   value: unknown
 ): value is CreatePersonnelInput {
@@ -81,6 +94,10 @@ export function apiErrorResponse(
   fallbackMessage: string,
   knownErrors: KnownErrorStatus = {}
 ) {
+  if (error instanceof InvalidJsonBodyError) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
   const message = error instanceof Error ? error.message : "";
   const knownStatus = knownErrors[message];
   if (knownStatus !== undefined) {

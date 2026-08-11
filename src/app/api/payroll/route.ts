@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { apiErrorResponse, parsePositiveInteger } from "@/lib/api-route";
+import {
+  apiErrorResponse,
+  isObjectRecord,
+  parsePositiveInteger,
+  readJsonBody,
+} from "@/lib/api-route";
 import {
   listPayrollSheets,
   createPayrollSheet,
@@ -16,8 +21,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    if (typeof body?.name !== "string") {
+    const body = await readJsonBody(request);
+    if (!isObjectRecord(body) || typeof body.name !== "string") {
       return NextResponse.json(
         { error: "工资表名称必须是字符串" },
         { status: 400 }

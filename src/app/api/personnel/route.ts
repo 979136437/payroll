@@ -3,6 +3,7 @@ import {
   apiErrorResponse,
   isPersonnelInput,
   PERSONNEL_INPUT_ERROR,
+  readJsonBody,
 } from "@/lib/api-route";
 import { listPersonnel, createPersonnel } from "@/lib/services/personnel.service";
 
@@ -17,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
     if (!isPersonnelInput(body)) {
       return NextResponse.json({ error: PERSONNEL_INPUT_ERROR }, { status: 400 });
     }

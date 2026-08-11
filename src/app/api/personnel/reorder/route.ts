@@ -3,6 +3,7 @@ import {
   apiErrorResponse,
   isObjectRecord,
   isPositiveIntegerArray,
+  readJsonBody,
 } from "@/lib/api-route";
 import {
   PERSONNEL_REORDER_INPUT_ERROR,
@@ -11,7 +12,7 @@ import {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const orderedIds = isObjectRecord(body) ? body.orderedIds : undefined;
     if (!isPositiveIntegerArray(orderedIds)) {
       return NextResponse.json(

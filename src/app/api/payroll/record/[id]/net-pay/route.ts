@@ -4,6 +4,7 @@ import {
   isFiniteNumber,
   isObjectRecord,
   parsePositiveInteger,
+  readJsonBody,
 } from "@/lib/api-route";
 import { updatePayrollRecordNetPay } from "@/lib/services/payroll.service";
 
@@ -17,7 +18,7 @@ export async function PUT(
     if (recordId == null) {
       return NextResponse.json({ error: "工资记录 ID 无效" }, { status: 400 });
     }
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const netPay = isObjectRecord(body) ? body.netPay : undefined;
     if (!isFiniteNumber(netPay)) {
       return NextResponse.json(

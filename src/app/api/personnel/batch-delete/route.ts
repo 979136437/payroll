@@ -3,12 +3,13 @@ import {
   apiErrorResponse,
   isObjectRecord,
   isPositiveIntegerArray,
+  readJsonBody,
 } from "@/lib/api-route";
 import { deletePersonnelBatch } from "@/lib/services/personnel.service";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const ids = isObjectRecord(body) ? body.ids : undefined;
     if (!isPositiveIntegerArray(ids)) {
       return NextResponse.json(

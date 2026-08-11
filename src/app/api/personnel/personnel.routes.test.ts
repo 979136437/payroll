@@ -99,6 +99,20 @@ describe("personnel routes", () => {
     expect(await response.json()).toEqual({ error: "姓名不能为空" });
   });
 
+  test("POST /api/personnel rejects malformed JSON", async () => {
+    const response = await createPersonnelPost(
+      new Request("http://localhost/api/personnel", {
+        method: "POST",
+        body: "{",
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "请求体 JSON 无效" });
+    expect(createPersonnel).not.toHaveBeenCalled();
+  });
+
   test("POST /api/personnel falls back to default create message", async () => {
     vi.mocked(createPersonnel).mockRejectedValue({});
 

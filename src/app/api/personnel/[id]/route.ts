@@ -4,6 +4,7 @@ import {
   isPersonnelInput,
   parsePositiveInteger,
   PERSONNEL_INPUT_ERROR,
+  readJsonBody,
 } from "@/lib/api-route";
 import {
   getPersonnelById,
@@ -41,7 +42,7 @@ export async function PUT(
     if (personnelId == null) {
       return NextResponse.json({ error: "人员 ID 无效" }, { status: 400 });
     }
-    const body = await request.json();
+    const body = await readJsonBody(request);
     if (!isPersonnelInput(body)) {
       return NextResponse.json({ error: PERSONNEL_INPUT_ERROR }, { status: 400 });
     }

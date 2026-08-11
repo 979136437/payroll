@@ -6,6 +6,7 @@ import {
   isPersonnelNetPayMap,
   isPositiveIntegerArray,
   parsePositiveInteger,
+  readJsonBody,
 } from "@/lib/api-route";
 import {
   addPersonnelToSheet,
@@ -22,7 +23,7 @@ export async function POST(
     if (sheetId == null) {
       return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
     }
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const { personnelIds, defaultNetPay, perPersonNetPay } = isObjectRecord(body)
       ? body
       : {};
@@ -76,7 +77,7 @@ export async function DELETE(
     if (sheetId == null) {
       return NextResponse.json({ error: "工资表 ID 无效" }, { status: 400 });
     }
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const personnelIds = isObjectRecord(body) ? body.personnelIds : undefined;
     if (!isPositiveIntegerArray(personnelIds)) {
       return NextResponse.json(

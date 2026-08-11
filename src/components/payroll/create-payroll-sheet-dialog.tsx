@@ -72,9 +72,15 @@ function CreatePayrollSheetDialogState({
     }
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    // 创建期间保持当前会话，避免旧请求完成后关闭后续弹窗。
+    if (!nextOpen && loading) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent showCloseButton={!loading}>
         <DialogHeader>
           <DialogTitle>新建工资表</DialogTitle>
         </DialogHeader>

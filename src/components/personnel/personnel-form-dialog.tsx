@@ -84,9 +84,18 @@ function PersonnelFormDialogState({
     }
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    // 保存期间保持当前会话，避免旧请求完成后关闭后续弹窗。
+    if (!nextOpen && loading) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="max-w-3xl max-h-[90vh] overflow-y-auto"
+        showCloseButton={!loading}
+      >
         <DialogHeader>
           <DialogTitle>{personnel ? "编辑人员" : "新增人员"}</DialogTitle>
         </DialogHeader>

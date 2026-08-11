@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 import { PersonnelFormDialog } from "@/components/personnel/personnel-form-dialog";
 import { toast } from "sonner";
@@ -92,5 +92,37 @@ describe("PersonnelFormDialog", () => {
     rerender(<PersonnelFormDialog {...props} personnel={second} />);
 
     expect(screen.getByLabelText(/姓名/)).toHaveValue("李四");
+  });
+
+  test("prevents closing while saving is in progress", async () => {
+    const user = userEvent.setup();
+    let resolveSubmit!: () => void;
+    const onOpenChange = vi.fn();
+    const onSubmit = vi.fn(
+      () => new Promise<void>((resolve) => {
+        resolveSubmit = resolve;
+      })
+    );
+
+    render(
+      <PersonnelFormDialog
+        open
+        onOpenChange={onOpenChange}
+        onSubmit={onSubmit}
+      />
+    );
+    await user.type(screen.getByLabelText(/姓名/), "张三");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    await act(async () => {
+      resolveSubmit();
+    });
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 });

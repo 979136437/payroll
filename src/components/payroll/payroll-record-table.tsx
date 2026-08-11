@@ -41,6 +41,7 @@ export function PayrollRecordTable({
   const [editingField, setEditingField] = useState<"netPay" | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
@@ -110,7 +111,7 @@ export function PayrollRecordTable({
   };
 
   const handleRemoveSelected = async () => {
-    if (selectedRecordIds.size === 0) return;
+    if (selectedRecordIds.size === 0 || removing) return;
     const selectedPersonnelIds: number[] = [];
     for (const record of records) {
       if (selectedRecordIds.has(record.recordId)) {
@@ -119,12 +120,30 @@ export function PayrollRecordTable({
     }
     if (selectedPersonnelIds.length === 0) return;
 
+    setRemoving(true);
     try {
       await payrollApi.removePersonnel(sheetId, selectedPersonnelIds);
       toast.success(`已移除 ${selectedPersonnelIds.length} 人`);
       onRefresh();
     } catch (error: any) {
       toast.error(error.message || "移除失败");
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const handleRemoveOne = async (personnelId: number) => {
+    if (removing) return;
+
+    setRemoving(true);
+    try {
+      await payrollApi.removePersonnel(sheetId, [personnelId]);
+      toast.success("已移除");
+      onRefresh();
+    } catch (error: any) {
+      toast.error(error.message || "移除失败");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -142,6 +161,7 @@ export function PayrollRecordTable({
             variant="destructive"
             size="sm"
             onClick={handleRemoveSelected}
+            disabled={removing}
           >
             <Trash2 className="size-4 mr-2" />
             移除选中 ({selectedRecordIds.size})
@@ -259,17 +279,8 @@ export function PayrollRecordTable({
                       variant="ghost"
                       size="icon"
                       aria-label={`移除${record.name}`}
-                      onClick={async () => {
-                        try {
-                          await payrollApi.removePersonnel(sheetId, [
-                            record.personnelId,
-                          ]);
-                          toast.success("已移除");
-                          onRefresh();
-                        } catch (e: any) {
-                          toast.error(e.message || "移除失败");
-                        }
-                      }}
+                      onClick={() => handleRemoveOne(record.personnelId)}
+                      disabled={removing}
                     >
                       <Trash2 className="size-4 text-destructive" />
                     </Button>

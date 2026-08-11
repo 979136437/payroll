@@ -144,4 +144,37 @@ describe("PayrollRecordTable", () => {
       expect(onRefresh).toHaveBeenCalled();
     });
   });
+
+  test("disables remove actions while a removal is pending", async () => {
+    const user = userEvent.setup();
+    let resolveRemoval!: (value: { success: boolean }) => void;
+    vi.mocked(payrollApi.removePersonnel).mockImplementation(
+      () => new Promise((resolve) => {
+        resolveRemoval = resolve;
+      })
+    );
+
+    render(
+      <PayrollRecordTable
+        records={records}
+        sheetId={1}
+        selectedRecordIds={new Set([11])}
+        onToggleSelect={vi.fn()}
+        onToggleSelectAll={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const removeSelectedButton = screen.getByRole("button", {
+      name: /移除选中/,
+    });
+    await user.click(removeSelectedButton);
+
+    expect(removeSelectedButton).toBeDisabled();
+    expect(screen.getByRole("button", { name: "移除张三" })).toBeDisabled();
+    expect(payrollApi.removePersonnel).toHaveBeenCalledTimes(1);
+
+    resolveRemoval({ success: true });
+    await waitFor(() => expect(removeSelectedButton).toBeEnabled());
+  });
 });

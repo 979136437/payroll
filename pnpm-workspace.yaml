@@ -7,4 +7,7 @@ allowBuilds:
 # 延迟采用新发布依赖，并拒绝供应链信任等级下降。
 minimumReleaseAge: 10080
 trustPolicy: no-downgrade
+trustPolicyExclude:
+  # 该锁定版本缺少来源证明，但由 Next.js 的 ESLint 配置间接依赖并已完成来源核验。
+  - eslint-import-resolver-typescript@3.10.1
 blockExoticSubdeps: true

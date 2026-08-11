@@ -8,15 +8,15 @@ RUN corepack enable pnpm
 
 # 复制根目录的配置、锁文件以及 .npmrc
 # 这样容器内执行 pnpm install 也会直接读取你配置好的淘宝二进制镜像源
-COPY package.json pnpm-workspace.yaml* .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY scripts/check-node-version.mjs ./scripts/check-node-version.mjs
 
 # 💡 如果是 Monorepo 架构，请取消下方注释并根据实际情况复制子包的 package.json，以最大化利用 Docker 缓存：
 # COPY packages/ui/package.json ./packages/ui/
 # COPY apps/web/package.json ./apps/web/
 
-# 安装依赖（--frozen-lockfile 确保严格锁定版本）
-RUN pnpm install
+# 严格使用已审核的锁文件，避免构建阶段重新解析传递依赖。
+RUN pnpm install --frozen-lockfile
 
 # === 阶段 2: 打包构建 ===
 FROM node:22.23.1-alpine AS builder

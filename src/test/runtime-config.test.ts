@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 type PackageJson = {
+  packageManager?: string;
   scripts?: {
     preinstall?: string;
   };
@@ -48,8 +49,11 @@ describe("runtime config", () => {
   test("copies Node.js runtime guard files before dependency installation in Docker", () => {
     const dockerfile = readWorkspaceFile("Dockerfile");
 
-    expect(dockerfile).toContain("COPY package.json pnpm-workspace.yaml* .npmrc ./");
+    expect(dockerfile).toContain(
+      "COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./"
+    );
     expect(dockerfile).toContain("COPY scripts/check-node-version.mjs ./scripts/check-node-version.mjs");
+    expect(dockerfile).toContain("RUN pnpm install --frozen-lockfile");
     expect(
       dockerfile.indexOf("COPY scripts/check-node-version.mjs ./scripts/check-node-version.mjs")
     ).toBeLessThan(dockerfile.indexOf("RUN pnpm install"));
@@ -70,6 +74,9 @@ describe("runtime config", () => {
 
     expect(workspaceConfig).toMatch(/minimumReleaseAge:\s*10080/);
     expect(workspaceConfig).toMatch(/trustPolicy:\s*no-downgrade/);
+    expect(workspaceConfig).toMatch(
+      /trustPolicyExclude:[\s\S]*eslint-import-resolver-typescript@3\.10\.1/
+    );
     expect(workspaceConfig).toMatch(/blockExoticSubdeps:\s*true/);
   });
 
@@ -81,6 +88,7 @@ describe("runtime config", () => {
 
     expect(packageJson.volta?.node).toBe("22.23.1");
     expect(packageJson.volta?.pnpm).toBe("10.34.4");
+    expect(packageJson.packageManager).toBe(`pnpm@${packageJson.volta?.pnpm}`);
     expect(packageJson.engines?.node).toBe("^20.19.0 || ^22.12.0 || >=24.0.0");
     expect(isNodeVersionAllowed(packageJson.engines?.node ?? "", "20.20.2")).toBe(true);
     expect(isNodeVersionAllowed(packageJson.engines?.node ?? "", "22.23.1")).toBe(true);

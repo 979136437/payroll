@@ -134,7 +134,7 @@ describe("PayrollRecordTable", () => {
     await user.click(screen.getByRole("button", { name: /移除选中/ }));
 
     await waitFor(() => {
-      expect(payrollApi.removePersonnel).toHaveBeenCalledWith(1, [11]);
+      expect(payrollApi.removePersonnel).toHaveBeenCalledWith(1, [101]);
       expect(onRefresh).toHaveBeenCalled();
     });
   });

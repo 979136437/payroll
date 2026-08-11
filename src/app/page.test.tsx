@@ -44,9 +44,18 @@ vi.mock("@/components/payroll/personnel-picker-dialog", () => ({
 }));
 
 vi.mock("@/components/payroll/payroll-record-table", () => ({
-  PayrollRecordTable: ({ records, onRefresh }: any) => (
+  PayrollRecordTable: ({
+    records,
+    selectedRecordIds,
+    onToggleSelect,
+    onRefresh,
+  }: any) => (
     <div>
       <span>mock-records:{records.length}</span>
+      <span>mock-selected:{selectedRecordIds.size}</span>
+      <button onClick={() => onToggleSelect(records[0]?.recordId)}>
+        mock-select-record
+      </button>
       <button onClick={onRefresh}>mock-refresh-records</button>
     </div>
   ),
@@ -172,6 +181,32 @@ describe("HomePage", () => {
     expect(await screen.findByText("mock-records:0")).toBeInTheDocument();
     expect(toast.error).toHaveBeenCalledWith("刷新失败");
     expect(toast.success).not.toHaveBeenCalledWith("已刷新");
+  });
+
+  test("drops selected record ids that disappear after refresh", async () => {
+    const user = userEvent.setup();
+    vi.mocked(payrollApi.list).mockResolvedValue([
+      { id: 1, name: "六月工资", personnelCount: 1, totalNetPay: 100, updatedAt: "1" },
+    ] as any);
+    vi.mocked(payrollApi.get)
+      .mockResolvedValueOnce({
+        sheet: { id: 1, name: "六月工资" },
+        records: [{ recordId: 11, personnelId: 101, name: "张三", netPay: 100 }],
+      } as any)
+      .mockResolvedValueOnce({
+        sheet: { id: 1, name: "六月工资" },
+        records: [],
+      } as any);
+
+    render(<HomePage />);
+    expect(await screen.findByText("mock-records:1")).toBeInTheDocument();
+    await user.click(screen.getByText("mock-select-record"));
+    expect(screen.getByText("mock-selected:1")).toBeInTheDocument();
+
+    await user.click(screen.getByText("mock-refresh-records"));
+
+    expect(await screen.findByText("mock-records:0")).toBeInTheDocument();
+    expect(screen.getByText("mock-selected:0")).toBeInTheDocument();
   });
 
   test("keeps the add callback rejected after showing an error", async () => {

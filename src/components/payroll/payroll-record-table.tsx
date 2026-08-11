@@ -110,9 +110,17 @@ export function PayrollRecordTable({
 
   const handleRemoveSelected = async () => {
     if (selectedRecordIds.size === 0) return;
+    const selectedPersonnelIds: number[] = [];
+    for (const record of records) {
+      if (selectedRecordIds.has(record.recordId)) {
+        selectedPersonnelIds.push(record.personnelId);
+      }
+    }
+    if (selectedPersonnelIds.length === 0) return;
+
     try {
-      await payrollApi.removePersonnel(sheetId, Array.from(selectedRecordIds));
-      toast.success(`已移除 ${selectedRecordIds.size} 人`);
+      await payrollApi.removePersonnel(sheetId, selectedPersonnelIds);
+      toast.success(`已移除 ${selectedPersonnelIds.length} 人`);
       onRefresh();
     } catch (error: any) {
       toast.error(error.message || "移除失败");

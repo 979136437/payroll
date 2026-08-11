@@ -125,6 +125,17 @@ export default function HomePage() {
       }
 
       setSheetDetail(detail);
+      setSelectedRecordIds((currentIds) => {
+        const existingRecordIds = new Set(
+          detail.records.map((record) => record.recordId)
+        );
+        // 刷新后仅保留仍存在的记录，避免删除后残留不可见选择。
+        return new Set(
+          Array.from(currentIds).filter((recordId) =>
+            existingRecordIds.has(recordId)
+          )
+        );
+      });
       return true;
     } catch (error: any) {
       if (requestId === sheetDetailRequestId.current) {

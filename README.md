@@ -2,6 +2,18 @@
 
 项目面向单人使用，数据库采用 SQLite，包含人员、工资表和工资记录三张业务表。开发运行本机 Next.js，生产使用 Docker 运行 Next.js，应用和一次性迁移工具共享命名 volume。
 
+## TanStack 基础设施
+
+已安装 Query、Form、Store、Table、Virtual；Query 的 ESLint 推荐规则已启用。`app/providers.tsx` 已接入根布局，后代客户端组件可直接使用 `useQuery`、`useMutation` 和 `useQueryClient`。
+
+- `lib/query-client.ts`：服务端每次获取新实例，浏览器复用实例；查询默认新鲜期为 60 秒，写入默认不重试。需要更及时的数据时按查询覆盖 `staleTime`，写入成功后通过 `invalidateQueries` 刷新对应查询。
+- 查询键必须包含影响结果的筛选条件；请求函数需检查 HTTP 状态并校验响应数据，不把数据库模块导入客户端。
+- 服务端预取时，在同一个请求内保存并复用创建的客户端，使用 `dehydrate` 和 `HydrationBoundary` 向客户端传递数据；当前尚未接入具体业务查询或预取。
+- Form、Table、Virtual 在具体客户端组件内按需初始化，不需要全局 Provider；Store 按页面或业务作用域创建，禁止用服务端模块级单例保存用户数据。当前没有添加业务表单、表格、虚拟列表或共享状态。
+- 缓存仅保存在内存；未来接入登录切换时应清空旧用户缓存，避免展示上一个用户的数据。
+
+实现参考：[TanStack Query 官方 Next.js 服务端渲染指南](https://tanstack.com/query/latest/docs/framework/react/guides/advanced-ssr)。
+
 ## 开发环境
 
 需要 Node.js 22 或更新版本、pnpm 10.33.0。无需 Docker、MySQL 服务或数据库密码。

@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 
 # next.js
 /.next/
@@ -23,6 +26,8 @@
 # misc
 .DS_Store
 *.pem
+payroll-backup-*.sql
+payroll-sqlite-backup-*/
 
 # debug
 npm-debug.log*
@@ -31,7 +36,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env.*.local
 
 # vercel
 .vercel

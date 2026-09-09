@@ -19,6 +19,8 @@
     "db:migrate:prod": "tsx scripts/database.ts migrate production",
     "db:check:dev": "tsx scripts/database.ts check development",
     "db:check:prod": "tsx scripts/database.ts check production",
+    "db:status:dev": "tsx scripts/database.ts status development",
+    "db:status:prod": "tsx scripts/database.ts status production",
     "db:studio": "tsx scripts/database.ts studio development"
   },
   "dependencies": {

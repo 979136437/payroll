@@ -1,0 +1,2 @@
+# 迁移历史按 SQL 原始字节校验哈希，跨平台检出必须保留统一换行。
+drizzle/*.sql text eol=lf

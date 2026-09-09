@@ -1,2 +1,20 @@
-{"version":"7","dialect":"sqlite","entries":[]}
-
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788933685681,
+      "tag": "0000_magenta_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788934969009,
+      "tag": "0001_payroll_integrity",
+      "breakpoints": true
+    }
+  ]
+}

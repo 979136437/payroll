@@ -16,6 +16,9 @@
 *.sqlite-wal
 *.sqlite-shm
 
+# 本机开发数据库目录软链接
+/dev-sqlite
+
 # next.js
 /.next/
 /out/

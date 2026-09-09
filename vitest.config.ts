@@ -8,7 +8,7 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     coverage: {
       provider: "v8", clean: false,
-      include: ["db/config.ts", "db/client.ts", "scripts/environment.ts"],
+      include: ["db/config.ts", "db/client.ts", "scripts/environment.ts", "scripts/migrations.ts"],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },
   },

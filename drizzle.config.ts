@@ -8,7 +8,9 @@ loadDatabaseEnvironment(process.env.DB_ENV);
 const config = readDbConfig();
 if (process.env.DB_COMMAND === "studio") mkdirSync(dirname(config.filename), { recursive: true });
 export default defineConfig({
-  dialect: "sqlite", schema: "./db/schema.ts", out: "./drizzle",
+  dialect: "sqlite", 
+  schema: "./db/schema.ts", 
+  out: "./drizzle",
   ...(process.env.DB_COMMAND === "generate" ? {} : { dbCredentials: { url: config.filename } }),
 });
 

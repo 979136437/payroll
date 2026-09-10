@@ -1,9 +1,5 @@
-import Image from "next/image";
+import { PayrollPage } from "@/features/payroll";
 
 export default function Home() {
-  return (
-    <>
-      <h1>Hello World</h1>
-    </>
-  );
+  return <PayrollPage />;
 }

@@ -2,6 +2,27 @@
 
 项目面向单人使用，数据库采用 SQLite，包含人员、工资表和工资记录三张业务表。开发运行本机 Next.js，生产使用 Docker 运行 Next.js，应用和一次性迁移工具共享命名 volume。
 
+## 界面演示
+
+首页为工资工作台，`/personnel` 为人员管理。界面参考[工资工作台示例站](https://payroll-86556-7-1303242491.sh.run.tcloudbase.com/)，使用现有基础组件、Tailwind CSS 和统一浅色主题。
+
+- `features/payroll`：工资表新建与复制、选人、实发金额编辑及记录管理。
+- `features/personnel`：人员搜索、分页、新增、编辑及删除确认。
+- `features/demo`：虚构初始数据与跨页面共享状态。功能纯逻辑的测试与代码就近维护。
+- 页面数据仅保存在当前标签页内存中，切换路由保留修改，整页刷新恢复初始数据。人员删除会同步移除关联演示工资记录。
+- 当前界面不读写 SQLite，不调用业务 API；导入、导出仅提示暂未支持。真实持久化和文件处理留待后续业务实现。
+- 工资内部使用整数分，限制非负且最多两位小数；单项与合计均检查安全整数范围。
+
+本次功能的轻量验证命令如下，不触发应用构建：
+
+```powershell
+pnpm test:features
+pnpm typecheck
+pnpm lint
+```
+
+`test:features` 独立统计新增纯逻辑覆盖率，门槛为 80%；原有测试与数据库覆盖率规则保留。演示界面本身不要求执行数据库迁移。
+
 ## TanStack 基础设施
 
 已安装 Query、Form、Store、Table、Virtual；Query 的 ESLint 推荐规则已启用。`app/providers.tsx` 已接入根布局，后代客户端组件可直接使用 `useQuery`、`useMutation` 和 `useQueryClient`。
@@ -9,7 +30,7 @@
 - `lib/query-client.ts`：服务端每次获取新实例，浏览器复用实例；查询默认新鲜期为 60 秒，写入默认不重试。需要更及时的数据时按查询覆盖 `staleTime`，写入成功后通过 `invalidateQueries` 刷新对应查询。
 - 查询键必须包含影响结果的筛选条件；请求函数需检查 HTTP 状态并校验响应数据，不把数据库模块导入客户端。
 - 服务端预取时，在同一个请求内保存并复用创建的客户端，使用 `dehydrate` 和 `HydrationBoundary` 向客户端传递数据；当前尚未接入具体业务查询或预取。
-- Form、Table、Virtual 在具体客户端组件内按需初始化，不需要全局 Provider；Store 按页面或业务作用域创建，禁止用服务端模块级单例保存用户数据。当前没有添加业务表单、表格、虚拟列表或共享状态。
+- Form、Table、Virtual 在具体客户端组件内按需初始化，不需要全局 Provider；Store 按页面或业务作用域创建，禁止用服务端模块级单例保存用户数据。当前演示界面复用基础表单和表格组件，通过 Context 与 reducer 共享内存状态，尚未接入这些库的业务能力。
 - 缓存仅保存在内存；未来接入登录切换时应清空旧用户缓存，避免展示上一个用户的数据。
 
 实现参考：[TanStack Query 官方 Next.js 服务端渲染指南](https://tanstack.com/query/latest/docs/framework/react/guides/advanced-ssr)。

@@ -4,6 +4,30 @@ import type { RowDataPacket } from "mysql2/promise";
 import { persons, payrollSheets, payrollRecords } from "../db/schema";
 import { mysqlAvailable, openFixture, seed } from "./database-fixtures";
 describe.skipIf(!mysqlAvailable)("真实 MySQL 工资约束", () => {
+  it("合并密文字段允许为空、完整保存长内容，并移除三个旧列", async () => {
+    const { connection, db } = await openFixture();
+    try {
+      await seed(connection);
+      const [columns] = await connection.query<RowDataPacket[]>("SHOW COLUMNS FROM persons");
+      expect(columns.find(column => column.Field === "sensitive_info")).toMatchObject({ Type: "text", Null: "YES" });
+      for (const field of ["id_card_number", "salary_card_number", "phone"]) {
+        expect(columns.some(column => column.Field === field)).toBe(false);
+      }
+      expect((await db.select().from(persons))[0].sensitiveInfo).toBeNull();
+      // 仅验证存储契约，此处的长字符串不是实际加密结果。
+      const payload = "模拟密文封装".repeat(100);
+      await db.update(persons).set({ sensitiveInfo: payload }).where(eq(persons.id, 7));
+      const [stored] = await db.select().from(persons);
+      expect(stored.sensitiveInfo).toBe(payload);
+      expect(stored.updatedAt.getTime()).toBeGreaterThan(1000);
+      await db.update(persons).set({ sensitiveInfo: payload }).where(eq(persons.id, 7));
+      expect((await db.select().from(persons))[0].updatedAt).toEqual(stored.updatedAt);
+      await db.update(persons).set({ sensitiveInfo: null }).where(eq(persons.id, 7));
+      const [cleared] = await db.select().from(persons);
+      expect(cleared.sensitiveInfo).toBeNull();
+      expect(cleared.updatedAt.getTime()).toBeGreaterThan(stored.updatedAt.getTime());
+    } finally { await connection.end(); }
+  });
   it("5.7 插入与更新触发器均拒绝非法输入，并填充毫秒时间", async () => {
     const { connection } = await openFixture();
     try {
@@ -58,13 +82,13 @@ describe.skipIf(!mysqlAvailable)("真实 MySQL 工资约束", () => {
     try {
       await seed(connection);
       if (mode === "Drizzle") {
-        await db.update(persons).set({ phone: "测试电话" }).where(eq(persons.id, 7));
+        await db.update(persons).set({ sensitiveInfo: "测试密文" }).where(eq(persons.id, 7));
         await db.update(payrollSheets).set({ name: "新名称" }).where(eq(payrollSheets.id, 8));
         await db.update(payrollRecords).set({ actualAmount: 500 }).where(eq(payrollRecords.id, 9));
         const person = await db.select().from(persons);
         expect(person[0].createdAt).toEqual(new Date(1000));
       } else {
-        for (const query of ["UPDATE persons SET phone='测试电话'", "UPDATE payroll_sheets SET name='新名称'", "UPDATE payroll_records SET actual_amount=500"]) await connection.query(query);
+        for (const query of ["UPDATE persons SET sensitive_info='测试密文'", "UPDATE payroll_sheets SET name='新名称'", "UPDATE payroll_records SET actual_amount=500"]) await connection.query(query);
       }
       for (const table of ["persons", "payroll_sheets", "payroll_records"]) {
         const [before] = await connection.query<RowDataPacket[]>(`SELECT created_at,updated_at FROM ${table}`);

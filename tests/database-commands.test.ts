@@ -21,7 +21,11 @@ describe("迁移文件校验", () => {
     if (kind === "错误方言") journal.dialect = "sqlite";
     if (kind === "跳号") journal.entries[0].idx = 3;
     if (kind === "路径穿越") journal.entries[0].tag = "../secret";
-    if (kind === "重复时间" || kind === "重复标签") journal.entries.push({ ...journal.entries[0], idx:1, when:journal.entries[0].when + (kind === "重复标签" ? 1 : 0) });
+    if (kind === "重复时间" || kind === "重复标签") journal.entries.push({
+      ...journal.entries[0], idx: journal.entries.length,
+      tag: kind === "重复标签" ? journal.entries[0].tag : "duplicate_time",
+      when: kind === "重复时间" ? journal.entries[0].when : journal.entries.at(-1).when + 1,
+    });
     writeFileSync(path,kind === "损坏日志" ? "{" : JSON.stringify(journal));
     if (kind === "空 SQL") writeFileSync(join(folder,journal.entries[0].tag + ".sql")," ");
     expect(() => readMigrationHistory(kind === "缺目录" ? join(folder,"absent") : folder)).toThrow(DatabaseOperationError);
@@ -35,7 +39,7 @@ describe.skipIf(!mysqlAvailable)("真实迁移状态与命令", () => {
     const { connection,config } = await openFixture(false);
     const history = readMigrationHistory(migrationFolder);
     try {
-      expect((await inspectMigrationState(connection,history)).pending).toBe(1);
+      expect((await inspectMigrationState(connection,history)).pending).toBe(history.length);
       const other = await mysql.createConnection(config);
       try {
         await other.query("SELECT GET_LOCK(CONCAT('payroll:',MD5(DATABASE())),0)");
@@ -78,6 +82,11 @@ describe.skipIf(!mysqlAvailable)("真实迁移状态与命令", () => {
       const path = join(folder,entry.tag + ".sql");
       const source = readFileSync(path,"utf8");
       writeFileSync(path,source.slice(0,source.lastIndexOf("--> statement-breakpoint",source.indexOf("-- 仅业务字段"))));
+      // 此用例仅验证初始迁移缺少触发器，不执行依赖该触发器的后续迁移。
+      const journalPath = join(folder, "meta/_journal.json");
+      const journal = JSON.parse(readFileSync(journalPath, "utf8"));
+      journal.entries = journal.entries.slice(0, 1);
+      writeFileSync(journalPath, JSON.stringify(journal));
       await expect(runMigrations(partial.connection,folder)).rejects.toThrow("触发器");
     } finally { await partial.connection.end(); }
   });

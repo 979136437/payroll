@@ -23,7 +23,7 @@ async function main() {
     return;
   }
   stage = "迁移文件检查";
-  const folder = resolve("drizzle/mysql57");
+  const folder = resolve("drizzle/migrations");
   const history = command === "check" ? undefined : readMigrationHistory(folder);
   stage = "数据库连接";
   const connection = await mysql.createConnection(readDbConfig());

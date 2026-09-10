@@ -6,6 +6,6 @@ loadDatabaseEnvironment(process.env.DB_ENV);
 export default defineConfig({
   dialect: "mysql",
   schema: "./db/schema.ts",
-  out: "./drizzle/mysql57",
+  out: "./drizzle/migrations",
   ...(process.env.DB_COMMAND === "generate" ? {} : { dbCredentials: readDbConfig() }),
 });

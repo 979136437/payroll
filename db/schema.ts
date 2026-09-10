@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, customType, index, int, mysqlTable, uniqueIndex } from "drizzle-orm/mysql-core";
+import { bigint, customType, index, int, mysqlTable, text, uniqueIndex } from "drizzle-orm/mysql-core";
 
 // 5.7 文本排序规则会忽略尾随空格，名称唯一性由二进制生成列保障。
 const exactText = customType<{ data: string; driverData: string; config: { length: number } }>({
@@ -25,10 +25,9 @@ export const persons = mysqlTable("persons", {
   gender: exactText("gender", { length: 100 }),
   ethnicity: exactText("ethnicity", { length: 100 }),
   nativePlace: exactText("native_place", { length: 100 }),
-  idCardNumber: exactText("id_card_number", { length: 100 }),
-  salaryCardNumber: exactText("salary_card_number", { length: 100 }),
+  // 身份证号、工资卡号和手机号合并为 JSON 后整体加密；未填写时允许为空。
+  sensitiveInfo: text("sensitive_info"),
   bankName: exactText("bank_name", { length: 100 }),
-  phone: exactText("phone", { length: 100 }),
   ...timestamps(),
 }, table => [
   uniqueIndex("persons_name_unique").on(table.nameKey),

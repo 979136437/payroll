@@ -1,55 +1,55 @@
 {
-  "version": "6",
-  "dialect": "sqlite",
-  "id": "77a0e419-63b6-4db1-8b51-9c484da1c831",
-  "prevId": "bd61c9e6-d745-487e-948f-2ff2d4726069",
+  "version": "5",
+  "dialect": "mysql",
+  "id": "bcdd1e31-c8ba-4ff0-b137-fcf4d592cd70",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "payroll_records": {
       "name": "payroll_records",
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
-          "primaryKey": true,
+          "type": "int",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": true
         },
         "payroll_sheet_id": {
           "name": "payroll_sheet_id",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "person_id": {
           "name": "person_id",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "actual_amount": {
           "name": "actual_amount",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CAST(unixepoch('subsecond') * 1000 AS INTEGER))"
+          "default": "0"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CAST(unixepoch('subsecond') * 1000 AS INTEGER))"
+          "default": "0"
         }
       },
       "indexes": {
@@ -104,115 +104,134 @@
           "onUpdate": "cascade"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "payroll_records_actual_amount_check": {
-          "name": "payroll_records_actual_amount_check",
-          "value": "typeof(\"payroll_records\".\"actual_amount\") = 'integer' AND \"payroll_records\".\"actual_amount\" BETWEEN 0 AND 9007199254740991"
+      "compositePrimaryKeys": {
+        "payroll_records_id": {
+          "name": "payroll_records_id",
+          "columns": [
+            "id"
+          ]
         }
-      }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
     },
     "payroll_sheets": {
       "name": "payroll_sheets",
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
-          "primaryKey": true,
+          "type": "int",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": true
         },
         "name": {
           "name": "name",
-          "type": "text",
+          "type": "varchar(80) COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
+        "name_key": {
+          "name": "name_key",
+          "type": "varbinary(320)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "generated": {
+            "as": "CAST(name AS BINARY)",
+            "type": "stored"
+          }
+        },
         "created_at": {
           "name": "created_at",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CAST(unixepoch('subsecond') * 1000 AS INTEGER))"
+          "default": "0"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CAST(unixepoch('subsecond') * 1000 AS INTEGER))"
+          "default": "0"
         }
       },
       "indexes": {
         "payroll_sheets_name_unique": {
           "name": "payroll_sheets_name_unique",
           "columns": [
-            "name"
+            "name_key"
           ],
           "isUnique": true
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "payroll_sheets_name_check": {
-          "name": "payroll_sheets_name_check",
-          "value": "length(trim(\"payroll_sheets\".\"name\", char(32, 9, 10, 13, 160, 12288))) > 0"
+      "compositePrimaryKeys": {
+        "payroll_sheets_id": {
+          "name": "payroll_sheets_id",
+          "columns": [
+            "id"
+          ]
         }
-      }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
     },
     "persons": {
       "name": "persons",
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
-          "primaryKey": true,
+          "type": "int",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": true
         },
         "name": {
           "name": "name",
-          "type": "text",
+          "type": "varchar(100) COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
+        "name_key": {
+          "name": "name_key",
+          "type": "varbinary(400)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "generated": {
+            "as": "CAST(name AS BINARY)",
+            "type": "stored"
+          }
+        },
         "gender": {
           "name": "gender",
-          "type": "text",
+          "type": "varchar(100) COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "ethnicity": {
           "name": "ethnicity",
-          "type": "text",
+          "type": "varchar(100) COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "native_place": {
           "name": "native_place",
-          "type": "text",
+          "type": "varchar(100) COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "id_card_number": {
-          "name": "id_card_number",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "salary_card_number": {
-          "name": "salary_card_number",
+        "sensitive_info": {
+          "name": "sensitive_info",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -220,67 +239,58 @@
         },
         "bank_name": {
           "name": "bank_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
+          "type": "varchar(100) COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CAST(unixepoch('subsecond') * 1000 AS INTEGER))"
+          "default": "0"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CAST(unixepoch('subsecond') * 1000 AS INTEGER))"
+          "default": "0"
         }
       },
       "indexes": {
         "persons_name_unique": {
           "name": "persons_name_unique",
           "columns": [
-            "name"
+            "name_key"
           ],
           "isUnique": true
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "persons_gender_check": {
-          "name": "persons_gender_check",
-          "value": "\"persons\".\"gender\" IS NULL OR \"persons\".\"gender\" IN ('男', '女')"
-        },
-        "persons_name_check": {
-          "name": "persons_name_check",
-          "value": "length(trim(\"persons\".\"name\", char(32, 9, 10, 13, 160, 12288))) > 0"
+      "compositePrimaryKeys": {
+        "persons_id": {
+          "name": "persons_id",
+          "columns": [
+            "id"
+          ]
         }
-      }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
     }
   },
   "views": {},
-  "enums": {},
   "_meta": {
     "schemas": {},
     "tables": {},
     "columns": {}
   },
   "internal": {
+    "tables": {},
     "indexes": {}
   }
 }

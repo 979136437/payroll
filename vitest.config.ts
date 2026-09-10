@@ -5,6 +5,9 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
     environment: "node",
+    pool: "threads",
+    maxWorkers: 1,
+    testTimeout: 30000,
     include: ["tests/**/*.test.ts", "features/**/*.test.{ts,tsx}"],
     coverage: {
       provider: "v8", clean: false,

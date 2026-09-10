@@ -1,5 +1,3 @@
 allowBuilds:
-  # 13.x 自带 x64/arm64 预编译文件，避免 pnpm 隐式执行 node-gyp。
-  better-sqlite3: false
   esbuild: true
   unrs-resolver: true

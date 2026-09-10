@@ -1,46 +1,31 @@
-# 工资系统：Drizzle + SQLite
+# 工资系统：Next.js + MySQL
 
-项目面向单人使用，数据库采用 SQLite，包含人员、工资表和工资记录三张业务表。开发运行本机 Next.js，生产使用 Docker 运行 Next.js，应用和一次性迁移工具共享命名 volume。
+项目当前包含工资工作台和人员管理演示页面，以及 MySQL 数据库基础设施。页面仍使用标签页内存中的虚构数据，不调用业务 API；整页刷新恢复初始数据。导入、导出及真实业务持久化尚未实现。
 
-## 界面演示
+## 数据库与目录
 
-首页为工资工作台，`/personnel` 为人员管理。界面参考[工资工作台示例站](https://payroll-86556-7-1303242491.sh.run.tcloudbase.com/)，使用现有基础组件、Tailwind CSS 和统一浅色主题。
+- 使用 Node.js 22、pnpm 10.33.0、Drizzle 和 mysql2，数据库以 MySQL 5.7 为目标，最低支持 5.7.9；同一套结构也可用于 MySQL 8.0.16 及以上的 8.x。
+- 数据库包含人员、工资表、工资记录三表；字段定义位于 `db/schema.ts`。
+- 人员字段最多 100 字符，工资表名称最多 80 字符。名称通过二进制生成列 name_key 的唯一索引区分大小写及尾随空格，不能全部为空白；不自动裁剪数据库输入。name_key 由数据库计算，调用者不能写入。
+- 工资使用整数分，范围为 0～9007199254740991。MySQL 会转换某些非整数输入，因此调用方必须先用安全整数校验，再写入；插入和更新触发器负责范围限制，不依赖 5.7 中不生效的 CHECK。
+- 修改时间由数据库触发器维护，仅业务字段实际改变时更新，同毫秒至少递增 1；时间以 UTC 毫秒保存，Drizzle 映射为 Date。5.7 中用默认值 0 表示插入时未提供时间，由插入触发器填充；显式提供非零时间时保留。
+- `drizzle/mysql57` 为当前迁移目录；之前的 `drizzle/mysql`（8.0 基线）原样保留，不参与当前迁移。原 `drizzle` 下 SQLite 历史保留，不参与当前运行和迁移。没有导入、清理或覆盖旧 SQLite 文件和存储卷。
+- 界面继续复用 `components/ui`、Tailwind CSS 和 `features` 业务目录。TanStack Query Provider 保留，尚未接入具体业务查询。
 
-- `features/payroll`：工资表新建与复制、选人、实发金额编辑及记录管理。
-- `features/personnel`：人员搜索、分页、新增、编辑及删除确认。
-- `features/demo`：虚构初始数据与跨页面共享状态。功能纯逻辑的测试与代码就近维护。
-- 页面数据仅保存在当前标签页内存中，切换路由保留修改，整页刷新恢复初始数据。人员删除会同步移除关联演示工资记录。
-- 当前界面不读写 SQLite，不调用业务 API；导入、导出仅提示暂未支持。真实持久化和文件处理留待后续业务实现。
-- 工资内部使用整数分，限制非负且最多两位小数；单项与合计均检查安全整数范围。
+## 开发配置
 
-本次功能的轻量验证命令如下，不触发应用构建：
+已提供的非敏感地址：
 
-```powershell
-pnpm test:features
-pnpm typecheck
-pnpm lint
-```
+| 环境 | DB_HOST | DB_PORT |
+| --- | --- | --- |
+| 开发 | sh-cynosdbmysql-grp-nkyicum6.sql.tencentcdb.com | 20849 |
+| 生产 | 10.27.100.109 | 3306 |
 
-`test:features` 独立统计新增纯逻辑覆盖率，门槛为 80%；原有测试与数据库覆盖率规则保留。演示界面本身不要求执行数据库迁移。
+开发地址保存在 `.env.development`。复制 `.env.development.example` 为 `.env.development.local`，填写 DB_NAME、DB_USER、DB_PASSWORD。生产通过运行时环境变量注入全部五项；镜像不包含任何环境文件。
 
-## TanStack 基础设施
-
-已安装 Query、Form、Store、Table、Virtual；Query 的 ESLint 推荐规则已启用。`app/providers.tsx` 已接入根布局，后代客户端组件可直接使用 `useQuery`、`useMutation` 和 `useQueryClient`。
-
-- `lib/query-client.ts`：服务端每次获取新实例，浏览器复用实例；查询默认新鲜期为 60 秒，写入默认不重试。需要更及时的数据时按查询覆盖 `staleTime`，写入成功后通过 `invalidateQueries` 刷新对应查询。
-- 查询键必须包含影响结果的筛选条件；请求函数需检查 HTTP 状态并校验响应数据，不把数据库模块导入客户端。
-- 服务端预取时，在同一个请求内保存并复用创建的客户端，使用 `dehydrate` 和 `HydrationBoundary` 向客户端传递数据；当前尚未接入具体业务查询或预取。
-- Form、Table、Virtual 在具体客户端组件内按需初始化，不需要全局 Provider；Store 按页面或业务作用域创建，禁止用服务端模块级单例保存用户数据。当前演示界面复用基础表单和表格组件，通过 Context 与 reducer 共享内存状态，尚未接入这些库的业务能力。
-- 缓存仅保存在内存；未来接入登录切换时应清空旧用户缓存，避免展示上一个用户的数据。
-
-实现参考：[TanStack Query 官方 Next.js 服务端渲染指南](https://tanstack.com/query/latest/docs/framework/react/guides/advanced-ssr)。
-
-## 开发环境
-
-需要 Node.js 22 或更新版本、pnpm 10.33.0。无需 Docker、MySQL 服务或数据库密码。
+不要在 `.env` 或 `.env.local` 中放置 DB_* 变量。独立命令拒绝这种配置；Next.js 自身仍按其环境文件规则加载，因此开发时也必须遵守约定。进程环境变量优先，不应带着生产变量启动开发进程。
 
 ```powershell
-Set-Location F:\test\payroll
 pnpm install --frozen-lockfile
 pnpm db:check:dev
 pnpm db:migrate:dev
@@ -48,106 +33,50 @@ pnpm db:status:dev
 pnpm dev
 ```
 
-打开 http://localhost:3000。数据库路径固定为 `os.tmpdir()/payroll/payroll.sqlite`；Windows 通常位于 `%TEMP%\payroll\payroll.sqlite`。执行下面的命令可以查看当前机器的实际路径：
+目标数据库须事先创建。首次迁移要求独立空库，不能指向已有其他业务表的库。已应用旧 MySQL 8.0 基线的库会因迁移历史不匹配而被拒绝，不能直接切换迁移目录升级；应另行规划数据转换，本次不覆盖任何已有库。未配置数据库凭据时，演示页面仍可使用；健康接口会返回 503。
 
-```powershell
-node -e "console.log(require('node:path').join(require('node:os').tmpdir(),'payroll','payroll.sqlite'))"
-```
+开发和生产地址的可达性、云端版本及账号权限需要在实际环境验证，不能由本机测试推断。
 
-开发进程重启后复用同一个文件，不会每次新建空库；系统清理临时目录会清空开发数据，因此这里不要保存唯一一份正式数据。开发路径不接受 `DB_FILE` 覆盖，防止意外连接生产数据库。
+## 连接与数据库命令
 
-```powershell
-pnpm db:generate
-pnpm db:migrate:dev
-pnpm db:studio
-```
+服务端通过 `getDb()` 获取 Drizzle 实例；查询和事务均使用 await，不能继续使用 SQLite 的同步查询或 returning() 写法。数据库入口由 server-only 保护，使用 Node.js Runtime，模块导入不建立数据库连接。
 
-开发无需环境配置文件或 Compose，数据库路径由程序自动确定。旧 MySQL 容器和卷未做清理。
-
-## 生产环境
-
-生产需要 Docker Engine、Compose。镜像内使用 Node.js 22。当前 SQLite 驱动内置 Windows/Linux/macOS 的 x64/arm64 预编译文件，因此关闭 pnpm 的隐式原生编译，无需额外安装 C++ 构建工具。
-
-生产配置文件 `.env.production` 只包含非敏感配置：
-
-```dotenv
-DB_FILE=/data/payroll.sqlite
-APP_PORT=3000
-```
-
-Compose 固定将数据库放在 `/data/payroll.sqlite`，将 `/data` 挂载到 `sqlite_data` 命名 volume；默认完整卷名是 `payroll-production_sqlite_data`。迁移容器和应用容器均以 UID 1000 运行，镜像预先配置 `/data` 的写入权限。默认 volume 使用本机存储，不应换成网络文件系统。
-
-当前仓库使用 `compose.yaml`，没有自动发布脚本。应用默认访问 http://localhost:3000，可在 `.env.production` 修改 `APP_PORT`；另行维护的配置可通过 Compose 的 `--env-file` 指定。
-
-升级前须准备包含最新迁移文件的迁移镜像。镜像构建属于独立发布步骤，需明确授权，不作为数据库检查的默认动作。升级顺序是停止旧应用及其他写入进程、备份、执行迁移、检查状态，全部成功后再启动应用。任一步失败均停止后续操作；不要并发发布或绕过迁移直接更新应用。
-
-```powershell
-$dc = @('compose', '--env-file', '.env.production', '-f', 'compose.yaml')
-docker @dc ps
-docker @dc logs --tail 100 app
-docker @dc run -T migrate pnpm db:check:prod
-docker @dc run -T migrate pnpm db:status:prod
-```
-
-`/api/health` 执行最小 SQLite 查询，成功返回 200，失败返回 503；不返回数据库路径或业务数据。它也用于确认容器内原生驱动及 volume 可访问。构建阶段不会打开或创建生产数据库。
-
-停止服务并保留数据：
-
-```powershell
-docker @dc stop app
-```
-
-更新应用镜像或重启容器不会清空命名 volume。不要修改 Compose 项目名或卷名来更新应用，否则会连接另一套存储。无需 MySQL 服务、端口和账号；本次未迁移任何旧 MySQL 业务数据。
-
-## 连接、迁移与批量操作
-
-服务端使用 `import { getDb } from "@/db"` 获取 Drizzle 实例，入口由 `server-only` 保护；只支持 Node.js Runtime。连接按需创建，开发热更新复用连接。开发自动使用临时目录，生产与测试必须明确配置绝对路径 `DB_FILE`，不能回退到开发路径。
-
-连接启用 WAL、外键校验、5000 毫秒锁等待与 FULL 同步。SQLite 允许读写并行，但同一时刻只有一个写事务。批量处理应先完成输入校验，再在同步事务中写入；不要在事务回调中使用异步请求或 `await`。超大导入应限制批次规模，避免长时间阻塞单个 Node.js 进程。
-
-业务表在 `db/schema.ts` 中定义。人员姓名和工资表名称保持唯一且不可为空白；工资金额以整数分存储，范围为 0 至 9007199254740991。应用接收金额时仍须校验安全整数，不能依赖浮点乘法自动舍入。姓名不做自动裁剪，身份证及银行卡等字段不写入命令错误日志。
-
-三张表的修改时间由数据库触发器维护：仅业务字段实际变化时更新，应用、Studio 和直接 SQL 均适用；创建时间保持不变，修改时间为整数毫秒，同毫秒内至少递增 1。直接修改时间字段本身不会再次触发更新。Drizzle 的更新 `returning()` 结果可能早于 AFTER 触发器执行，需要最终时间时应重新查询。
-
-迁移历史包含初始建表 `0000` 和约束升级 `0001`。已应用的 SQL 不得改写；SQL 与日志、快照必须一同提交，SQL 换行由 `.gitattributes` 固定为 LF，避免跨平台哈希变化。后续执行 `pnpm db:generate` 后必须审查生成 SQL，特别检查重建表是否保留触发器、外键及自增序列；触发器不由 Drizzle 快照自动管理。已有 MySQL SQL 不能直接作为 SQLite 迁移使用。
-
-`0001` 在同一个事务内检查旧金额、空白名称和关联，再复制并替换表。保留已有编号、记录、时间、索引及历史自增序列；非法旧数据会中止升级并回滚，不清洗、舍入或丢弃记录。需要人工核对并修正数据后重试。不要在迁移事务内关闭外键检查。
+每个应用进程最多 5 个连接，排队上限 10，连接超时 5 秒。扩容前核对“实例数 × 5”与数据库连接额度。健康检查总等待上限为 5 秒，失败返回 503；它仅证明连接可用，不能证明业务迁移已完成。
 
 | 命令 | 行为 |
 | --- | --- |
-| `db:generate` | 根据声明生成开发迁移，生成后必须人工审查 |
-| `db:migrate:dev` / `db:migrate:prod` | 校验迁移文件和已应用历史，再执行待应用迁移；缺失或损坏时非零退出 |
-| `db:check:dev` / `db:check:prod` | 仅检查连接，可能创建目录和空库，不能证明业务就绪 |
-| `db:status:dev` / `db:status:prod` | 只读检查已有库的迁移历史、SQL 哈希和三张必要业务表，不创建空库；缺库、待迁移、历史不一致或缺表时非零退出 |
-| `db:studio` | 仅开发环境可用 |
+| db:generate | 本地生成 MySQL SQL 和快照，不连接数据库；生成后审查 SQL |
+| db:migrate:dev / db:migrate:prod | 校验版本、历史，获取数据库命名锁，执行待应用迁移 |
+| db:check:dev / db:check:prod | 检查已有数据库连通性，不创建库或业务表 |
+| db:status:dev / db:status:prod | 只读检查历史哈希、待迁移项、必要表和触发器 |
+| db:studio | 仅允许开发环境 |
 
-状态检查不是完整的结构差异检测或数据审计，不证明所有列、触发器及业务数据正确。该检查也不同于官方 `drizzle-kit check` 的本地迁移历史一致性检查。
+已应用 SQL 不得修改，SQL、日志及快照一起提交。新增迁移必须审查 InnoDB、字符集、外键和触发器；Drizzle 快照不管理手写触发器。状态检查不是完整结构审计，不保证所有列和约束未被人工改动。
 
-实际升级需先备份并停止并发写入，再按目标环境执行以下两个命令；两个步骤之间检查退出码，仅在均成功后启动应用。生产通过已有迁移镜像运行 `pnpm db:migrate:prod` 和 `pnpm db:status:prod`，开发环境示例如下：
+MySQL DDL 存在隐式提交，不能保证整次迁移回滚。工具在执行前持久写入迁移标记；失败或进程中断后保留标记，下一次运行拒绝继续。禁止直接清除标记并重试。应先核对已生效结构与迁移记录，在受控备份或新的空库恢复，再重新检查。工具不会自动清库、删除表或回退数据库。
 
-```powershell
-pnpm db:migrate:dev
-if ($LASTEXITCODE -ne 0) { throw '迁移失败，保持应用停止并核对错误' }
-pnpm db:status:dev
-if ($LASTEXITCODE -ne 0) { throw '状态检查失败，保持应用停止并核对错误' }
-```
+## 微信云托管部署
 
-## 备份
+此节是后续发布操作说明，不代表已构建镜像或已发布。
 
-数据库目录包含主文件和可能存在的 `-wal`、`-shm` 文件。在线备份应使用 SQLite 备份 API，不能只复制正在使用的主文件。
+1. 创建 MySQL 5.7 数据库，使用同环境可达的内网地址；生产地址为 10.27.100.109:3306。迁移账号需要建表、索引、外键、触发器及迁移记录读写权限；应用账号只授予所需业务读写权限。
+2. 获得构建授权后，从项目根目录生成两个相同版本标签的镜像：Dockerfile 的 runner 为应用目标，migrator 为迁移目标。推送到云托管可拉取的镜像仓库。
+3. 在能够访问生产数据库的受控运行环境启动一次性 migrator，注入生产连接变量，执行 db:migrate:prod，再执行 db:status:prod。任一步失败，停止后续发布。生产内网地址不能假定本机可访问；迁移镜像是命令任务，不作为 HTTP 服务部署。
+4. 云托管选择应用镜像，监听端口 3000，注入 NODE_ENV=production、HOSTNAME=0.0.0.0、PORT=3000 和 DB_* 配置。无需挂载 SQLite 数据目录。
+5. 配置 /api/health 就绪检查并为启动留出时间。该探针依赖数据库；若平台支持独立存活检查，使用 TCP 3000，避免数据库故障引发反复重启。
+6. 验证首页、/personnel、静态资源和 /api/health。本轮没有新增人员或工资业务接口，页面数据刷新恢复属于预期行为。
 
-也可以使用最简单的停机备份：停止应用，确认一次性迁移任务已退出，没有其他进程访问卷，再复制整个目录到独立位置。生产数据尚未产生时，先运行一次连接检查使数据库文件初始化。
+应用启动不执行迁移。平台联网、入口域名和 HTTPS 需在实际云端配置验证。发布前保留数据库备份及旧应用镜像；只有结构兼容时才切回旧应用版本，应用回退不会回滚数据库。
 
-```powershell
-docker @dc stop app
-$backupPath = "./payroll-sqlite-backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
-docker @dc cp app:/data $backupPath
-docker @dc start app
-```
+Compose 用于本地容器运行或测试，不直接上传云托管执行。运行应用/迁移服务时，通过 --env-file 指定仅保存在本地的完整连接配置；敏感配置不得提交。
 
-确认复制成功后，将备份目录另存至受控的外部存储，并定期在隔离实例演练恢复；单独保留同一个 volume 不是备份。项目不自动删除旧备份或卷。生产公网入口的 HTTPS、自动备份调度及业务级恢复流程仍需按实际部署配置。
+## 隔离测试与轻量验证
 
-## 验证
+测试不读取开发或生产数据库配置。真实数据库测试仅使用 TEST_MYSQL_HOST、TEST_MYSQL_PORT、TEST_MYSQL_USER、TEST_MYSQL_PASSWORD，或本地忽略文件 `.env.mysql-test.local` 中的 DB_HOST、DB_PORT、DB_USER、DB_PASSWORD。
+
+测试账号须有创建隔离数据库和触发器权限。每次测试新建 payroll_test_ 加 UUID 的库，测试结束关闭连接但不删除库。请使用专用测试服务，不能提供业务生产账号。
+
+可选本机 MySQL 测试服务使用 Compose 的 test 配置，映射 127.0.0.1:23307。先设置随机 TEST_MYSQL_PASSWORD，再启动 mysql-test；不需要构建应用。测试连接变量另行设置为该实例。不要与已经占用 23307 的测试容器同时启动。
 
 ```powershell
 pnpm test:coverage
@@ -155,8 +84,8 @@ pnpm typecheck
 pnpm lint
 ```
 
-自动化测试包括开发与生产路径隔离、真实 SQLite 文件持久化、1000 条批量写入、事务失败回滚、外键约束、连接复用和 SQLite 迁移幂等性，以及真实业务迁移升级、金额和名称边界、更新触发器、迁移历史与命令退出码。核心配置、连接、环境加载和迁移校验模块设置 80% 覆盖率门槛。测试数据库使用内存或系统临时目录，按项目约束不自动删除。
+测试覆盖连接配置、错误脱敏、健康检查超时、真实 MySQL 约束和修改时间、1000 条写入、事务回滚、迁移幂等性、历史校验、并发锁和 DDL 部分失败。核心配置、连接、环境加载和迁移模块覆盖率门槛为 80%。Windows 测试使用单线程工作进程，覆盖率不自动清理已有文件。
 
-数据库测试仅验证隔离数据库，不代表实际开发库或生产库已升级，也不能替代应用构建或容器部署验证。已移除引用不存在发布脚本的失效测试，以及被真实业务迁移测试覆盖的探针迁移测试；当前没有自动发布流程测试。
+没有测试连接配置时，真实 MySQL 用例明确跳过，不能据此宣称数据库验证通过。上述命令不执行应用构建；数据库测试不代表云端网络、镜像和发布验证已通过。
 
-参考：[Drizzle SQLite](https://orm.drizzle.team/docs/sqlite/get-started-sqlite)、[SQLite 类型规则](https://www.sqlite.org/datatype3.html)、[SQLite 外键](https://www.sqlite.org/foreignkeys.html)、[Drizzle 迁移检查](https://orm.drizzle.team/docs/drizzle-kit-check)、[SQLite WAL](https://www.sqlite.org/wal.html)、[SQLite 备份](https://www.sqlite.org/backup.html)。
+参考：[Drizzle MySQL](https://orm.drizzle.team/docs/mysql/get-started-mysql)、[MySQL 5.7 生成列索引](https://dev.mysql.com/doc/refman/5.7/en/create-table-generated-columns.html)、[MySQL DDL 隐式提交](https://dev.mysql.com/doc/refman/8.0/en/implicit-commit.html)、[微信云托管说明](https://cloud.tencent.com/document/product/876/113602)。

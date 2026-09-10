@@ -5,11 +5,13 @@ services:
       context: .
       target: migrator
     profiles: ["tools"]
-    environment:
+    environment: &database
       NODE_ENV: production
-      DB_FILE: /data/payroll.sqlite
-    volumes:
-      - sqlite_data:/data
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
     command: ["pnpm", "db:migrate:prod"]
     restart: "no"
   app:
@@ -18,20 +20,26 @@ services:
       target: runner
     restart: unless-stopped
     environment:
-      NODE_ENV: production
-      DB_FILE: /data/payroll.sqlite
+      <<: *database
       HOSTNAME: 0.0.0.0
       PORT: "3000"
-    volumes:
-      - sqlite_data:/data
     ports:
       - "${APP_PORT:-3000}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
-      timeout: 5s
+      timeout: 7s
       retries: 6
       start_period: 20s
+  # 可选的本机测试服务，业务开发默认使用指定的远程地址。
+  mysql-test:
+    image: mysql:5.7.44
+    profiles: ["test"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${TEST_MYSQL_PASSWORD:-}
+    ports:
+      - "127.0.0.1:23307:3306"
+    volumes:
+      - mysql57_test_data:/var/lib/mysql
 volumes:
-  sqlite_data:
-
+  mysql57_test_data:

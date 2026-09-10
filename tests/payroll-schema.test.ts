@@ -1,126 +1,103 @@
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { eq } from "drizzle-orm";
-import { appendFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { RowDataPacket } from "mysql2/promise";
 import { persons, payrollSheets, payrollRecords } from "../db/schema";
-import { describeDatabaseError } from "../scripts/migrations";
-import { fixtureFolder, migrationFolder, openFixture, seed } from "./database-fixtures";
-
-describe("真实工资迁移与约束", () => {
-  it("空表也保留已有自增序列，表替换后的 SQL 失败回滚整个升级", () => {
-    const { connection, db } = openFixture(true);
+import { mysqlAvailable, openFixture, seed } from "./database-fixtures";
+describe.skipIf(!mysqlAvailable)("真实 MySQL 工资约束", () => {
+  it("5.7 插入与更新触发器均拒绝非法输入，并填充毫秒时间", async () => {
+    const { connection } = await openFixture();
     try {
-      connection.exec("INSERT INTO sqlite_sequence(name,seq) VALUES ('persons',200),('payroll_sheets',200),('payroll_records',200)");
-      const before = connection.serialize();
-      const broken = fixtureFolder();
-      appendFileSync(join(broken, "0001_payroll_integrity.sql"), "\n--> statement-breakpoint\nSELECT * FROM missing_failure_probe;\n");
-      expect(() => migrate(db, { migrationsFolder: broken })).toThrow();
-      expect(connection.serialize()).toEqual(before);
-      migrate(db, { migrationsFolder: migrationFolder });
-      expect(connection.prepare("INSERT INTO persons(name) VALUES ('新人员')").run().lastInsertRowid).toBe(201);
-      expect(connection.prepare("INSERT INTO payroll_sheets(name) VALUES ('新工资表')").run().lastInsertRowid).toBe(201);
-      expect(connection.prepare("INSERT INTO payroll_records(payroll_sheet_id,person_id,actual_amount) VALUES (201,201,0)").run().lastInsertRowid).toBe(201);
-    } finally { connection.close(); }
+      await seed(connection);
+      for (const query of [
+        "INSERT INTO persons(name,gender) VALUES ('新人员','男 ')",
+        "INSERT INTO payroll_records(payroll_sheet_id,person_id,actual_amount) VALUES (8,7,-1)",
+        "INSERT INTO payroll_records(payroll_sheet_id,person_id,actual_amount) VALUES (8,7,9007199254740992)",
+        "UPDATE persons SET name=' '",
+        "UPDATE payroll_sheets SET name=' '",
+      ]) await expect(connection.query(query)).rejects.toMatchObject({ code: "ER_SIGNAL_EXCEPTION" });
+      await connection.query("INSERT INTO persons(name) VALUES ('默认时间')");
+      const [rows] = await connection.query<RowDataPacket[]>("SELECT created_at,updated_at,name_key FROM persons WHERE name='默认时间'");
+      expect(Number(rows[0].created_at)).toBeGreaterThan(Date.now() - 60000);
+      expect(rows[0].updated_at).toBe(rows[0].created_at);
+      expect(rows[0].name_key.toString("utf8")).toBe("默认时间");
+      await connection.query("UPDATE persons SET updated_at=9000000000000 WHERE id=7");
+      await connection.query("UPDATE persons SET name=CONCAT(name,' ') WHERE id=7");
+      const [changed] = await connection.query<RowDataPacket[]>("SELECT updated_at FROM persons WHERE id=7");
+      expect(Number(changed[0].updated_at)).toBe(9000000000001);
+    } finally { await connection.end(); }
   });
-  it("初始库带数据升级保留记录、索引、关联与自增序列，重复执行无变化", () => {
-    const { connection, db } = openFixture(true);
+  it("金额、空白名称、唯一性、性别、字段长度和外键边界", async () => {
+    const { connection } = await openFixture();
     try {
-      seed(connection);
-      connection.exec("UPDATE sqlite_sequence SET seq=100 WHERE name IN ('persons','payroll_sheets','payroll_records')");
-      const tables = ["persons", "payroll_sheets", "payroll_records"];
-      const before = tables.map(table => connection.prepare(`SELECT * FROM ${table}`).all());
-      migrate(db, { migrationsFolder: migrationFolder });
-      migrate(db, { migrationsFolder: migrationFolder });
-      expect(tables.map(table => connection.prepare(`SELECT * FROM ${table}`).all())).toEqual(before);
-      expect(connection.pragma("foreign_key_check")).toEqual([]);
-      expect(connection.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 2 });
-      expect(connection.prepare("INSERT INTO persons(name) VALUES ('新人员')").run().lastInsertRowid).toBe(101);
-      expect(connection.prepare("INSERT INTO payroll_sheets(name) VALUES ('新工资表')").run().lastInsertRowid).toBe(101);
-      expect(connection.prepare("INSERT INTO payroll_records(payroll_sheet_id,person_id,actual_amount) VALUES (101,101,0)").run().lastInsertRowid).toBe(101);
-    } finally { connection.close(); }
+      await seed(connection);
+      for (const amount of [-1, "9007199254740992"]) await expect(connection.query("UPDATE payroll_records SET actual_amount=?", [amount])).rejects.toThrow();
+      for (const amount of [0, 1, 123456, Number.MAX_SAFE_INTEGER]) {
+        await connection.query("UPDATE payroll_records SET actual_amount=?", [amount]);
+        const [rows] = await connection.query<RowDataPacket[]>("SELECT actual_amount FROM payroll_records");
+        expect(Number(rows[0].actual_amount)).toBe(amount);
+      }
+      for (const name of ["", " ", "\t", "\r\n", "\u00a0", "\u3000", " \t\r\n\u00a0\u3000"]) {
+        for (const table of ["persons", "payroll_sheets"]) await expect(connection.query(`INSERT INTO ${table}(name) VALUES (?)`, [name])).rejects.toThrow();
+      }
+      for (const query of [
+        "INSERT INTO persons(name) VALUES ('测试人员')",
+        "INSERT INTO payroll_sheets(name) VALUES ('测试工资表')",
+        "INSERT INTO payroll_records(payroll_sheet_id,person_id,actual_amount) VALUES (8,7,100)",
+        "UPDATE persons SET gender='未知'",
+        "UPDATE payroll_records SET person_id=999",
+        "UPDATE payroll_records SET payroll_sheet_id=999",
+        "DELETE FROM persons WHERE id=7",
+        "INSERT INTO persons(name) VALUES (REPEAT('人',101))",
+      ]) await expect(connection.query(query)).rejects.toThrow();
+      // 大小写和尾随空格不同，必须继续视作不同名称。
+      for (const name of ["甲", "甲 ", "A", "a", " 正常姓名 "]) await connection.query("INSERT INTO persons(name) VALUES (?)", [name]);
+    } finally { await connection.end(); }
   });
-
-  it.each([1.5, "abc", -1, 9007199254740992])("拒绝非法金额 %s", amount => {
-    const { connection } = openFixture();
+  it.each(["Drizzle", "直接 SQL"])("三表修改时间行为：%s", async mode => {
+    const { connection, db } = await openFixture();
     try {
-      seed(connection);
-      expect(() => connection.prepare("UPDATE payroll_records SET actual_amount=?").run(amount)).toThrow(/CHECK/);
-    } finally { connection.close(); }
-  });
-
-  it.each([0, 1, 123456, Number.MAX_SAFE_INTEGER])("接受整数分金额 %s", amount => {
-    const { connection } = openFixture();
-    try {
-      seed(connection);
-      connection.prepare("UPDATE payroll_records SET actual_amount=?").run(amount);
-      expect(connection.prepare("SELECT actual_amount FROM payroll_records").get()).toEqual({ actual_amount: amount });
-    } finally { connection.close(); }
-  });
-
-  it.each(["", " ", "\t", "\r\n", "\u00a0", "\u3000", " \t\r\n\u00a0\u3000"])("拒绝空白名称 %j", name => {
-    const { connection } = openFixture();
-    try {
-      for (const table of ["persons", "payroll_sheets"]) expect(() => connection.prepare(`INSERT INTO ${table}(name) VALUES (?)`).run(name)).toThrow(/CHECK/);
-    } finally { connection.close(); }
-  });
-
-  it("原有唯一性、性别及外键限制继续有效", () => {
-    const { connection } = openFixture();
-    try {
-      seed(connection);
-      for (const sql of ["INSERT INTO persons(name) VALUES ('测试人员')", "INSERT INTO payroll_sheets(name) VALUES ('测试工资表')", "INSERT INTO payroll_records(payroll_sheet_id,person_id,actual_amount) VALUES (8,7,100)"]) expect(() => connection.exec(sql)).toThrow(/UNIQUE/);
-      expect(() => connection.exec("UPDATE persons SET gender='未知'")).toThrow(/CHECK/);
-      expect(() => connection.exec("UPDATE payroll_records SET person_id=999")).toThrow(/FOREIGN KEY/);
-      expect(() => connection.exec("UPDATE payroll_records SET payroll_sheet_id=999")).toThrow(/FOREIGN KEY/);
-      connection.prepare("INSERT INTO persons(name) VALUES (?)").run(" 正常姓名 ");
-      expect(connection.prepare("SELECT name FROM persons WHERE id != 7").get()).toEqual({ name: " 正常姓名 " });
-    } finally { connection.close(); }
-  });
-
-  it.each(["金额", "人员名称", "工资表名称", "关联"])("非法旧数据阻止升级且事务回滚：%s", kind => {
-    const { connection, db } = openFixture(true);
-    try {
-      seed(connection);
-      if (kind === "金额") connection.exec("UPDATE payroll_records SET actual_amount='敏感测试值'");
-      if (kind === "人员名称") connection.exec("UPDATE persons SET name=' '");
-      if (kind === "工资表名称") connection.exec("UPDATE payroll_sheets SET name=' '");
-      if (kind === "关联") { connection.pragma("foreign_keys=OFF"); connection.exec("UPDATE payroll_records SET person_id=999"); connection.pragma("foreign_keys=ON"); }
-      const before = connection.serialize();
-      let caught: unknown;
-      try { migrate(db, { migrationsFolder: migrationFolder }); } catch (error) { caught = error; }
-      expect(caught).toBeDefined();
-      expect(describeDatabaseError(caught)).toContain(kind === "金额" ? "旧数据金额无效" : kind === "关联" ? "旧数据关联无效" : "旧数据名称无效");
-      expect(describeDatabaseError(caught)).not.toContain("敏感测试值");
-      expect(connection.serialize()).toEqual(before);
-      expect(connection.prepare("SELECT count(*) AS n FROM sqlite_temp_master").get()).toEqual({ n: 0 });
-    } finally { connection.close(); }
-  });
-});
-
-describe("数据库触发器维护修改时间", () => {
-  it.each(["Drizzle", "直接 SQL"])("三表实际修改更新时间、保留创建时间且不递归：%s", mode => {
-    const { connection, db } = openFixture();
-    try {
-      seed(connection);
+      await seed(connection);
       if (mode === "Drizzle") {
-        db.update(persons).set({ phone: "测试电话" }).where(eq(persons.id, 7)).run();
-        db.update(payrollSheets).set({ name: "新名称" }).where(eq(payrollSheets.id, 8)).run();
-        db.update(payrollRecords).set({ actualAmount: 500 }).where(eq(payrollRecords.id, 9)).run();
+        await db.update(persons).set({ phone: "测试电话" }).where(eq(persons.id, 7));
+        await db.update(payrollSheets).set({ name: "新名称" }).where(eq(payrollSheets.id, 8));
+        await db.update(payrollRecords).set({ actualAmount: 500 }).where(eq(payrollRecords.id, 9));
+        const person = await db.select().from(persons);
+        expect(person[0].createdAt).toEqual(new Date(1000));
       } else {
-        connection.exec("UPDATE persons SET phone='测试电话'; UPDATE payroll_sheets SET name='新名称'; UPDATE payroll_records SET actual_amount=500;");
+        for (const query of ["UPDATE persons SET phone='测试电话'", "UPDATE payroll_sheets SET name='新名称'", "UPDATE payroll_records SET actual_amount=500"]) await connection.query(query);
       }
       for (const table of ["persons", "payroll_sheets", "payroll_records"]) {
-        const before = connection.prepare(`SELECT created_at,updated_at,typeof(updated_at) AS kind FROM ${table}`).get() as { created_at: number; updated_at: number; kind: string };
-        expect(before.created_at).toBe(1000);
-        expect(before.updated_at).toBeGreaterThan(1000);
-        expect(before.kind).toBe("integer");
+        const [before] = await connection.query<RowDataPacket[]>(`SELECT created_at,updated_at FROM ${table}`);
+        expect(Number(before[0].created_at)).toBe(1000);
+        expect(Number(before[0].updated_at)).toBeGreaterThan(1000);
         const field = table === "payroll_records" ? "actual_amount" : "name";
-        connection.exec(`UPDATE ${table} SET ${field}=${field}`);
-        expect(connection.prepare(`SELECT updated_at FROM ${table}`).get()).toEqual({ updated_at: before.updated_at });
-        connection.exec(`UPDATE ${table} SET updated_at=2000`);
-        expect(connection.prepare(`SELECT updated_at FROM ${table}`).get()).toEqual({ updated_at: 2000 });
+        await connection.query(`UPDATE ${table} SET ${field}=${field}`);
+        const [same] = await connection.query<RowDataPacket[]>(`SELECT updated_at FROM ${table}`);
+        expect(same[0].updated_at).toBe(before[0].updated_at);
+        await connection.query(`UPDATE ${table} SET updated_at=9000000000000`);
+        await connection.query(table === "payroll_records" ? "UPDATE payroll_records SET actual_amount=501" : `UPDATE ${table} SET name='另一个名称'`);
+        const [next] = await connection.query<RowDataPacket[]>(`SELECT updated_at FROM ${table}`);
+        expect(Number(next[0].updated_at)).toBe(9000000000001);
       }
-    } finally { connection.close(); }
+    } finally { await connection.end(); }
+  });
+  it("1000 条批量写入、事务回滚及重连持久化", async () => {
+    const { connection, db, config } = await openFixture();
+    try {
+      await expect(db.transaction(async tx => {
+        await tx.insert(persons).values({ name: "重复" });
+        await tx.insert(persons).values({ name: "重复" });
+      })).rejects.toThrow();
+      expect(await db.select().from(persons)).toHaveLength(0);
+      await db.transaction(async tx => {
+        await tx.insert(persons).values(Array.from({ length: 1000 }, (_, i) => ({ name: "测试人员" + i })));
+      });
+      const mysql = await import("mysql2/promise");
+      const reopened = await mysql.createConnection(config);
+      try {
+        const [rows] = await reopened.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM persons");
+        expect(Number(rows[0].n)).toBe(1000);
+      } finally { await reopened.end(); }
+    } finally { await connection.end(); }
   });
 });

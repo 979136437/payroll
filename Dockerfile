@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV COREPACK_HOME="/pnpm/corepack"
-ENV PATH="$PNPM_HOME:$PATH"
+ENV PATH="/pnpm:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
@@ -14,19 +14,17 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
-# 迁移工具只放在独立镜像目标中，应用运行镜像无需开发依赖。
+# 迁移由独立发布步骤执行，应用启动不修改数据库结构。
 FROM dependencies AS migrator
-RUN mkdir -p /data && chown node:node /data
 COPY db ./db
 COPY scripts ./scripts
-COPY drizzle ./drizzle
+COPY drizzle/mysql57 ./drizzle/mysql57
 COPY drizzle.config.ts tsconfig.json ./
 USER node
 CMD ["pnpm", "db:migrate:prod"]
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-RUN mkdir -p /data && chown node:node /data
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0

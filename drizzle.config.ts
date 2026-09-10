@@ -1,16 +1,11 @@
 import { defineConfig } from "drizzle-kit";
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
 import { readDbConfig } from "./db/config";
 import { loadDatabaseEnvironment } from "./scripts/environment";
-
 loadDatabaseEnvironment(process.env.DB_ENV);
-const config = readDbConfig();
-if (process.env.DB_COMMAND === "studio") mkdirSync(dirname(config.filename), { recursive: true });
+// 生成 SQL 不需要数据库凭据，也不会建立连接。
 export default defineConfig({
-  dialect: "sqlite", 
-  schema: "./db/schema.ts", 
-  out: "./drizzle",
-  ...(process.env.DB_COMMAND === "generate" ? {} : { dbCredentials: { url: config.filename } }),
+  dialect: "mysql",
+  schema: "./db/schema.ts",
+  out: "./drizzle/mysql57",
+  ...(process.env.DB_COMMAND === "generate" ? {} : { dbCredentials: readDbConfig() }),
 });
-

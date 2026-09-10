@@ -1,32 +1,45 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import { readDbConfig } from "./config";
 import * as schema from "./schema";
 
 export function createDbClient(config = readDbConfig()) {
-  mkdirSync(dirname(config.filename), { recursive: true });
-  const connection = new Database(config.filename, { timeout: 5000 });
-  try {
-    // WAL 允许查询与写入并行；FULL 保证工资数据事务提交时同步到持久存储。
-    connection.pragma("journal_mode = WAL");
-    connection.pragma("foreign_keys = ON");
-    connection.pragma("synchronous = FULL");
-    return { connection, db: drizzle(connection, { schema }) };
-  } catch (error) {
-    connection.close();
-    throw error;
-  }
+  const connection = mysql.createPool({ ...config, waitForConnections: true, queueLimit: 10 });
+  return { connection, db: drizzle(connection, { schema, mode: "default" }) };
 }
-
 type DbClient = ReturnType<typeof createDbClient>;
-const cache = globalThis as typeof globalThis & { payrollSqlite?: DbClient };
+const cache = globalThis as typeof globalThis & { payrollMysql?: DbClient };
 let productionClient: DbClient | undefined;
-
 export function getDbClient() {
-  // 热更新会重新执行模块，开发连接保存在全局以避免重复打开文件。
-  if (process.env.NODE_ENV !== "production") return (cache.payrollSqlite ??= createDbClient());
+  // 连接池按需连接；开发热更新复用，导入模块不访问数据库。
+  if (process.env.NODE_ENV !== "production") return (cache.payrollMysql ??= createDbClient());
   return (productionClient ??= createDbClient());
 }
 
+/** 就绪探针限制排队和查询总时间；超时后销毁连接，避免探针长期占用连接池。 */
+export async function checkDatabase(timeout = 5000) {
+  const pool = getDbClient().connection;
+  let connection: mysql.PoolConnection | undefined;
+  let expired = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      (async () => {
+        const acquired = await pool.getConnection();
+        if (expired) { acquired.release(); return; }
+        connection = acquired;
+        await connection.query({ sql: "SELECT 1", timeout });
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          expired = true;
+          connection?.destroy();
+          reject(new Error("数据库检查超时"));
+        }, timeout);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    if (!expired) connection?.release();
+  }
+}

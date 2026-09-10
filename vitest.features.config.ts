@@ -6,10 +6,10 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
     environment: "node",
-    include: ["features/**/*.test.ts"],
+    include: ["features/**/*.test.{ts,tsx}", "tests/table-selection.test.ts"],
     coverage: {
       provider: "v8", clean: false, reportsDirectory: "coverage/features",
-      include: ["features/*/model/*.ts", "features/demo/initial-data.ts"],
+      include: ["features/*/model/*.ts", "features/demo/initial-data.ts", "lib/table-selection.ts"],
       exclude: ["**/*.test.ts"],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },

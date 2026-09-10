@@ -21,6 +21,7 @@ export function PayrollPage() {
 
   return (
     <section className="min-w-0 rounded-xl border bg-card p-4 text-sm">
+      <p className="mb-4 text-xs text-muted-foreground">工资页为演示模式，人员与工资数据均为虚构，刷新后恢复；与人员管理中的真实资料独立。</p>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <FileText className="size-6 shrink-0" />

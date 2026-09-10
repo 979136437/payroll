@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { useDemo } from "@/features/demo/hooks/use-demo";
+import { useSavePerson } from "../hooks/use-personnel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -17,35 +17,38 @@ const fields = [
 ] as const;
 
 export function PersonForm({ person, onClose }: { person?: Person; onClose: () => void }) {
-  const { send } = useDemo();
+  const save = useSavePerson();
   const [draft, setDraft] = useState<Person>(person ?? {
     id: "", name: "", gender: "男", ethnicity: "汉族", nativePlace: "",
     idCardNumber: "", salaryCardNumber: "", bankName: "", phone: "",
   });
   const [error, setError] = useState<string | null>(null);
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    const issue = send({ type: "savePerson", person: { ...draft, id: person?.id ?? crypto.randomUUID() } });
-    if (issue) return setError(issue);
-    toast.success("人员已保存");
-    onClose();
+    if (save.isPending) return;
+    setError(null);
+    try {
+      await save.mutateAsync(draft);
+      toast.success("人员已保存");
+      onClose();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "保存失败"); }
   }
 
   return (
-    <FormDialog title={person ? "编辑人员" : "新增人员"} description="填写人员资料，姓名为必填项。请使用虚构信息体验。"
-      onClose={onClose} className="sm:max-w-xl">
+    <FormDialog title={person ? "编辑人员" : "新增人员"} description="填写人员资料，姓名为必填项。"
+      onClose={() => { if (!save.isPending) onClose(); }} className="sm:max-w-xl">
       <form onSubmit={submit} noValidate>
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           {fields.map(([key, label]) => (
             <Field key={key}>
               <FieldLabel htmlFor={`person-${key}`}>{label}{key === "name" && <span className="text-destructive">*</span>}</FieldLabel>
               {key === "gender" ? (
-                <ChoiceSelect id="person-gender" label="性别" value={draft.gender} className="w-full"
+                <ChoiceSelect id="person-gender" label="性别" value={draft.gender} className="w-full" disabled={save.isPending}
                   options={[{ value: "男", label: "男" }, { value: "女", label: "女" }]}
                   onChange={(gender) => setDraft({ ...draft, gender })} />
               ) : (
-                <Input id={`person-${key}`} value={draft[key]} maxLength={100} autoFocus={key === "name"}
+                <Input id={`person-${key}`} value={draft[key]} maxLength={100} autoFocus={key === "name"} disabled={save.isPending}
                   aria-required={key === "name"} aria-invalid={key === "name" && !!error}
                   aria-describedby={error ? "person-error" : undefined}
                   onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} />
@@ -55,8 +58,8 @@ export function PersonForm({ person, onClose }: { person?: Person; onClose: () =
         </div>
         {error && <FieldError id="person-error" className="mb-4">{error}</FieldError>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button type="submit">保存</Button>
+          <Button variant="outline" disabled={save.isPending} onClick={onClose}>取消</Button>
+          <Button type="submit" disabled={save.isPending}>{save.isPending ? "保存中…" : "保存"}</Button>
         </DialogFooter>
       </form>
     </FormDialog>

@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "bcdd1e31-c8ba-4ff0-b137-fcf4d592cd70",
+  "id": "00299066-0b08-4f7b-bc49-fd4b52046c29",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "payroll_records": {
@@ -67,6 +67,14 @@
           ],
           "isUnique": false
         },
+        "payroll_records_person_time_idx": {
+          "name": "payroll_records_person_time_idx",
+          "columns": [
+            "person_id",
+            "created_at"
+          ],
+          "isUnique": false
+        },
         "payroll_records_sheet_person_unique": {
           "name": "payroll_records_sheet_person_unique",
           "columns": [
@@ -127,7 +135,7 @@
         },
         "name": {
           "name": "name",
-          "type": "varchar(80) COLLATE utf8mb4_bin",
+          "type": "varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -193,7 +201,7 @@
         },
         "name": {
           "name": "name",
-          "type": "varchar(100) COLLATE utf8mb4_bin",
+          "type": "varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -211,21 +219,21 @@
         },
         "gender": {
           "name": "gender",
-          "type": "varchar(100) COLLATE utf8mb4_bin",
+          "type": "varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "ethnicity": {
           "name": "ethnicity",
-          "type": "varchar(100) COLLATE utf8mb4_bin",
+          "type": "varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "native_place": {
           "name": "native_place",
-          "type": "varchar(100) COLLATE utf8mb4_bin",
+          "type": "varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -239,7 +247,7 @@
         },
         "bank_name": {
           "name": "bank_name",
-          "type": "varchar(100) COLLATE utf8mb4_bin",
+          "type": "varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

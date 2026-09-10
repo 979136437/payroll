@@ -2,3 +2,5 @@
 drizzle/*.sql text eol=lf
 drizzle/mysql/*.sql text eol=lf
 drizzle/mysql57/*.sql text eol=lf
+# 新建的迁移统一使用 LF，确保跨平台检出后 SQL 哈希一致。
+drizzle/migrations/*.sql text eol=lf

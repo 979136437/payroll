@@ -43,7 +43,6 @@ export async function validateDatabaseVersion(connection: Connection) {
   }
 }
 export const requiredTables = ["persons", "payroll_sheets", "payroll_records"];
-export const requiredTriggers = requiredTables.flatMap(table => [table + "_insert", table + "_updated_at"]);
 export async function inspectMigrationState(connection: Connection, history: ReturnType<typeof readMigrationHistory>) {
   const [rows] = await connection.query<RowDataPacket[]>("SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
   const tables = new Set(rows.map(row => String(row.name)));
@@ -61,10 +60,11 @@ export async function inspectMigrationState(connection: Connection, history: Ret
     throw new DatabaseOperationError("目标库非空", "首次迁移需要独立空库；检测到已有表，未覆盖数据");
   }
   if (applied.length > 0) {
-    const [triggers] = await connection.query<RowDataPacket[]>("SELECT TRIGGER_NAME AS name FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE()");
-    if (requiredTables.some(name => !tables.has(name)) || requiredTriggers.some(name => !triggers.some(row => row.name === name))) {
-      throw new DatabaseOperationError("业务结构缺失", "必要业务表或修改时间触发器缺失，请核对数据库完整性");
+    const missingTables = requiredTables.filter(name => !tables.has(name));
+    if (missingTables.length) {
+      throw new DatabaseOperationError("业务结构缺失", `必要业务表缺失：${missingTables.join("、")}`);
     }
+
   }
   return { applied: applied.length, pending: history.length - applied.length };
 }

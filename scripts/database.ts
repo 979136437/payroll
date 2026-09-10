@@ -39,7 +39,7 @@ async function main() {
       stage = "只读状态检查";
       const state = await inspectMigrationState(connection, history!);
       if (state.pending) throw new DatabaseOperationError("存在待执行迁移", `还有 ${state.pending} 项迁移`);
-      console.log("数据库状态正常：迁移历史、SQL 哈希、业务表及触发器检查通过");
+      console.log("数据库状态正常：迁移历史、SQL 哈希及业务表检查通过");
     } else {
       stage = "迁移执行";
       await runMigrations(connection, folder);

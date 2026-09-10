@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { readDbConfig } from "../db/config";
 import { runMigrations } from "../scripts/migrations";
 import * as schema from "../db/schema";
-export const migrationFolder = resolve("drizzle/mysql57");
+export const migrationFolder = resolve("drizzle/migrations");
 const local = resolve(".env.mysql-test.local");
 const settings: Record<string, string | undefined> = existsSync(local)
   ? Object.fromEntries(readFileSync(local, "utf8").trim().split(/\r?\n/).map(line => {
@@ -44,7 +44,7 @@ export async function seed(connection: mysql.Connection) {
 export function commandFolder() {
   const root = mkdtempSync(join(tmpdir(), "payroll-mysql-command-"));
   mkdirSync(join(root, "drizzle"));
-  cpSync(migrationFolder, join(root, "drizzle/mysql57"), { recursive: true });
+  cpSync(migrationFolder, join(root, "drizzle/migrations"), { recursive: true });
   writeFileSync(join(root, ".env.production"), "");
   return root;
 }

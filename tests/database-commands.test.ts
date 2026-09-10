@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import mysql, { type RowDataPacket, type Connection } from "mysql2/promise";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DatabaseOperationError, describeDatabaseError, inspectMigrationState, readMigrationHistory, runMigrations, validateDatabaseVersion } from "../scripts/migrations";
 import { fixtureFolder, migrationFolder, openFixture, mysqlAvailable, commandFolder } from "./database-fixtures";
 const require = createRequire(import.meta.url);
@@ -34,6 +34,19 @@ describe("迁移文件校验", () => {
     await expect(validateDatabaseVersion({ query: async () => [[{ version }]] } as unknown as Connection)).rejects.toThrow("MySQL");
   });
 });
+describe("自动生成迁移状态检查", () => {
+  it("业务表完整即可就绪，无需手写触发器", async () => {
+    const history = readMigrationHistory(migrationFolder);
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("information_schema.TABLES")) return [["__drizzle_migrations", "persons", "payroll_sheets", "payroll_records"].map(name => ({ name }))];
+      if (sql.includes("SELECT hash")) return [history.map(entry => ({ hash: entry.hash, created_at: entry.when }))];
+      throw new Error("出现非预期查询");
+    });
+    await expect(inspectMigrationState({ query } as unknown as Connection, history)).resolves.toEqual({ applied: history.length, pending: 0 });
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe.skipIf(!mysqlAvailable)("真实迁移状态与命令", () => {
   it("空库、重复迁移、命名锁和哈希不一致", async () => {
     const { connection,config } = await openFixture(false);
@@ -68,27 +81,14 @@ describe.skipIf(!mysqlAvailable)("真实迁移状态与命令", () => {
       await expect(runMigrations(existing.connection,migrationFolder)).rejects.toThrow("独立空库");
     } finally { await existing.connection.end(); }
   });
-  it("缺失表或触发器不能报告就绪", async () => {
+  it("缺失业务表不能报告就绪", async () => {
     const { connection } = await openFixture();
     try {
       // 重命名保留数据，不删除业务表。
       await connection.query("RENAME TABLE payroll_records TO archived_records");
       await expect(inspectMigrationState(connection,readMigrationHistory(migrationFolder))).rejects.toThrow("必要业务表");
     } finally { await connection.end(); }
-    const partial = await openFixture(false);
-    try {
-      const folder = fixtureFolder();
-      const entry = readMigrationHistory(folder)[0];
-      const path = join(folder,entry.tag + ".sql");
-      const source = readFileSync(path,"utf8");
-      writeFileSync(path,source.slice(0,source.lastIndexOf("--> statement-breakpoint",source.indexOf("-- 仅业务字段"))));
-      // 此用例仅验证初始迁移缺少触发器，不执行依赖该触发器的后续迁移。
-      const journalPath = join(folder, "meta/_journal.json");
-      const journal = JSON.parse(readFileSync(journalPath, "utf8"));
-      journal.entries = journal.entries.slice(0, 1);
-      writeFileSync(journalPath, JSON.stringify(journal));
-      await expect(runMigrations(partial.connection,folder)).rejects.toThrow("触发器");
-    } finally { await partial.connection.end(); }
+
   });
   it("命令退出码、只读状态、缺配置和生成命令校验", async () => {
     const { connection,config } = await openFixture(false);

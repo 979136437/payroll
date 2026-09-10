@@ -11,7 +11,7 @@ CREATE TABLE `payroll_records` (
 --> statement-breakpoint
 CREATE TABLE `payroll_sheets` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`name` varchar(80) COLLATE utf8mb4_bin NOT NULL,
+	`name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	`name_key` varbinary(320) GENERATED ALWAYS AS (CAST(name AS BINARY)) STORED,
 	`created_at` bigint NOT NULL DEFAULT 0,
 	`updated_at` bigint NOT NULL DEFAULT 0,
@@ -21,13 +21,13 @@ CREATE TABLE `payroll_sheets` (
 --> statement-breakpoint
 CREATE TABLE `persons` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`name` varchar(100) COLLATE utf8mb4_bin NOT NULL,
+	`name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	`name_key` varbinary(400) GENERATED ALWAYS AS (CAST(name AS BINARY)) STORED,
-	`gender` varchar(100) COLLATE utf8mb4_bin,
-	`ethnicity` varchar(100) COLLATE utf8mb4_bin,
-	`native_place` varchar(100) COLLATE utf8mb4_bin,
+	`gender` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
+	`ethnicity` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
+	`native_place` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
 	`sensitive_info` text,
-	`bank_name` varchar(100) COLLATE utf8mb4_bin,
+	`bank_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
 	`created_at` bigint NOT NULL DEFAULT 0,
 	`updated_at` bigint NOT NULL DEFAULT 0,
 	CONSTRAINT `persons_id` PRIMARY KEY(`id`),
@@ -37,4 +37,5 @@ CREATE TABLE `persons` (
 ALTER TABLE `payroll_records` ADD CONSTRAINT `payroll_records_payroll_sheet_id_payroll_sheets_id_fk` FOREIGN KEY (`payroll_sheet_id`) REFERENCES `payroll_sheets`(`id`) ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE `payroll_records` ADD CONSTRAINT `payroll_records_person_id_persons_id_fk` FOREIGN KEY (`person_id`) REFERENCES `persons`(`id`) ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
 CREATE INDEX `payroll_records_sheet_id_idx` ON `payroll_records` (`payroll_sheet_id`);--> statement-breakpoint
-CREATE INDEX `payroll_records_person_id_idx` ON `payroll_records` (`person_id`);
+CREATE INDEX `payroll_records_person_id_idx` ON `payroll_records` (`person_id`);--> statement-breakpoint
+CREATE INDEX `payroll_records_person_time_idx` ON `payroll_records` (`person_id`,`created_at`);

@@ -29,8 +29,8 @@ export function readDbConfig(env: Record<string, string | undefined> = process.e
     supportBigNumbers: true,
     bigNumberStrings: true,
     multipleStatements: false,
-    ssl: {
+    ...(env.DB_SSL ? { ssl: {
       rejectUnauthorized: true,
-    }
+    } } : {}),
   };
 }

@@ -16,7 +16,21 @@ export function readDbConfig(env: Record<string, string | undefined> = process.e
   if (!/^[a-zA-Z0-9_]{1,64}$/.test(database)) throw new Error("数据库配置 DB_NAME 仅允许字母、数字和下划线，最多64位");
   // 测试必须显式连接隔离库，禁止误写开发或生产业务库。
   if (env.NODE_ENV === "test" && !database.startsWith("payroll_test_")) throw new Error("测试数据库必须使用 payroll_test_ 前缀");
-  return { host, port, user: required("DB_USER"), password: required("DB_PASSWORD"), database,
-    connectionLimit: 5, connectTimeout: 5000, timezone: "Z", charset: "utf8mb4",
-    supportBigNumbers: true, bigNumberStrings: true, multipleStatements: false };
+  return {
+    host,
+    port,
+    user: required("DB_USER"),
+    password: required("DB_PASSWORD"),
+    database,
+    connectionLimit: 5,
+    connectTimeout: 5000,
+    timezone: "Z",
+    charset: "utf8mb4",
+    supportBigNumbers: true,
+    bigNumberStrings: true,
+    multipleStatements: false,
+    ssl: {
+      rejectUnauthorized: true,
+    }
+  };
 }

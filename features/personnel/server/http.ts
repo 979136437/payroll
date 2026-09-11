@@ -1,5 +1,9 @@
 import { PersonnelError } from "./errors";
 
+const corsOrigins = new Set([
+  "https://payroll-86556-7-1303242491.sh.run.tcloudbase.com",
+]);
+
 export async function handle(operation: () => Promise<Response>) {
   try {
     const response = await operation();
@@ -19,7 +23,23 @@ export async function handle(operation: () => Promise<Response>) {
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) throw new PersonnelError("不允许跨站提交", 403);
+  // 没有 Origin 的请求（非浏览器请求）
+  if (!origin) {
+    throw new PersonnelError("请求必须包含 Origin", 400);
+  }
+
+  const sameOrigin =
+    origin === new URL(request.url).origin;
+
+  const allowedOrigin =
+    corsOrigins.has(origin);
+
+  if (!sameOrigin && !allowedOrigin) {
+    throw new PersonnelError(
+      "不允许跨站提交",
+      403
+    );
+  }
 }
 export async function readBody(request: Request, limit: number) {
   if (Number(request.headers.get("content-length")) > limit) throw new PersonnelError("请求内容超出大小限制", 413);
